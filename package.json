@@ -1,0 +1,13 @@
+{
+  "name": "seedrop",
+  "private": true,
+  "workspaces": [
+    "id",
+    "space",
+    "cli",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

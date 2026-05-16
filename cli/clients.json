@@ -1,0 +1,126 @@
+{
+  "claude-code": {
+    "label": "Claude Code",
+    "config": "~/.claude.json",
+    "format": "json",
+    "section": "mcpServers.seedrop",
+    "default_agent": "claude",
+    "restart": "Restart Claude Code to pick up the change.",
+    "verified": {
+      "status": "community",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin"],
+      "client_versions": ["unknown"],
+      "source": "manual"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "claude-desktop": {
+    "label": "Claude Desktop",
+    "config": {
+      "darwin": "~/Library/Application Support/Claude/claude_desktop_config.json",
+      "win32": "%APPDATA%\\Claude\\claude_desktop_config.json",
+      "linux": "~/.config/Claude/claude_desktop_config.json"
+    },
+    "format": "json",
+    "section": "mcpServers.seedrop",
+    "default_agent": "claude-desktop",
+    "restart": "Restart Claude Desktop to pick up the change.",
+    "verified": {
+      "status": "community",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin"],
+      "client_versions": ["unknown"],
+      "source": "manual"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "codex-cli": {
+    "label": "Codex CLI",
+    "config": "~/.codex/config.toml",
+    "format": "toml",
+    "section": "mcp_servers.seedrop",
+    "default_agent": "codex",
+    "restart": "Restart Codex to pick up the change.",
+    "verified": {
+      "status": "verified",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin"],
+      "client_versions": ["unknown"],
+      "source": "manual"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "cursor": {
+    "label": "Cursor",
+    "config": "~/.cursor/mcp.json",
+    "format": "json",
+    "section": "mcpServers.seedrop",
+    "default_agent": "cursor",
+    "restart": "Restart Cursor to pick up the change.",
+    "verified": {
+      "status": "community",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin"],
+      "client_versions": ["unknown"],
+      "source": "manual"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "kimi": {
+    "label": "Kimi Code CLI",
+    "config": "~/.kimi/mcp.json",
+    "format": "json",
+    "section": "mcpServers.seedrop",
+    "default_agent": "kimi",
+    "restart": "Restart Kimi Code CLI to pick up the change.",
+    "verified": {
+      "status": "unverified",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin"],
+      "client_versions": ["unknown"],
+      "source": "manual"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "continue": {
+    "label": "Continue",
+    "config": "~/.continue/mcpServers/seedrop.json",
+    "format": "json",
+    "section": "mcpServers.seedrop",
+    "default_agent": "continue",
+    "restart": "Restart Continue to pick up the change.",
+    "verified": {
+      "status": "unverified",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin"],
+      "client_versions": ["unknown"],
+      "source": "manual"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  }
+}

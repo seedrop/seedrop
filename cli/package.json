@@ -1,0 +1,55 @@
+{
+  "name": "@seedrop/cli",
+  "version": "0.1.0-alpha.2",
+  "description": "Top-level Seedrop CLI router for id, space, and view commands.",
+  "type": "module",
+  "bin": {
+    "seed": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc && node -e \"const fs=require('node:fs');const f='dist/cli.js';fs.chmodSync(f,fs.statSync(f).mode|0o755)\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:install": "node scripts/smoke-install.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "files": [
+    "dist/",
+    "clients.json",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "llm",
+    "ai-agents",
+    "cli",
+    "agent-coordination",
+    "seedrop"
+  ],
+  "author": "Mariusz Czaykowski",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@seedrop/id": "^0.1.0-alpha.8",
+    "@seedrop/space": "^0.1.0-alpha.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.6"
+  }
+}

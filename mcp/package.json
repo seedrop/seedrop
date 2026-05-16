@@ -1,0 +1,56 @@
+{
+  "name": "@seedrop/mcp",
+  "version": "0.1.0-alpha.1",
+  "description": "Model Context Protocol server for Seedrop — exposes seed continuity, bootstrap, view, and space as MCP tools.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "seed-mcp": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc && node -e \"const fs=require('node:fs');const f='dist/cli.js';fs.chmodSync(f,fs.statSync(f).mode|0o755)\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "llm",
+    "ai-agents",
+    "mcp",
+    "model-context-protocol",
+    "seedrop"
+  ],
+  "author": "Mariusz Czaykowski",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@seedrop/cli": "^0.1.0-alpha.2",
+    "@seedrop/id": "^0.1.0-alpha.8",
+    "@seedrop/space": "^0.1.0-alpha.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.6"
+  }
+}

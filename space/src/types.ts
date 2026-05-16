@@ -1,0 +1,100 @@
+import type { ContinuityPacket, Handoff, NextAction, RunJournal, Signal, ViewPolicy, WorkspaceManifest } from "./schema.js";
+
+export type {
+  ContinuityPacket,
+  ContinuityValidation,
+  FileKind,
+  Handoff,
+  ManifestFile,
+  NextAction,
+  RecommendedRead,
+  RunJournal,
+  RunStep,
+  RunValidationEntry,
+  Signal,
+  ViewPolicy,
+  WorkspaceManifest,
+} from "./schema.js";
+
+export type AuditSeverity = "error" | "warning" | "info";
+
+export interface AuditIssue {
+  severity: AuditSeverity;
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export interface AuditReport {
+  ok: boolean;
+  issues: AuditIssue[];
+  checks?: ViewCheck[];
+  next_actions?: NextAction[];
+}
+
+export interface ViewCheck {
+  id: string;
+  status: "pass" | "warn" | "fail" | "skipped";
+  summary: string;
+  path?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ViewBrief {
+  schema_version: "1.0";
+  view: {
+    present: boolean;
+    root: string;
+    data_dir: string;
+  };
+  workspace?: {
+    id: string;
+    root: string;
+    purpose?: string;
+    current_focus?: string;
+  };
+  manifest?: {
+    present: boolean;
+    updated_at?: string;
+    file_count: number;
+    recommended_reads: WorkspaceManifest["recommended_reads"];
+    important_paths: string[];
+    freshness: "fresh" | "stale" | "missing" | "invalid";
+  };
+  verification_commands: string[];
+  known_risks: string[];
+  next_actions: NextAction[];
+}
+
+export interface ViewPreflightReport {
+  ok: boolean;
+  checks: ViewCheck[];
+  issues: AuditIssue[];
+  next_actions: NextAction[];
+}
+
+export interface WorkspaceContext {
+  schema_version?: "1.0";
+  view?: {
+    present: boolean;
+    root: string;
+    data_dir: string;
+  };
+  brief?: ViewBrief;
+  manifest?: WorkspaceManifest;
+  latest_continuity?: ContinuityPacket;
+  active_signals: Signal[];
+  current_run?: RunJournal;
+  latest_run?: RunJournal;
+  active_runs?: RunJournal[];
+  pending_handoffs?: Handoff[];
+  latest_audit?: AuditReport;
+  preflight?: ViewPreflightReport;
+  next_actions?: NextAction[];
+  open_threads: Array<{
+    thread: string;
+    packet_id: string;
+    created_at: string;
+    source?: "legacy_continuity" | "run" | "handoff";
+  }>;
+}

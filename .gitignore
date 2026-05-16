@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+.DS_Store
+
+.env
+.env.local
+.env.*.local
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local agent session state at repo root.
+# (Subpackage .claude/README.md and .codex/README.md are tracked content.)
+/.claude/
+/.codex/
+
+# Seedrop's own per-repo state should never leak into git.
+.seedrop/
+
+npm-debug.log*

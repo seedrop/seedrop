@@ -1,0 +1,58 @@
+{
+  "name": "@seedrop/id",
+  "version": "0.1.0-alpha.8",
+  "description": "Portable self-state for LLM agents — passport.json, active projects, continuity, and audited writes.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "seed-id": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc && node -e \"const fs=require('node:fs');const f='dist/cli.js';fs.chmodSync(f,fs.statSync(f).mode|0o755)\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run tests/integration-*.test.ts",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "bench:erosion": "tsx benchmarks/erosion/run.ts",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "files": [
+    "dist/",
+    "docs/",
+    "examples/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "llm",
+    "ai-agents",
+    "identity",
+    "persistence",
+    "passport",
+    "agent-memory"
+  ],
+  "author": "Mariusz Czaykowski",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^4.1.6",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.6"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  }
+}
