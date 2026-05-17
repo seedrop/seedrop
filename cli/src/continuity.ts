@@ -437,6 +437,10 @@ export function renderContinuity(report: ContinuityReport): string {
       const success = report.view.brief.success;
       lines.push(`  view success: ${success.level}${success.label ? ` ${success.label}` : ""}${success.required_level ? ` (requires ${success.required_level})` : ""}`);
     }
+    const workspaceFocus = (report.view.brief as { workspace?: { current_focus?: string } } | undefined)?.workspace?.current_focus;
+    if (workspaceFocus) {
+      lines.push(`  focus: ${workspaceFocus}`);
+    }
     const gitStatus = report.view.brief?.git_status;
     if (gitStatus?.is_dirty) {
       const sample = (gitStatus.uncommitted_paths ?? []).slice(0, 3).join(", ");
