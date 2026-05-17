@@ -72,6 +72,12 @@ export interface ViewBrief {
   verification_commands: string[];
   known_risks: string[];
   next_actions: NextAction[];
+  git_status?: {
+    is_repo: boolean;
+    is_dirty: boolean;
+    uncommitted_count: number;
+    uncommitted_paths?: string[];
+  };
 }
 
 export interface ViewPreflightReport {

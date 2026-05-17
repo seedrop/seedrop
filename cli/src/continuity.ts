@@ -58,6 +58,12 @@ interface ViewBrief {
     required_level?: "L0" | "L1" | "L2" | "L3" | "L4";
     meets_required?: boolean;
   };
+  git_status?: {
+    is_repo: boolean;
+    is_dirty: boolean;
+    uncommitted_count: number;
+    uncommitted_paths?: string[];
+  };
 }
 
 interface ViewSignal {
@@ -424,6 +430,14 @@ export function renderContinuity(report: ContinuityReport): string {
     if (report.view.brief?.success?.level) {
       const success = report.view.brief.success;
       lines.push(`  view success: ${success.level}${success.label ? ` ${success.label}` : ""}${success.required_level ? ` (requires ${success.required_level})` : ""}`);
+    }
+    const gitStatus = report.view.brief?.git_status;
+    if (gitStatus?.is_dirty) {
+      const sample = (gitStatus.uncommitted_paths ?? []).slice(0, 3).join(", ");
+      const more = gitStatus.uncommitted_count > 3 ? `, +${gitStatus.uncommitted_count - 3} more` : "";
+      lines.push(`  git: ${gitStatus.uncommitted_count} uncommitted (${sample}${more})`);
+    } else if (gitStatus?.is_repo) {
+      lines.push(`  git: clean`);
     }
     if (report.view.signals.length > 0) {
       lines.push(`  open signals: ${report.view.signals.length}`);

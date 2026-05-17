@@ -470,4 +470,18 @@ describe("WorkspaceView", () => {
     expect(packet.git_status?.is_dirty).toBe(false);
     expect(packet.git_status?.uncommitted_count).toBe(0);
   });
+
+  it("brief surfaces git_status and a next_action when the tree is dirty (no run required)", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+
+    const brief = await view().brief();
+
+    expect(brief.git_status?.is_repo).toBe(true);
+    expect(brief.git_status?.is_dirty).toBe(true);
+    expect(brief.git_status?.uncommitted_count).toBeGreaterThan(0);
+    const reasons = brief.next_actions.map((a) => a.reason ?? "");
+    expect(reasons.some((r) => /uncommitted file/i.test(r))).toBe(true);
+  });
 });

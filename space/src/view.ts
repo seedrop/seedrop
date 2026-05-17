@@ -606,6 +606,12 @@ export class WorkspaceView {
     if (!success.meets_required) {
       nextActions.push(commandAction("seed view preflight --json", "low", `View is ${success.level}; policy requires ${success.required_level}.`));
     }
+    const gitSnapshot = this.snapshotGitStatus();
+    if (gitSnapshot.is_dirty) {
+      const sample = (gitSnapshot.uncommitted_paths ?? []).slice(0, 3).join(", ");
+      const more = gitSnapshot.uncommitted_count > 3 ? `, +${gitSnapshot.uncommitted_count - 3} more` : "";
+      nextActions.push(commandAction("git status", "low", `${gitSnapshot.uncommitted_count} uncommitted file(s) — ${sample}${more}`));
+    }
 
     return {
       schema_version: "1.0",
@@ -644,6 +650,7 @@ export class WorkspaceView {
       verification_commands: verificationCommands,
       known_risks: [...(policy?.danger_zones ?? []), ...(policy?.sensitive_paths ?? [])],
       next_actions: uniqueNextActions(nextActions),
+      git_status: gitSnapshot,
     };
   }
 
