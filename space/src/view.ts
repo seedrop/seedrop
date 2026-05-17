@@ -235,7 +235,11 @@ export class WorkspaceView {
   async sync(options: SyncOptions = {}): Promise<WorkspaceManifest> {
     await this.ensureDirs();
     const previous = await this.readManifestIfPresent();
-    const policy = (await this.readPolicyResult()).value;
+    const policyResult = await this.readPolicyResult();
+    if (policyResult.error) {
+      throw policyResult.error;
+    }
+    const policy = policyResult.value;
     const workspaceId = options.workspaceId ?? previous?.workspace_id ?? path.basename(this.root);
     const previousByPath = new Map(previous?.files.map((file) => [file.path, file]) ?? []);
     const policyPurposes = normalizePolicyPathPurposes(policy);
@@ -544,7 +548,11 @@ export class WorkspaceView {
       nextActions.push(commandAction("seed view sync", "low", "Workspace manifest is missing or invalid."));
     }
     if (!policy) {
-      nextActions.push(commandAction("seed view preflight --json", "low", "No repo policy is present; create .seedrop/view/policy.json when repo expectations are known."));
+      if (policyResult.errorMessage) {
+        nextActions.push(commandAction("seed view preflight --json", "high", `policy.json is invalid: ${policyResult.errorMessage}`));
+      } else {
+        nextActions.push(commandAction("seed view preflight --json", "low", "No repo policy is present; create .seedrop/view/policy.json when repo expectations are known."));
+      }
     }
 
     const verificationCommands = uniqueStrings([
@@ -795,9 +803,9 @@ export class WorkspaceView {
     const policyResult = await this.readPolicyResult();
     if (policyResult.value) {
       checks.push({ id: "policy", status: "pass", summary: "Policy parses.", path: "policy.json" });
-    } else if (policyResult.error) {
-      checks.push({ id: "policy", status: "fail", summary: policyResult.error, path: "policy.json" });
-      issues.push({ severity: "error", code: "policy_invalid", message: policyResult.error, path: "policy.json" });
+    } else if (policyResult.errorMessage) {
+      checks.push({ id: "policy", status: "fail", summary: policyResult.errorMessage, path: "policy.json" });
+      issues.push({ severity: "error", code: "policy_invalid", message: policyResult.errorMessage, path: "policy.json" });
     } else {
       checks.push({ id: "policy", status: "warn", summary: "No policy.json is present.", path: "policy.json" });
       issues.push({ severity: "warning", code: "policy_missing", message: "No .seedrop/view/policy.json is present.", path: "policy.json" });
@@ -954,9 +962,9 @@ export class WorkspaceView {
 
     await this.collectMalformedArtifacts("runs", this.runsDir, RunJournalSchema, issues, checks);
     await this.collectMalformedArtifacts("handoffs", this.handoffsDir, HandoffSchema, issues, checks);
-    if (policyResult.error) {
-      issues.push({ severity: "error", code: "policy_malformed", message: policyResult.error, path: "policy.json" });
-      checks.push({ id: "policy", status: "fail", summary: policyResult.error, path: "policy.json" });
+    if (policyResult.errorMessage) {
+      issues.push({ severity: "error", code: "policy_malformed", message: policyResult.errorMessage, path: "policy.json" });
+      checks.push({ id: "policy", status: "fail", summary: policyResult.errorMessage, path: "policy.json" });
     } else if (policyResult.value) {
       checks.push({ id: "policy", status: "pass", summary: "Policy parses.", path: "policy.json" });
       if (!policyResult.value.purpose || !policyResult.value.current_focus) {
@@ -1083,12 +1091,13 @@ export class WorkspaceView {
     }
   }
 
-  private async readPolicyResult(): Promise<{ value?: ViewPolicy; error?: string }> {
+  private async readPolicyResult(): Promise<{ value?: ViewPolicy; error?: Error; errorMessage?: string }> {
     if (!existsSync(this.policyPath)) return {};
     try {
       return { value: await this.readJson(this.policyPath, ViewPolicySchema) };
     } catch (error) {
-      return { error: error instanceof Error ? error.message : String(error) };
+      const err = error instanceof Error ? error : new Error(String(error));
+      return { error: err, errorMessage: err.message };
     }
   }
 

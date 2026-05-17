@@ -109,6 +109,42 @@ describe("WorkspaceView", () => {
     expect(preflight.checks.find((check) => check.id === "view_success")).toMatchObject({ status: "pass" });
   });
 
+  it("sync throws WorkspaceViewValidationError when policy.json has unknown keys", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await mkdir(path.join(root, ".seedrop", "view"), { recursive: true });
+    await writeFile(
+      path.join(root, ".seedrop", "view", "policy.json"),
+      JSON.stringify({
+        purpose: "Demo.",
+        path_purposes: {
+          "README.md": { purpose: "overview", kind: "doc" },
+        },
+      }),
+    );
+
+    await expect(view().sync()).rejects.toThrow(WorkspaceViewValidationError);
+  });
+
+  it("sync throws WorkspaceViewParseError when policy.json is malformed JSON", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await mkdir(path.join(root, ".seedrop", "view"), { recursive: true });
+    await writeFile(path.join(root, ".seedrop", "view", "policy.json"), "{bad json");
+
+    await expect(view().sync()).rejects.toThrow(/policy\.json/);
+  });
+
+  it("brief surfaces a policy_invalid next_action instead of advising to create one", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await mkdir(path.join(root, ".seedrop", "view"), { recursive: true });
+    await writeFile(path.join(root, ".seedrop", "view", "policy.json"), "{bad json");
+
+    const brief = await view().brief();
+    const reasons = brief.next_actions.map((action) => action.reason ?? "");
+
+    expect(reasons.some((r) => /policy\.json is invalid/i.test(r))).toBe(true);
+    expect(reasons.some((r) => /No repo policy is present/i.test(r))).toBe(false);
+  });
+
   it("logs continuity and assembles the active context", async () => {
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await view().sync();
