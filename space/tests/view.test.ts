@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkspaceRunDirtyTreeError, WorkspaceView, WorkspaceViewValidationError } from "../src/view.js";
+import { WorkspaceRunDirtyTreeError, WorkspaceRunUnloggedChangesError, WorkspaceView, WorkspaceViewValidationError } from "../src/view.js";
 
 function gitInit(dir: string): void {
   spawnSync("git", ["init", "-q", dir]);
@@ -405,6 +405,51 @@ describe("WorkspaceView", () => {
 
     const run = await view().finishRun({ status: "blocked" });
     expect(run.status).toBe("blocked");
+  });
+
+  it("finishRun refuses status=completed when tree is dirty and run logged no changed_paths", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().startRun({ goal: "test unlogged" });
+    // No logRun call — run.changed_paths stays empty while README.md is dirty in git.
+
+    await expect(view().finishRun({ status: "completed" })).rejects.toThrow(WorkspaceRunUnloggedChangesError);
+
+    const runs = await view().listRuns();
+    expect(runs.at(-1)?.status).toBe("in_progress");
+  });
+
+  it("finishRun allows force=true to bypass the unlogged-changes gate", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().startRun({ goal: "test force" });
+
+    const run = await view().finishRun({ status: "completed", force: true });
+    expect(run.status).toBe("completed");
+  });
+
+  it("finishRun allows status=blocked when tree is dirty with no logged changes", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().startRun({ goal: "test blocked-unlogged" });
+
+    const run = await view().finishRun({ status: "blocked" });
+    expect(run.status).toBe("blocked");
+  });
+
+  it("finishRun allows status=completed with empty changed_paths when tree is clean", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await writeFile(path.join(root, ".gitignore"), ".seedrop/\n");
+    gitCommitAll(root, "init");
+    await view().sync();
+    await view().startRun({ goal: "test clean-empty" });
+
+    const run = await view().finishRun({ status: "completed" });
+    expect(run.status).toBe("completed");
   });
 
   it("finishRun allows status=completed when changed_paths are clean in git", async () => {

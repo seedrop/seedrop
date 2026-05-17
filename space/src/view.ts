@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ZodType } from "zod";
-import { WorkspaceRunDirtyTreeError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
+import { WorkspaceRunDirtyTreeError, WorkspaceRunUnloggedChangesError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
 import {
   ContinuityPacketSchema,
   HandoffSchema,
@@ -73,7 +73,7 @@ export {
   ViewPolicySchema,
   WorkspaceManifestSchema,
 } from "./schema.js";
-export { WorkspaceRunDirtyTreeError, WorkspaceViewError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
+export { WorkspaceRunDirtyTreeError, WorkspaceRunUnloggedChangesError, WorkspaceViewError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
 
 export interface WorkspaceViewOptions {
   root?: string;
@@ -465,13 +465,17 @@ export class WorkspaceView {
 
   async finishRun(input: RunFinishInput): Promise<RunJournal> {
     const run = await this.requireActiveRun(input.agent);
-    if (input.status === "completed" && !input.force && run.changed_paths.length > 0) {
+    if (input.status === "completed" && !input.force) {
       const gitDirty = this.gitDirtyState();
-      if (gitDirty.inside) {
-        const dirtySet = new Set(gitDirty.paths);
-        const dirtyChanged = run.changed_paths.filter((p) => dirtySet.has(p));
-        if (dirtyChanged.length > 0) {
-          throw new WorkspaceRunDirtyTreeError(dirtyChanged, run.changed_paths);
+      if (gitDirty.inside && gitDirty.paths.length > 0) {
+        if (run.changed_paths.length > 0) {
+          const dirtySet = new Set(gitDirty.paths);
+          const dirtyChanged = run.changed_paths.filter((p) => dirtySet.has(p));
+          if (dirtyChanged.length > 0) {
+            throw new WorkspaceRunDirtyTreeError(dirtyChanged, run.changed_paths);
+          }
+        } else {
+          throw new WorkspaceRunUnloggedChangesError(gitDirty.paths);
         }
       }
     }

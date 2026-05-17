@@ -33,6 +33,18 @@ export class WorkspaceRunDirtyTreeError extends WorkspaceViewError {
   }
 }
 
+export class WorkspaceRunUnloggedChangesError extends WorkspaceViewError {
+  constructor(public readonly dirtyPaths: string[]) {
+    const sample = dirtyPaths.slice(0, 3);
+    const bullets = sample.map((p) => `  - ${p}`).join("\n");
+    const more = dirtyPaths.length > sample.length ? `\n  ...and ${dirtyPaths.length - sample.length} more` : "";
+    super(
+      `Cannot mark run completed: the run logged no changed_paths but git has ${dirtyPaths.length} uncommitted file(s):\n${bullets}${more}\nLog them with \`seed run log --summary "..." --changed-path <file>\`, mark the run blocked/failed, or pass force=true to override.`,
+    );
+    this.name = "WorkspaceRunUnloggedChangesError";
+  }
+}
+
 export class WorkspaceViewValidationError extends WorkspaceViewError {
   constructor(
     public readonly issues: ZodIssue[],
