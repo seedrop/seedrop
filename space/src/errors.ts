@@ -20,6 +20,19 @@ export class WorkspaceViewParseError extends WorkspaceViewError {
   }
 }
 
+export class WorkspaceRunDirtyTreeError extends WorkspaceViewError {
+  constructor(
+    public readonly dirtyChangedPaths: string[],
+    public readonly allChangedPaths: string[],
+  ) {
+    const lines = dirtyChangedPaths.map((p) => `  - ${p}`).join("\n");
+    super(
+      `Cannot mark run completed: ${dirtyChangedPaths.length} of ${allChangedPaths.length} changed_paths are uncommitted:\n${lines}\nCommit them, mark the run blocked/failed, or pass force=true to override.`,
+    );
+    this.name = "WorkspaceRunDirtyTreeError";
+  }
+}
+
 export class WorkspaceViewValidationError extends WorkspaceViewError {
   constructor(
     public readonly issues: ZodIssue[],

@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ZodType } from "zod";
-import { WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
+import { WorkspaceRunDirtyTreeError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
 import {
   ContinuityPacketSchema,
   HandoffSchema,
@@ -73,7 +73,7 @@ export {
   ViewPolicySchema,
   WorkspaceManifestSchema,
 } from "./schema.js";
-export { WorkspaceViewError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
+export { WorkspaceRunDirtyTreeError, WorkspaceViewError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
 
 export interface WorkspaceViewOptions {
   root?: string;
@@ -146,6 +146,7 @@ export interface RunFinishInput {
   status: "completed" | "blocked" | "failed";
   nextActions?: NextAction[];
   agent?: string;
+  force?: boolean;
 }
 
 export interface RunStartResult {
@@ -426,6 +427,16 @@ export class WorkspaceView {
 
   async finishRun(input: RunFinishInput): Promise<RunJournal> {
     const run = await this.requireActiveRun(input.agent);
+    if (input.status === "completed" && !input.force && run.changed_paths.length > 0) {
+      const gitDirty = this.gitDirtyState();
+      if (gitDirty.inside) {
+        const dirtySet = new Set(gitDirty.paths);
+        const dirtyChanged = run.changed_paths.filter((p) => dirtySet.has(p));
+        if (dirtyChanged.length > 0) {
+          throw new WorkspaceRunDirtyTreeError(dirtyChanged, run.changed_paths);
+        }
+      }
+    }
     run.status = input.status;
     run.finished_at = this.nowIso();
     if (input.nextActions) run.next_actions = input.nextActions;

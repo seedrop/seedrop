@@ -1,9 +1,22 @@
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkspaceView, WorkspaceViewValidationError } from "../src/view.js";
+import { WorkspaceRunDirtyTreeError, WorkspaceView, WorkspaceViewValidationError } from "../src/view.js";
+
+function gitInit(dir: string): void {
+  spawnSync("git", ["init", "-q", dir]);
+  spawnSync("git", ["-C", dir, "config", "user.email", "t@t.test"]);
+  spawnSync("git", ["-C", dir, "config", "user.name", "t"]);
+  spawnSync("git", ["-C", dir, "config", "commit.gpgsign", "false"]);
+}
+
+function gitCommitAll(dir: string, message: string): void {
+  spawnSync("git", ["-C", dir, "add", "-A"]);
+  spawnSync("git", ["-C", dir, "commit", "-q", "-m", message]);
+}
 
 let root: string;
 let now: Date;
@@ -357,5 +370,53 @@ describe("WorkspaceView", () => {
 
     expect(audit.ok).toBe(false);
     expect(audit.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining(["runs_malformed", "handoffs_malformed"]));
+  });
+
+  it("finishRun refuses status=completed when changed_paths are uncommitted", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().startRun({ goal: "test dirty gate" });
+    await view().logRun({ summary: "step", changedPaths: ["README.md"] });
+
+    await expect(view().finishRun({ status: "completed" })).rejects.toThrow(WorkspaceRunDirtyTreeError);
+
+    const runs = await view().listRuns();
+    expect(runs.at(-1)?.status).toBe("in_progress");
+  });
+
+  it("finishRun allows force=true to bypass the dirty-tree gate", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().startRun({ goal: "test force" });
+    await view().logRun({ summary: "step", changedPaths: ["README.md"] });
+
+    const run = await view().finishRun({ status: "completed", force: true });
+    expect(run.status).toBe("completed");
+  });
+
+  it("finishRun allows status=blocked even with uncommitted changed_paths", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().startRun({ goal: "test blocked" });
+    await view().logRun({ summary: "step", changedPaths: ["README.md"] });
+
+    const run = await view().finishRun({ status: "blocked" });
+    expect(run.status).toBe("blocked");
+  });
+
+  it("finishRun allows status=completed when changed_paths are clean in git", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await writeFile(path.join(root, ".gitignore"), ".seedrop/\n");
+    gitCommitAll(root, "init");
+    await view().sync();
+    await view().startRun({ goal: "test clean" });
+    await view().logRun({ summary: "step", changedPaths: ["README.md"] });
+
+    const run = await view().finishRun({ status: "completed" });
+    expect(run.status).toBe("completed");
   });
 });

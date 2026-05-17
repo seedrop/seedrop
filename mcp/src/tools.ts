@@ -196,12 +196,13 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_run_finish",
-    description: "Finish the active repo-local run journal with a terminal status. Returns JSON.",
+    description: "Finish the active repo-local run journal with a terminal status. Refuses status=completed when any of the run's changed_paths are uncommitted in git; pass force=true to override. Returns JSON.",
     inputSchema: {
       type: "object",
       properties: {
         cwd: { type: "string" },
         status: { type: "string", enum: ["completed", "blocked", "failed"] },
+        force: { type: "boolean", description: "Bypass the uncommitted-changed_paths gate when status=completed." },
       },
       required: ["status"],
       additionalProperties: false,
@@ -209,7 +210,9 @@ export const tools: ToolDef[] = [
     async handler(args) {
       const status = strArg(args, "status");
       if (!status) return error("status is required");
-      return exec(["run", "finish", "--status", status], strArg(args, "cwd"));
+      const cmd = ["run", "finish", "--status", status];
+      if (args.force === true) cmd.push("--force");
+      return exec(cmd, strArg(args, "cwd"));
     },
   },
   {

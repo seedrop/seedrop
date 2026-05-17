@@ -397,7 +397,12 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
     return;
   }
   if (command === "finish") {
-    printJson(await view.finishRun({ status: runFinishStatus(args.flags.get("status")?.[0] ?? args.values[0]) }));
+    printJson(
+      await view.finishRun({
+        status: runFinishStatus(args.flags.get("status")?.[0] ?? args.values[0]),
+        force: args.flags.has("force"),
+      }),
+    );
     return;
   }
   throw new Error(`Unknown run command: ${command ?? ""}`);
@@ -705,7 +710,7 @@ Commands:
   run decision TEXT            Record a run decision
   run thread TEXT              Record an open thread
   run verify --command C --status passed|failed|skipped
-  run finish --status completed|blocked|failed
+  run finish --status completed|blocked|failed [--force]
   handoff create --to A --summary S
   handoff list|read|accept
   claim <target> <intent>      Create a claim signal lease
