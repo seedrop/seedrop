@@ -35,6 +35,19 @@ The defaults make the boundaries strict: **identity does not live in a repo**, a
 
 ## Boot Ritual
 
+### Getting the `seed` CLI on PATH
+
+Until packages are published, install from this workspace:
+
+```bash
+git clone <repo> && cd seedrop
+npm install
+npm run link            # builds workspaces, symlinks `seed` + `seed-mcp` + `seed-id` into your global bin
+seed --version          # confirm it's on PATH
+```
+
+`npm run unlink` reverses the symlinks. Once published to npm, this section becomes `npm install -g @seedrop/cli`.
+
 ### First time on this machine
 
 ```bash
