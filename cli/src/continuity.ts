@@ -266,9 +266,15 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   if (!viewPresent) {
     warnings.push(`No .seedrop/view in ${root}. Run \`seed bootstrap\` to link this root to your passport.`);
   }
-  const viewPreflightFailed = viewContext.preflight?.checks?.some((check: ViewCheck) => check.status === "fail") ?? false;
+  const preflightChecks: ViewCheck[] = viewContext.preflight?.checks ?? [];
+  const viewPreflightFailed = preflightChecks.some((check) => check.status === "fail");
+  const viewPreflightWarn = !viewPreflightFailed && preflightChecks.some((check) => check.status === "warn");
   if (viewPreflightFailed) {
-    warnings.push(`View preflight has failed checks. Run \`seed view preflight --json\` for repair details.`);
+    const n = preflightChecks.filter((c) => c.status === "fail").length;
+    warnings.push(`View preflight has ${n} failed check${n === 1 ? "" : "s"}. Run \`seed view preflight --json\` for repair details.`);
+  } else if (viewPreflightWarn) {
+    const n = preflightChecks.filter((c) => c.status === "warn").length;
+    warnings.push(`View preflight has ${n} warning${n === 1 ? "" : "s"}. Run \`seed view preflight --json\` for details.`);
   }
 
   const presence = await fetchJson<{ presence: PresenceRecord[] }>(`${opts.spaceUrl}/presence`);
