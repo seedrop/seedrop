@@ -1,0 +1,48 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22"]
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: install
+        run: npm ci
+
+      - name: build
+        run: npm run build -ws
+
+      - name: typecheck
+        run: |
+          for ws in id space cli mcp; do
+            echo "::group::typecheck $ws"
+            npm run typecheck -w "$ws"
+            echo "::endgroup::"
+          done
+
+      - name: test
+        run: npm test -ws
