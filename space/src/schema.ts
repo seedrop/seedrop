@@ -80,6 +80,15 @@ export const ContinuityValidationSchema = z
   })
   .strict();
 
+export const PacketGitStatusSchema = z
+  .object({
+    is_repo: z.boolean(),
+    is_dirty: z.boolean(),
+    uncommitted_count: z.number().int().nonnegative(),
+    uncommitted_paths: z.array(z.string().min(1)).max(50).optional(),
+  })
+  .strict();
+
 export const ContinuityPacketSchema = z
   .object({
     id: z.string().uuid(),
@@ -92,6 +101,7 @@ export const ContinuityPacketSchema = z
     open_threads: z.array(z.string().min(1)),
     validation: ContinuityValidationSchema,
     changed_paths: z.array(RelativePath),
+    git_status: PacketGitStatusSchema.optional(),
   })
   .strict();
 

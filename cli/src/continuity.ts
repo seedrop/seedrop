@@ -77,6 +77,12 @@ interface ContinuityPacket {
   open_threads?: string[];
   validation?: { status?: string; commands?: string[] };
   created_at?: string;
+  git_status?: {
+    is_repo: boolean;
+    is_dirty: boolean;
+    uncommitted_count: number;
+    uncommitted_paths?: string[];
+  };
 }
 
 interface ViewRun {
@@ -432,6 +438,11 @@ export function renderContinuity(report: ContinuityReport): string {
       lines.push(`  last continuity packet: ${pkt.created_at ?? "?"}`);
       if (pkt.mission) lines.push(`    mission: ${pkt.mission}`);
       if (pkt.summary) lines.push(`    summary: ${pkt.summary}`);
+      if (pkt.git_status?.is_dirty) {
+        const sample = (pkt.git_status.uncommitted_paths ?? []).slice(0, 3).join(", ");
+        const more = pkt.git_status.uncommitted_count > 3 ? `, +${pkt.git_status.uncommitted_count - 3} more` : "";
+        lines.push(`    git at write: ${pkt.git_status.uncommitted_count} uncommitted (${sample}${more})`);
+      }
       if (pkt.next_actions?.length) {
         lines.push(`    next_actions:`);
         for (const a of pkt.next_actions) lines.push(`      - ${a}`);

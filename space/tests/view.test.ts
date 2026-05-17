@@ -419,4 +419,55 @@ describe("WorkspaceView", () => {
     const run = await view().finishRun({ status: "completed" });
     expect(run.status).toBe("completed");
   });
+
+  it("brief.success caps below L4 when run changed_paths are uncommitted", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await writeFile(path.join(root, "package.json"), '{"scripts":{"test":"vitest run"}}\n');
+    await mkdir(path.join(root, ".seedrop", "view"), { recursive: true });
+    await writeFile(
+      path.join(root, ".seedrop", "view", "policy.json"),
+      JSON.stringify({
+        purpose: "Demo.",
+        current_focus: "Test the gate.",
+        required_success_level: "L2",
+      }),
+    );
+    await view().sync();
+    await view().log({
+      mission: "do stuff",
+      summary: "did stuff",
+      validation: { status: "passed", commands: ["npm test"] },
+      changedPaths: ["README.md"],
+      openThreads: ["follow up"],
+    });
+    await view().startRun({ goal: "test" });
+    await view().logRun({ summary: "step", changedPaths: ["README.md"] });
+
+    const brief = await view().brief();
+    expect(brief.success.level).not.toBe("L4");
+    expect(brief.success.summary).toMatch(/uncommitted/i);
+  });
+
+  it("log() writes git_status reflecting the current dirty tree", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+
+    const packet = await view().log({ mission: "m", summary: "s" });
+
+    expect(packet.git_status?.is_repo).toBe(true);
+    expect(packet.git_status?.is_dirty).toBe(true);
+    expect(packet.git_status?.uncommitted_count).toBeGreaterThan(0);
+    expect(packet.git_status?.uncommitted_paths).toEqual(expect.arrayContaining(["README.md"]));
+  });
+
+  it("log() writes git_status.is_repo=false when not in a git repo", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+
+    const packet = await view().log({ mission: "m", summary: "s" });
+
+    expect(packet.git_status?.is_repo).toBe(false);
+    expect(packet.git_status?.is_dirty).toBe(false);
+    expect(packet.git_status?.uncommitted_count).toBe(0);
+  });
 });

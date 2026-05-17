@@ -308,11 +308,26 @@ export class WorkspaceView {
         ...(input.validation?.notes ? { notes: input.validation.notes } : {}),
       },
       changed_paths: input.changedPaths ?? [],
+      git_status: this.snapshotGitStatus(),
     };
 
     const filename = `${compactTimestamp(packet.created_at)}_${sanitizeFilename(input.mission)}.json`;
     await this.writeJson(path.join(this.continuityDir, filename), packet);
     return packet;
+  }
+
+  private snapshotGitStatus(): NonNullable<ContinuityPacket["git_status"]> {
+    const dirty = this.gitDirtyState();
+    if (!dirty.inside) {
+      return { is_repo: false, is_dirty: false, uncommitted_count: 0 };
+    }
+    const paths = dirty.paths;
+    return {
+      is_repo: true,
+      is_dirty: paths.length > 0,
+      uncommitted_count: paths.length,
+      ...(paths.length > 0 ? { uncommitted_paths: paths.slice(0, 50) } : {}),
+    };
   }
 
   async claimSignal(input: SignalInput): Promise<Signal> {
@@ -1064,6 +1079,22 @@ export class WorkspaceView {
     if (l2Ready && handoffReady) {
       level = "L4";
       summary = "View has enough validated state for another agent to resume from it.";
+    }
+
+    if (compareSuccessLevels(level, "L4") >= 0) {
+      const dirty = this.gitDirtyState();
+      if (dirty.inside && dirty.paths.length > 0) {
+        const dirtySet = new Set(dirty.paths);
+        const trackedPaths = new Set<string>();
+        for (const run of runs) {
+          for (const p of run.changed_paths) trackedPaths.add(p);
+        }
+        const uncommittedTracked = [...trackedPaths].filter((p) => dirtySet.has(p));
+        if (uncommittedTracked.length > 0) {
+          level = "L3";
+          summary = `Run-tracked changes are uncommitted (${uncommittedTracked.length}); another agent cannot resume from git alone.`;
+        }
+      }
     }
 
     return {
