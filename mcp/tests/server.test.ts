@@ -77,3 +77,28 @@ describe("tool handlers (smoke)", () => {
     expect(result.content[0]?.text).toContain("mission and summary are required");
   });
 });
+
+describe("staleness detection", () => {
+  it("reports stale when dist mtime is newer than load time + 1s", async () => {
+    const { computeStaleness } = await import("../src/server.js");
+    const loadedAtMs = Date.now();
+    const distMTimeMs = loadedAtMs + 2 * 60_000;
+    const result = computeStaleness({ loadedAtMs, distMTimeMs });
+    expect(result.stale).toBe(true);
+    expect(result.minutes).toBe(2);
+  });
+
+  it("reports not stale when dist mtime equals load time", async () => {
+    const { computeStaleness } = await import("../src/server.js");
+    const loadedAtMs = Date.now();
+    const result = computeStaleness({ loadedAtMs, distMTimeMs: loadedAtMs });
+    expect(result.stale).toBe(false);
+  });
+
+  it("ignores sub-second mtime differences (build flicker tolerance)", async () => {
+    const { computeStaleness } = await import("../src/server.js");
+    const loadedAtMs = Date.now();
+    const result = computeStaleness({ loadedAtMs, distMTimeMs: loadedAtMs + 500 });
+    expect(result.stale).toBe(false);
+  });
+});
