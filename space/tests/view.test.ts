@@ -471,6 +471,22 @@ describe("WorkspaceView", () => {
     expect(packet.git_status?.uncommitted_count).toBe(0);
   });
 
+  it("init seeds .seedrop/view/knowledge/README.md when missing", async () => {
+    await view().init("demo");
+    const readmePath = path.join(root, ".seedrop", "view", "knowledge", "README.md");
+    expect(existsSync(readmePath)).toBe(true);
+    const content = await readFile(readmePath, "utf8");
+    expect(content).toMatch(/knowledge folder/i);
+  });
+
+  it("init does not overwrite an existing knowledge README", async () => {
+    await mkdir(path.join(root, ".seedrop", "view", "knowledge"), { recursive: true });
+    await writeFile(path.join(root, ".seedrop", "view", "knowledge", "README.md"), "custom\n");
+    await view().init("demo");
+    const content = await readFile(path.join(root, ".seedrop", "view", "knowledge", "README.md"), "utf8");
+    expect(content).toBe("custom\n");
+  });
+
   it("brief surfaces git_status and a next_action when the tree is dirty (no run required)", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");

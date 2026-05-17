@@ -191,6 +191,7 @@ export class WorkspaceView {
   readonly signalsDir: string;
   readonly runsDir: string;
   readonly handoffsDir: string;
+  readonly knowledgeDir: string;
   readonly policyPath: string;
   readonly auditPath: string;
 
@@ -207,6 +208,7 @@ export class WorkspaceView {
     this.signalsDir = path.join(this.dataDir, "signals");
     this.runsDir = path.join(this.dataDir, "runs");
     this.handoffsDir = path.join(this.dataDir, "handoffs");
+    this.knowledgeDir = path.join(this.dataDir, "knowledge");
     this.policyPath = path.join(this.dataDir, "policy.json");
     this.auditPath = path.join(this.dataDir, "audit.json");
     this.agent = options.agent;
@@ -224,6 +226,7 @@ export class WorkspaceView {
 
   async init(workspaceId = path.basename(this.root)): Promise<WorkspaceManifest> {
     await this.ensureDirs();
+    await this.seedKnowledgeReadme();
     try {
       return await this.readManifest();
     } catch {
@@ -231,6 +234,26 @@ export class WorkspaceView {
       await this.writeJson(this.manifestPath, manifest);
       return manifest;
     }
+  }
+
+  private async seedKnowledgeReadme(): Promise<void> {
+    const readmePath = path.join(this.knowledgeDir, "README.md");
+    if (existsSync(readmePath)) return;
+    const body = [
+      "# View knowledge folder",
+      "",
+      "Check in checked-along-with-code planning artifacts here: roadmaps,",
+      "ADRs, design sketches, sprint definitions, anything an agent should",
+      "read before changing code.",
+      "",
+      "Point at specific files from `.seedrop/view/policy.json` using",
+      "`path_purposes` so they surface in the boot block as recommended reads.",
+      "",
+      "This is a convention, not a schema — write whatever helps the next",
+      "agent (human or otherwise) pick up the work.",
+      "",
+    ].join("\n");
+    await writeFile(readmePath, body);
   }
 
   async sync(options: SyncOptions = {}): Promise<WorkspaceManifest> {
@@ -1120,6 +1143,7 @@ export class WorkspaceView {
       mkdir(this.signalsDir, { recursive: true }),
       mkdir(this.runsDir, { recursive: true }),
       mkdir(this.handoffsDir, { recursive: true }),
+      mkdir(this.knowledgeDir, { recursive: true }),
     ]);
   }
 

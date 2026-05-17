@@ -212,9 +212,30 @@ By default, `WorkspaceView` writes to:
   signals/
   runs/
   handoffs/
+  knowledge/
 ```
 
 The `.seedrop` directory is excluded from manifest scans by default so the workspace view describes the project rather than its own generated state.
+
+### The `knowledge/` folder
+
+`knowledge/` is a freeform convention for checked-along-with-code planning artifacts — roadmaps, ADRs, design sketches, sprint definitions, anything an agent should read before changing code. It is not a schema: `WorkspaceView` does not parse the contents.
+
+Point at specific files from `policy.json` using `path_purposes` and they surface in the boot block as recommended reads:
+
+```jsonc
+{
+  "path_purposes": {
+    ".seedrop/view/knowledge/2026-q2-roadmap.md": {
+      "purpose": "Roadmap for the current quarter — current focus and sequenced work.",
+      "recommended_read_reason": "Read before picking up anything new",
+      "recommended_read_priority": 1
+    }
+  }
+}
+```
+
+`seed bootstrap` (and `WorkspaceView.init()`) seeds a starter `knowledge/README.md` when one is missing.
 
 ## License
 
