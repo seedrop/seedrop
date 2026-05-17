@@ -41,6 +41,7 @@ interface ParsedOptions extends CommitRepairOptions {
 
 const usage = `Usage:
   seed-id init [--name <name>] [--purpose <purpose>] [--agent-id <id>] [--issued-by <agent_id>] [--autonomous] [--out <path>] [--force] [--json]
+  seed-id update [--passport <path>] [--name <name>] [--purpose <purpose>] [--json]
   seed-id validate [--passport <path>] [--json]
   seed-id show [--passport <path>] [--json]
   seed-id audit [--passport <path>] [--audit <path>] [--json]
@@ -52,6 +53,7 @@ Default passport path: $SEEDROP_PASSPORT or ~/.seedrop/id/passport.json
 
 Commands:
   init     Create a minimal agent passport.
+  update   Update mutable passport fields (name, purpose) after init.
   validate Validate a passport file against the schema.
   show     Print a passport summary or full JSON.
   audit    Inspect the passport audit log.
@@ -83,6 +85,10 @@ export async function runCli(argv: readonly string[], io: CliIO = { stdout: proc
 
     if (command === "show") {
       return await showCommand(rest, io);
+    }
+
+    if (command === "update") {
+      return await updateCommand(rest, io);
     }
 
     if (command === "audit") {
@@ -156,6 +162,43 @@ async function validateCommand(argv: readonly string[], io: CliIO): Promise<numb
   } else {
     io.stdout.write(`valid passport: ${options.passportPath}\n`);
     io.stdout.write(`agent: ${passport.name} (${passport.agent_id})\n`);
+  }
+
+  return 0;
+}
+
+async function updateCommand(argv: readonly string[], io: CliIO): Promise<number> {
+  const options = parseOptions(argv, { requirePassport: true });
+  const passport = await readPassport(options.passportPath!);
+
+  const changes: Record<string, { from: string; to: string }> = {};
+  if (options.name !== undefined && options.name !== passport.name) {
+    changes.name = { from: passport.name, to: options.name };
+    passport.name = options.name;
+  }
+  if (options.purpose !== undefined && options.purpose !== passport.purpose) {
+    changes.purpose = { from: passport.purpose, to: options.purpose };
+    passport.purpose = options.purpose;
+  }
+
+  if (Object.keys(changes).length === 0) {
+    if (options.json) {
+      writeJson(io, { passportPath: options.passportPath, changed: false, changes: {} });
+    } else {
+      io.stdout.write(`no changes (pass --name and/or --purpose to update)\n`);
+    }
+    return 0;
+  }
+
+  await writePassport(passport, options.passportPath!);
+
+  if (options.json) {
+    writeJson(io, { passportPath: options.passportPath, changed: true, changes });
+  } else {
+    io.stdout.write(`updated passport: ${options.passportPath}\n`);
+    for (const [field, { from, to }] of Object.entries(changes)) {
+      io.stdout.write(`  ${field}: ${from} → ${to}\n`);
+    }
   }
 
   return 0;

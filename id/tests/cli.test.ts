@@ -172,6 +172,34 @@ describe("seed-id cli", () => {
     expect(passport.agent_id).toBe((await readPassport(passportPath)).agent_id);
   });
 
+  it("updates name and purpose via the update command", async () => {
+    const before = await readPassport(passportPath);
+    const io = createIo();
+    const code = await runCli(
+      ["update", "--passport", passportPath, "--purpose", "Build Seedrop", "--json"],
+      io,
+    );
+    expect(code).toBe(0);
+    const payload = JSON.parse(io.stdoutText()) as { changed: boolean; changes: Record<string, { from: string; to: string }> };
+    expect(payload.changed).toBe(true);
+    expect(payload.changes.purpose).toEqual({ from: before.purpose, to: "Build Seedrop" });
+    const after = await readPassport(passportPath);
+    expect(after.purpose).toBe("Build Seedrop");
+    expect(after.name).toBe(before.name);
+  });
+
+  it("update is a no-op when nothing changes", async () => {
+    const before = await readPassport(passportPath);
+    const io = createIo();
+    const code = await runCli(
+      ["update", "--passport", passportPath, "--purpose", before.purpose, "--json"],
+      io,
+    );
+    expect(code).toBe(0);
+    const payload = JSON.parse(io.stdoutText()) as { changed: boolean };
+    expect(payload.changed).toBe(false);
+  });
+
   it("prints audit log status", async () => {
     const { entry } = await createPendingCommit();
     await appendAuditEntry(auditPath, entry);
