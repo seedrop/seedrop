@@ -65,7 +65,7 @@ createServer({
 });
 ```
 
-When no resolver is configured, the server keeps trust-only local mode. When a resolver is configured, authenticated routes verify `X-Seed-Passport` before writes. The CLI or deployment shell decides how to bind that resolver to `@seedrop/id`; `space` stays focused on coordination.
+When no resolver is configured, the server keeps trust-only local mode. When a resolver is configured, authenticated routes verify `X-Seedrop-Passport` before writes. The CLI or deployment shell decides how to bind that resolver to `@seedrop/id`; `space` stays focused on coordination.
 
 ### `@seedrop/space/view`
 

@@ -6,25 +6,33 @@ Start here:
 
 ```bash
 npm install -g @seedrop/cli
-seed init
+seed init --yes
 seed doctor
 ```
 
 `seed init` creates the operator passport, detects known MCP clients, creates agent passports, wires client configs when they exist, offers the macOS Space daemon, and prints the boot reflex to add to your agent instructions.
 
-`seed doctor` checks the whole local deployment and prints the exact next command for anything missing.
+`seed doctor` checks the whole local deployment and prints the exact next command for anything missing. `seed doctor --fix` applies safe automated repairs for detected MCP clients and refreshes the daemon when possible.
 
 ## Install Clients
 
 Known clients are data-driven through `clients.json` plus optional local overrides at `~/.seedrop/clients.json`.
 
 ```bash
+seed clients scan
+seed install --all-detected
 seed install codex --to codex-cli
 seed install claude --to claude-code
 seed install claude-desktop --to claude-desktop
 seed install cursor --to cursor
 seed install kimi --to kimi
+seed install copilot --to vscode-copilot
+seed install windsurf --to windsurf
+seed install cline --to cline
+seed install kilo --to kilo
 ```
+
+Built-in adapters currently cover Claude Code, Claude Desktop, Codex CLI, Cursor, Kimi, Continue, VS Code/GitHub Copilot, Windsurf, Cline, Kilo, and Antigravity. Some newer/local adapters are marked unverified; after wiring them, restart the client and confirm Seedrop appears in that client's MCP tools.
 
 For an unknown MCP client, use the escape hatch:
 
@@ -42,11 +50,31 @@ Add this idea to your global agent instructions:
 seed
 ```
 
-The bare command prints the continuity block: identity, current repo View, daemon reachability, recent coordination messages, and the next move. In a new repo, run:
+The bare command is the orientation contract. It prints identity, current root, View state, daemon reachability, recent coordination messages, trace state, and one ranked next action. It is read-only: if orientation is missing, it tells the agent what command to run rather than writing files.
+
+In a new repo or folder, run:
 
 ```bash
 seed bootstrap
 ```
+
+Machine-readable orientation is available with:
+
+```bash
+seed continuity --json
+```
+
+The JSON includes an `orientation` object with `identity`, `place`, `traces`, `coordination`, `health`, and `next_action`. Agents should prefer `orientation.next_action` for cold-start recovery.
+
+View quality is graded in the orientation health block:
+
+- `L0 Missing`: no repo View is present.
+- `L1 Present`: View exists, but it is not yet useful.
+- `L2 Useful`: policy purpose, fresh manifest, and verification commands are available.
+- `L3 Active`: current work is represented by a run with resume evidence.
+- `L4 Handoff-Ready`: validated state is sufficient for another agent to resume.
+
+Repos can make this explicit in `.seedrop/view/policy.json` with `required_success_level`, `freshness_ttl_hours`, `ignore`, and `path_purposes`. `seed view sync` applies policy annotations into the manifest so important paths carry purpose, owner, confidence, and optional recommended-read metadata.
 
 ## Command Shape
 
@@ -59,6 +87,9 @@ Current namespaces:
 ```bash
 seed init
 seed doctor
+seed doctor --fix
+seed clients scan
+seed install --all-detected
 seed install <agent> --to <client>
 seed install <agent> --manual
 seed print-boot-protocol

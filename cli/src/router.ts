@@ -21,6 +21,7 @@ import {
   userClientsPath,
   verificationStatus,
   type McpServerCommand,
+  type ClientDefinition,
   type ResolvedClientDefinition,
   upsertTomlServer,
 } from "./clients.js";
@@ -76,6 +77,18 @@ interface DoctorCheck {
   details: Record<string, unknown>;
   next_command: string | null;
   docs_url: string | null;
+}
+
+interface ClientScanRow {
+  id: string;
+  label: string;
+  status: "detected" | "not_found" | "unsupported";
+  config_path: string | null;
+  wired: boolean;
+  passport: string | null;
+  default_agent: string;
+  verification: string;
+  next_command: string | null;
 }
 
 interface SpaceHealthResponse {
@@ -299,14 +312,16 @@ const usage = `Usage:
   seed                          (alias for \`seed continuity\` — your boot block)
   seed init                     (guided one-shot local setup)
   seed continuity [--json] [--messages N]
-  seed doctor                   (diagnose local setup + exact next commands)
+  seed doctor [--fix]           (diagnose local setup + exact next commands)
   seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]
   seed bootstrap --as <agent> --name <human-name> --purpose "<mission>"
   seed bootstrap --as <bot>   --autonomous --name <name> --purpose "..."
   seed login <agent>            (switch this shell's identity)
   seed logout                   (back to operator default)
   seed whoami                   (show active passport + source)
+  seed clients scan [--json]    (inventory supported MCP clients)
   seed install <agent> --to <client>                  (wire MCP client config)
+  seed install --all-detected                         (wire every detected client)
   seed install <agent> --manual                       (print JSON/TOML snippets)
   seed print-boot-protocol                            (print agent boot reflex)
   seed daemon <install|uninstall|status>
@@ -326,6 +341,7 @@ Examples:
   seed bootstrap --name mc --purpose "Operate seedrop"     # one-time, root principal
   seed bootstrap --as claude --name claude --purpose "..."  # add an agent under mc
   seed install codex --to codex-cli
+  seed install --all-detected
   seed install kimi --manual
   seed id list
   seed view init
@@ -341,7 +357,7 @@ Defaults:
   Space URL    $SEEDROP_SPACE_URL or http://127.0.0.1:18791
 `;
 
-export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "continuity" | "id-list" | "login" | "logout" | "whoami" | "install" | "boot-protocol" | "migrate-acorn" {
+export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "continuity" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
   const [domain, ...rest] = argv;
 
   if (!domain) {
@@ -373,6 +389,7 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
   if (domain === "login") return "login";
   if (domain === "logout") return "logout";
   if (domain === "whoami") return "whoami";
+  if (domain === "clients") return "clients";
   if (domain === "install") return "install";
   if (domain === "migrate-acorn") return "migrate-acorn";
 
@@ -429,7 +446,7 @@ export async function runCli(
       return await runInit(argv.slice(1), io, runner);
     }
     if (dispatch === "doctor") {
-      return await runDoctor(argv.slice(1), io);
+      return await runDoctor(argv.slice(1), io, runner);
     }
     if (dispatch === "boot-protocol") {
       io.stdout.write(renderBootProtocol());
@@ -456,8 +473,11 @@ export async function runCli(
     if (dispatch === "whoami") {
       return await runWhoami(io);
     }
+    if (dispatch === "clients") {
+      return await runClients(argv.slice(1), io);
+    }
     if (dispatch === "install") {
-      return await runInstall(argv.slice(1), io);
+      return await runInstall(argv.slice(1), io, runner);
     }
     if (dispatch === "migrate-acorn") {
       return await runMigrateAcorn(argv.slice(1), io);
@@ -623,7 +643,71 @@ async function runBootstrap(argv: readonly string[], io: RunCliIO, runner: Comma
   return 0;
 }
 
-async function runInstall(argv: readonly string[], io: RunCliIO): Promise<number> {
+async function runClients(argv: readonly string[], io: RunCliIO): Promise<number> {
+  const [sub] = argv;
+  if (!sub || sub === "scan") {
+    const rows = await scanClients();
+    if (argv.includes("--json")) {
+      io.stdout.write(`${JSON.stringify({ schema_version: "1.0", clients: rows }, null, 2)}\n`);
+      return 0;
+    }
+    for (const row of rows) {
+      const marker = row.status === "detected" ? (row.wired ? "✓" : "!") : row.status === "unsupported" ? "?" : "-";
+      const wired = row.status === "detected" ? (row.wired ? "wired" : "not wired") : row.status;
+      io.stdout.write(`${marker} ${row.id}\t${row.label}\t${wired}\t${row.verification}`);
+      if (row.config_path) io.stdout.write(`\t${row.config_path}`);
+      io.stdout.write("\n");
+      if (row.next_command) io.stdout.write(`  → run: ${row.next_command}\n`);
+    }
+    return 0;
+  }
+  io.stderr.write(`Usage:\n  seed clients scan [--json]\n`);
+  return 1;
+}
+
+async function scanClients(): Promise<ClientScanRow[]> {
+  const registry = await loadClientRegistry(import.meta.url);
+  const rows: ClientScanRow[] = [];
+  for (const [id, def] of Object.entries(registry).sort(([a], [b]) => a.localeCompare(b))) {
+    const resolved = resolveClientDefinition(id, def);
+    const defaultAgent = def.default_agent ?? id;
+    if (!resolved) {
+      rows.push({
+        id,
+        label: def.label ?? id,
+        status: "unsupported",
+        config_path: null,
+        wired: false,
+        passport: null,
+        default_agent: defaultAgent,
+        verification: verificationStatus(def),
+        next_command: `seed install ${defaultAgent} --manual`,
+      });
+      continue;
+    }
+    const configExists = existsSync(resolved.configPath);
+    const wired = configExists ? await clientHasSeedConfig(resolved) : false;
+    const passport = configExists ? await configuredPassport(resolved) : null;
+    rows.push({
+      id,
+      label: resolved.label,
+      status: configExists ? "detected" : "not_found",
+      config_path: resolved.configPath,
+      wired,
+      passport,
+      default_agent: defaultAgent,
+      verification: verificationStatus(def),
+      next_command: configExists && !wired
+        ? `seed install ${defaultAgent} --to ${id}`
+        : !configExists
+          ? `seed install ${defaultAgent} --to ${id} --create-config`
+          : null,
+    });
+  }
+  return rows;
+}
+
+async function runInstall(argv: readonly string[], io: RunCliIO, runner: CommandRunner): Promise<number> {
   const json = argv.includes("--json");
   const positional = argv.find((a) => !a.startsWith("--") && a.length > 0);
   const client = flagValue(argv, "to");
@@ -631,13 +715,17 @@ async function runInstall(argv: readonly string[], io: RunCliIO): Promise<number
   const manual = argv.includes("--manual");
   const createConfig = argv.includes("--create-config");
   const listClients = argv.includes("--list-clients");
+  const allDetected = argv.includes("--all-detected");
   const registry = await loadClientRegistry(import.meta.url);
   if (listClients) {
     await printClientList(registry, io);
     return 0;
   }
+  if (allDetected) {
+    return await installDetectedClients(registry, io, runner, { createConfig });
+  }
   if (!positional || (!client && !manual)) {
-    writeCliFailure(io, json, "seedrop.validation.failed", "Usage: seed install <agent> --to <client>", "validation", "seed install <agent> --manual", {
+    writeCliFailure(io, json, "seedrop.validation.failed", "Usage: seed install <agent> --to <client>", "validation", "seed install --all-detected", {
       known_clients: Object.keys(registry).sort(),
     });
     return 1;
@@ -695,6 +783,54 @@ async function runInstall(argv: readonly string[], io: RunCliIO): Promise<number
   io.stdout.write(`  ${resolved.section}.env.SEEDROP_PASSPORT = ${passportPath}\n`);
   if (resolved.restart) io.stdout.write(`\n${resolved.restart}\n`);
   return 0;
+}
+
+async function installDetectedClients(
+  registry: Record<string, ClientDefinition>,
+  io: RunCliIO,
+  runner: CommandRunner,
+  opts: { createConfig?: boolean } = {},
+): Promise<number> {
+  const detected = await detectClients(registry);
+  if (detected.length === 0) {
+    io.stdout.write(`No MCP client configs detected. Run \`seed clients scan\` or \`seed install <agent> --manual\`.\n`);
+    return 1;
+  }
+
+  const command = resolveMcpServerCommand();
+  let failures = 0;
+  for (const client of detected) {
+    const registryDef = registry[client.id]!;
+    const agent = client.default_agent ?? client.id;
+    const passportPath = agentPassportPath(agent);
+    if (!existsSync(passportPath)) {
+      const bootstrapArgs = ["--as", agent, "--name", agent, "--purpose", `Use Seedrop from ${client.label}`, "--no-link"];
+      if (!existsSync(operatorPassportPath())) bootstrapArgs.push("--autonomous");
+      const bootstrapCode = await runBootstrap(
+        bootstrapArgs,
+        io,
+        runner,
+      );
+      if (bootstrapCode !== 0) {
+        failures += 1;
+        continue;
+      }
+    }
+    try {
+      await installClientConfig(client, buildMcpServerEntry(passportPath, command), { create: opts.createConfig });
+      io.stdout.write(`✓ wired ${client.label} → ${agent}\n`);
+      if (client.restart) io.stdout.write(`  ${client.restart}\n`);
+    } catch (error) {
+      failures += 1;
+      io.stdout.write(`✗ ${client.label}: ${(error as Error).message}\n`);
+      io.stdout.write(`  → run: seed install ${agent} --to ${client.id}\n`);
+    }
+    if (verificationStatus(registryDef) === "unverified") {
+      io.stdout.write(`  note: ${client.id} adapter is unverified; confirm in the client after restart.\n`);
+    }
+  }
+
+  return failures === 0 ? 0 : 1;
 }
 
 async function runInit(argv: readonly string[], io: RunCliIO, runner: CommandRunner): Promise<number> {
@@ -983,8 +1119,9 @@ function setupStepOutputPath(id: SetupStepId): string | undefined {
   }
 }
 
-async function runDoctor(argv: readonly string[], io: RunCliIO): Promise<number> {
+async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandRunner): Promise<number> {
   const json = argv.includes("--json");
+  const fix = argv.includes("--fix");
   const { registry, diagnostics } = await loadClientRegistryWithDiagnostics(import.meta.url);
   const checks: DoctorCheck[] = [];
   const add = (
@@ -1116,6 +1253,25 @@ async function runDoctor(argv: readonly string[], io: RunCliIO): Promise<number>
   const setup = await readSetupJournal();
   if (setup && setup.status !== "completed") {
     add("setup_journal", "fail", `setup journal is incomplete`, { path: setupJournalPath(), setup }, "seed init --resume");
+  }
+
+  if (fix) {
+    if (diagnostics.length > 0) {
+      io.stderr.write(`Cannot auto-fix while client registry has invalid entries. Edit ${userClientsPath()} first.\n`);
+      return 1;
+    }
+    io.stdout.write("Applying safe fixes...\n");
+    const installCode = await installDetectedClients(registry, io, runner);
+    if (installCode !== 0) return installCode;
+    if (platform() === "darwin") {
+      const daemonCheck = checks.find((check) => check.id === "daemon_reachable");
+      if (daemonCheck?.status === "fail") {
+        io.stdout.write("Space daemon is not reachable; refreshing launchd registration...\n");
+        return await runDaemon(["install"], io);
+      }
+    }
+    io.stdout.write("Done. Re-run `seed doctor` after restarting wired clients.\n");
+    return 0;
   }
 
   if (json) {

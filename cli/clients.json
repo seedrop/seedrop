@@ -122,5 +122,114 @@
       "supports_create_config": true,
       "operator_passport_allowed": false
     }
+  },
+  "vscode-copilot": {
+    "label": "VS Code / GitHub Copilot",
+    "config": {
+      "darwin": "~/Library/Application Support/Code/User/mcp.json",
+      "win32": "%APPDATA%\\Code\\User\\mcp.json",
+      "linux": "~/.config/Code/User/mcp.json"
+    },
+    "format": "json",
+    "section": "servers.seedrop",
+    "default_agent": "copilot",
+    "restart": "Restart VS Code and use Copilot Chat Agent mode to pick up the change.",
+    "verified": {
+      "status": "community",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin", "win32", "linux"],
+      "client_versions": ["unknown"],
+      "source": "https://code.visualstudio.com/docs/copilot/reference/mcp-configuration"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "windsurf": {
+    "label": "Windsurf Cascade",
+    "config": "~/.codeium/windsurf/mcp_config.json",
+    "format": "json",
+    "section": "mcpServers.seedrop",
+    "default_agent": "windsurf",
+    "restart": "Restart Windsurf to pick up the change.",
+    "verified": {
+      "status": "community",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin", "linux", "win32"],
+      "client_versions": ["unknown"],
+      "source": "https://docs.windsurf.com/windsurf/cascade/mcp"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "cline": {
+    "label": "Cline",
+    "config": "~/.cline/data/settings/cline_mcp_settings.json",
+    "format": "json",
+    "section": "mcpServers.seedrop",
+    "default_agent": "cline",
+    "restart": "Restart Cline or reload its MCP servers to pick up the change.",
+    "verified": {
+      "status": "community",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin", "linux", "win32"],
+      "client_versions": ["unknown"],
+      "source": "https://docs.cline.bot/cline-cli/configuration"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "kilo": {
+    "label": "Kilo Code",
+    "config": "~/.config/kilo/kilo.jsonc",
+    "format": "json",
+    "section": "mcp.seedrop",
+    "entry_shape": "kilo",
+    "default_agent": "kilo",
+    "restart": "Restart Kilo to pick up the change.",
+    "verified": {
+      "status": "unverified",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin"],
+      "client_versions": ["unknown"],
+      "source": "local-observation"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
+  },
+  "antigravity": {
+    "label": "Google Antigravity",
+    "config": {
+      "darwin": "~/Library/Application Support/Antigravity/User/mcp_config.json",
+      "win32": "%APPDATA%\\Antigravity\\User\\mcp_config.json",
+      "linux": "~/.config/Antigravity/User/mcp_config.json"
+    },
+    "format": "json",
+    "section": "mcpServers.seedrop",
+    "default_agent": "antigravity",
+    "restart": "Restart Antigravity to pick up the change.",
+    "verified": {
+      "status": "unverified",
+      "last_verified_at": "2026-05-16",
+      "platforms": ["darwin"],
+      "client_versions": ["unknown"],
+      "source": "local-observation"
+    },
+    "diagnostic": {
+      "config_required": false,
+      "supports_create_config": true,
+      "operator_passport_allowed": false
+    }
   }
 }

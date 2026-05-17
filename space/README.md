@@ -91,7 +91,7 @@ const server = createServer({
 server.listen(8787);
 ```
 
-Clients pass `X-Seed-Passport`. Without an `identity` resolver, the server keeps local trust-only behavior. With a resolver, authenticated routes reject unknown passports before mutating state. A production CLI can implement the resolver with `@seedrop/id` while `@seedrop/space` stays focused on coordination.
+Clients pass `X-Seedrop-Passport`. Without an `identity` resolver, the server keeps local trust-only behavior. With a resolver, authenticated routes reject unknown passports before mutating state. A production CLI can implement the resolver with `@seedrop/id` while `@seedrop/space` stays focused on coordination.
 
 The HTTP smoke test exercises the full 15-step coordination loop over an ephemeral server:
 
@@ -105,7 +105,7 @@ The package-local CLI can run the same HTTP server with passport-bound identity:
 seed-space serve --root . --passport .seedrop/id/passport.json --port 8787
 ```
 
-The serve command accepts `X-Seed-Passport` values matching the configured passport's `agent_id`, `name`, or explicit `--passport-id` alias.
+The serve command accepts `X-Seedrop-Passport` values matching the configured passport's `agent_id`, `name`, or explicit `--passport-id` alias.
 
 ## Experimental View API
 
@@ -135,6 +135,32 @@ await view.log({
 const context = await view.context();
 const audit = await view.audit();
 ```
+
+Workspace policy can raise the View from a fresh file index into a one-fetch orientation packet:
+
+```json
+{
+  "purpose": "Explain what this repo is for.",
+  "current_focus": "Describe the active work.",
+  "required_success_level": "L2",
+  "freshness_ttl_hours": 24,
+  "ignore": [".DS_Store"],
+  "path_purposes": {
+    "README.md": {
+      "purpose": "Human overview.",
+      "confidence": 0.9,
+      "recommended_read_reason": "Start here",
+      "recommended_read_priority": 1
+    },
+    "src/": {
+      "purpose": "Source tree.",
+      "confidence": 0.8
+    }
+  }
+}
+```
+
+`WorkspaceView.sync()` applies policy ignores and annotations to `manifest.json`. `brief()`, `context()`, and `preflight()` report a success level from `L0` through `L4`, so agents can distinguish present, useful, active, and handoff-ready Views.
 
 ## CLI
 
@@ -181,8 +207,11 @@ By default, `WorkspaceView` writes to:
 ```text
 .seedrop/view/
   manifest.json
+  policy.json
   continuity/
   signals/
+  runs/
+  handoffs/
 ```
 
 The `.seedrop` directory is excluded from manifest scans by default so the workspace view describes the project rather than its own generated state.

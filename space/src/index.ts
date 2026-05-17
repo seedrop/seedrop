@@ -53,6 +53,8 @@ export {
   MessageSchema,
   HandoffSchema,
   NextActionSchema,
+  PathPurposeSchema,
+  PolicyPathPurposeSchema,
   NotificationPointerSchema,
   NotificationSchema,
   PresenceRecordSchema,
@@ -64,12 +66,15 @@ export {
   SpaceMemberSchema,
   SpaceMetaSchema,
   ViewPolicySchema,
+  WorkspaceManifestSchema,
 } from "./schema.js";
 export type {
   Handoff,
   Message,
   MessageRole,
   NextAction,
+  PathPurpose,
+  PolicyPathPurpose,
   Notification as NotificationRecord,
   NotificationPointer,
   PresenceRecord,
@@ -81,6 +86,7 @@ export type {
   SpaceMember,
   SpaceMeta,
   ViewPolicy,
+  WorkspaceManifest,
 } from "./schema.js";
 export { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceValidationError } from "./errors.js";
 export { WorkspaceView } from "./view.js";

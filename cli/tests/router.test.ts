@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -176,6 +177,7 @@ describe("resolveCommand", () => {
     expect(resolveCommand(["continuity"])).toBe("continuity");
     expect(resolveCommand(["print-boot-protocol"])).toBe("boot-protocol");
     expect(resolveCommand(["id", "list"])).toBe("id-list");
+    expect(resolveCommand(["clients", "scan"])).toBe("clients");
     expect(resolveCommand(["id", "show"])).toMatchObject({ command: "seed-id" });
   });
 
@@ -230,6 +232,35 @@ describe("continuity", () => {
     process.env.SEEDROP_SPACE_URL = "http://127.0.0.1:1"; // intentionally unreachable
   });
 
+  async function writePassport(agent = "x"): Promise<string> {
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(
+      passportPath,
+      JSON.stringify({ schema_version: "1.0", agent_id: agent, name: agent, purpose: "t", active_projects: [] }),
+      "utf8",
+    );
+    return passportPath;
+  }
+
+  async function writeManifest(root: string, workspaceId = "demo"): Promise<void> {
+    await mkdir(join(root, ".seedrop", "view", "runs"), { recursive: true });
+    await mkdir(join(root, ".seedrop", "view", "handoffs"), { recursive: true });
+    await mkdir(join(root, ".seedrop", "view", "continuity"), { recursive: true });
+    await mkdir(join(root, ".seedrop", "view", "signals"), { recursive: true });
+    await writeFile(
+      join(root, ".seedrop", "view", "manifest.json"),
+      JSON.stringify({
+        schema_version: "1.0",
+        workspace_id: workspaceId,
+        root: ".",
+        updated_at: "2026-05-16T00:00:00.000Z",
+        files: [],
+        recommended_reads: [],
+      }),
+      "utf8",
+    );
+  }
+
   afterEach(async () => {
     if (envSnapshot.passport === undefined) delete process.env.SEEDROP_PASSPORT;
     else process.env.SEEDROP_PASSPORT = envSnapshot.passport;
@@ -283,18 +314,121 @@ describe("continuity", () => {
   });
 
   it("supports --json", async () => {
-    const passportPath = process.env.SEEDROP_PASSPORT as string;
-    await writeFile(
-      passportPath,
-      JSON.stringify({ schema_version: "1.0", agent_id: "x", name: "x", purpose: "t", active_projects: [] }),
-      "utf8",
-    );
+    await writePassport("x");
     const io = createIo();
-    const code = await runCli(["continuity", "--json"], io, fakeRunner());
+    const code = await runCli(["continuity", "--json", "--cwd", scratch], io, fakeRunner());
     expect(code).toBe(0);
     const parsed = JSON.parse(io.stdoutText());
     expect(parsed.passport.agent_id).toBe("x");
     expect(parsed.daemon.reachable).toBe(false);
+    expect(parsed.orientation.schema_version).toBe("1.0");
+    expect(parsed.orientation.identity.agent_id).toBe("x");
+    expect(parsed.orientation.place.view_present).toBe(false);
+    expect(parsed.orientation.next_action.kind).toBe("setup");
+    expect(parsed.orientation.next_action.command).toBe("seed bootstrap");
+  });
+
+  it("orients against any folder root when no git root is present", async () => {
+    await writePassport("x");
+    const folder = join(scratch, "folder-root");
+    await mkdir(folder, { recursive: true });
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", folder], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.orientation.place.cwd).toBe(folder);
+    expect(parsed.orientation.place.root).toBe(folder);
+    expect(parsed.orientation.place.root_kind).toBe("folder");
+  });
+
+  it("uses the git root as the orientation root when available", async () => {
+    const git = spawnSync("git", ["--version"], { stdio: "ignore" });
+    if (git.status !== 0) return;
+    await writePassport("x");
+    const repo = join(scratch, "repo");
+    const subdir = join(repo, "src", "nested");
+    await mkdir(subdir, { recursive: true });
+    const init = spawnSync("git", ["init"], { cwd: repo, stdio: "ignore" });
+    if (init.status !== 0) return;
+    await writeManifest(repo, "repo");
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", subdir], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.orientation.place.cwd).toBe(subdir);
+    expect(parsed.orientation.place.root).toBe(realpathSync(repo));
+    expect(parsed.orientation.place.root_kind).toBe("git");
+    expect(parsed.orientation.place.view_present).toBe(true);
+  });
+
+  it("prioritizes pending handoffs for cold-start recovery", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "handoff-demo");
+    await writeFile(
+      join(scratch, ".seedrop", "view", "handoffs", "handoff.json"),
+      JSON.stringify({
+        schema_version: "1.0",
+        handoff_id: "11111111-1111-4111-8111-111111111111",
+        created_at: "2026-05-16T00:00:00.000Z",
+        updated_at: "2026-05-16T00:00:00.000Z",
+        source_agent: "claude",
+        recipient: "codex",
+        summary: "Resume the orientation engine work.",
+        status: "pending",
+        files_changed: [],
+        validation: [],
+        blockers: [],
+        risks: [],
+        open_threads: [],
+        next_actions: [],
+      }),
+      "utf8",
+    );
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", scratch], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.orientation.next_action.kind).toBe("handoff");
+    expect(parsed.orientation.next_action.command).toContain("seed handoff read");
+    expect(parsed.orientation.traces.pending_handoffs).toBe(1);
+  });
+
+  it("surfaces failed validation before continuing a run", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "validation-demo");
+    await writeFile(
+      join(scratch, ".seedrop", "view", "runs", "run.json"),
+      JSON.stringify({
+        schema_version: "1.0",
+        run_id: "22222222-2222-4222-8222-222222222222",
+        agent_id: "codex",
+        goal: "Ship orientation harness",
+        status: "in_progress",
+        started_at: "2026-05-16T00:00:00.000Z",
+        updated_at: "2026-05-16T00:01:00.000Z",
+        steps: [],
+        decisions: [],
+        assumptions: [],
+        open_threads: [],
+        changed_paths: [],
+        validation: [
+          {
+            command: "npm test",
+            status: "failed",
+            recorded_at: "2026-05-16T00:02:00.000Z",
+          },
+        ],
+        next_actions: [],
+      }),
+      "utf8",
+    );
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", scratch], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.orientation.next_action.kind).toBe("verify");
+    expect(parsed.orientation.next_action.command).toBe("npm test");
+    expect(parsed.orientation.next_action.risk).toBe("high");
   });
 });
 
@@ -495,6 +629,20 @@ describe("seed install registry", () => {
     expect(parsed.mcpServers.seedrop.env.SEEDROP_PASSPORT).toContain("codex.json");
   });
 
+  it("writes a Kilo-shaped JSON client config", async () => {
+    const config = join(scratch, "kilo.jsonc");
+    await writeFile(config, JSON.stringify({ mcp: { keep: { command: ["x"] } } }), "utf8");
+    const io = createIo();
+    const code = await runCli(["install", "codex", "--to", "kilo", "--config", config], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(await readFile(config, "utf8"));
+    expect(parsed.mcp.keep.command[0]).toBe("x");
+    expect(parsed.mcp.seedrop.type).toBe("local");
+    expect(parsed.mcp.seedrop.command[0]).toContain("node");
+    expect(parsed.mcp.seedrop.environment.SEEDROP_PASSPORT).toContain("codex.json");
+    expect(parsed.mcp.seedrop.enabled).toBe(true);
+  });
+
   it("writes a registry-backed TOML client config", async () => {
     const config = join(scratch, "config.toml");
     await writeFile(config, `model = "x"\n`, "utf8");
@@ -513,6 +661,36 @@ describe("seed install registry", () => {
     expect(code).toBe(0);
     expect(io.stdoutText()).toContain("codex-cli\tCodex CLI");
     expect(io.stdoutText()).toContain("\tverified\t");
+  });
+
+  it("scans supported clients", async () => {
+    const codexDir = join(process.env.HOME!, ".codex");
+    await mkdir(codexDir, { recursive: true });
+    await writeFile(join(codexDir, "config.toml"), `model = "x"\n`, "utf8");
+    const io = createIo();
+    const code = await runCli(["clients", "scan", "--json"], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    const codex = parsed.clients.find((client: { id: string }) => client.id === "codex-cli");
+    expect(codex.status).toBe("detected");
+    expect(codex.wired).toBe(false);
+    expect(codex.next_command).toBe("seed install codex --to codex-cli");
+  });
+
+  it("wires all detected clients and creates missing agent passports", async () => {
+    const codexDir = join(process.env.HOME!, ".codex");
+    await mkdir(codexDir, { recursive: true });
+    await writeFile(join(codexDir, "config.toml"), `model = "x"\n`, "utf8");
+    await rm(join(process.env.HOME!, ".seedrop", "id", "agents", "codex.json"), { force: true });
+    const seen: CommandDispatch[] = [];
+    const io = createIo();
+    const code = await runCli(["install", "--all-detected"], io, fakeRunner(0, seen));
+    expect(code).toBe(0);
+    expect(seen[0]).toMatchObject({ command: "seed-id" });
+    expect(seen[0]?.args).toContain("--autonomous");
+    const raw = await readFile(join(codexDir, "config.toml"), "utf8");
+    expect(raw).toContain("[mcp_servers.seedrop]");
+    expect(io.stdoutText()).toContain("wired Codex CLI");
   });
 });
 

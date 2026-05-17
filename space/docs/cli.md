@@ -62,6 +62,10 @@ seed view release --id claim-id
 seed view log --mission "Slice 4" --summary "Notifications landed"
 ```
 
+`seed view brief`, `seed view context`, and `seed view preflight` report a View success level:
+`L0 Missing`, `L1 Present`, `L2 Useful`, `L3 Active`, or `L4 Handoff-Ready`.
+Repositories can set `required_success_level`, `freshness_ttl_hours`, `ignore`, and `path_purposes` in `.seedrop/view/policy.json`.
+
 Backed by the experimental `@seedrop/space/view` subpath for now.
 
 ## Current Transitional CLI

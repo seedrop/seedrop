@@ -160,7 +160,7 @@ seed space serve --root . --passport .seedrop/id/passport.json
 - Use `createServer({ identity })`.
 - Identity resolver should:
   - validate the configured passport file
-  - accept `X-Seed-Passport` values matching passport `agent_id`, passport `name`, or explicit `--passport-id`
+  - accept `X-Seedrop-Passport` values matching passport `agent_id`, passport `name`, or explicit `--passport-id`
 
 `@seedrop/cli`
 

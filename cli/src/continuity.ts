@@ -1,6 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { WorkspaceView, type ViewCheck } from "@seedrop/space";
 import { readContinuityState, writeContinuityState } from "./continuity-state.js";
 import type { RunCliIO } from "./router.js";
@@ -9,6 +10,8 @@ export interface ContinuityOptions {
   passportPath: string;
   spaceUrl: string;
   cwd: string;
+  root?: string;
+  rootKind?: "git" | "folder";
   messageLimit?: number;
   json?: boolean;
   /** ISO-8601 watermark to compare against. If omitted, reads the per-agent state file. */
@@ -47,6 +50,16 @@ interface ViewManifest {
   updated_at?: string;
 }
 
+interface ViewBrief {
+  success?: {
+    level?: "L0" | "L1" | "L2" | "L3" | "L4";
+    label?: string;
+    summary?: string;
+    required_level?: "L0" | "L1" | "L2" | "L3" | "L4";
+    meets_required?: boolean;
+  };
+}
+
 interface ViewSignal {
   id: string;
   type: "claim" | "lock";
@@ -76,6 +89,54 @@ interface ViewRun {
   open_threads?: string[];
   validation?: Array<{ command: string; status: string; recorded_at: string }>;
   next_actions?: Array<{ command?: string; reason: string; kind: string }>;
+}
+
+interface OrientationNextAction {
+  kind: "setup" | "inbox" | "handoff" | "signal" | "verify" | "run" | "continuity" | "space" | "focus";
+  command?: string;
+  reason: string;
+  source: "identity" | "view" | "daemon" | "inbox" | "handoff" | "signal" | "run" | "continuity" | "space";
+  risk: "low" | "medium" | "high";
+  requires_human: boolean;
+}
+
+interface OrientationReport {
+  schema_version: "1.0";
+  identity: {
+    present: boolean;
+    agent_id: string | null;
+    passport_path: string;
+    source: "passport" | "missing";
+  };
+  place: {
+    cwd: string;
+    root: string;
+    root_kind: "git" | "folder";
+    view_present: boolean;
+    workspace_id: string | null;
+  };
+  traces: {
+    latest_continuity_at: string | null;
+    current_run_id: string | null;
+    current_run_goal: string | null;
+    latest_run_status: string | null;
+    pending_handoffs: number;
+    open_signals: number;
+  };
+  coordination: {
+    daemon_reachable: boolean;
+    inbox_unacked: number;
+    joined_spaces: string[];
+    online_sessions: number;
+  };
+  health: {
+    warnings: string[];
+    view_preflight_failed: boolean;
+    view_success_level: "L0" | "L1" | "L2" | "L3" | "L4" | null;
+    view_success_required: "L0" | "L1" | "L2" | "L3" | "L4" | null;
+    view_success_meets_required: boolean | null;
+  };
+  next_action: OrientationNextAction;
 }
 
 interface ViewHandoff {
@@ -130,6 +191,8 @@ export interface ContinuityReport {
   passportPath: string;
   passport: Passport | null;
   cwd: string;
+  root: string;
+  rootKind: "git" | "folder";
   /** Prior watermark (ISO-8601) — what the agent saw last time, or undefined on first call. */
   since?: string;
   /** Whether the watermark was advanced (false when --peek). */
@@ -137,9 +200,11 @@ export interface ContinuityReport {
   view: {
     present: boolean;
     manifest?: ViewManifest;
+    brief?: ViewBrief;
     signals: ViewSignal[];
     latestPacket?: ContinuityPacket;
     currentRun?: ViewRun;
+    latestRun?: ViewRun;
     pendingHandoffs: ViewHandoff[];
   };
   daemon: {
@@ -153,10 +218,13 @@ export interface ContinuityReport {
   };
   joinedSpaces: JoinedSpaceSummary[];
   warnings: string[];
+  orientation: OrientationReport;
 }
 
 export async function buildContinuity(opts: ContinuityOptions): Promise<ContinuityReport> {
   const warnings: string[] = [];
+  const root = opts.root ?? opts.cwd;
+  const rootKind = opts.rootKind ?? rootKindFor(opts.cwd, root);
   const passport = await readJson<Passport>(opts.passportPath);
   if (!passport) {
     warnings.push(
@@ -172,19 +240,22 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   }
 
   const viewContext = await WorkspaceView.open({
-    root: opts.cwd,
+    root,
     agent: passport?.agent_id ?? "agent",
   }).context();
   const viewPresent = viewContext.view?.present ?? false;
   const manifest = viewContext.manifest as ViewManifest | undefined;
+  const viewBrief = viewContext.brief as ViewBrief | undefined;
   const signals = (viewContext.active_signals ?? []) as ViewSignal[];
   const latestPacket = viewContext.latest_continuity as ContinuityPacket | undefined;
   const currentRun = viewContext.current_run as ViewRun | undefined;
+  const latestRun = viewContext.latest_run as ViewRun | undefined;
   const pendingHandoffs = (viewContext.pending_handoffs ?? []) as ViewHandoff[];
   if (!viewPresent) {
-    warnings.push(`No .seedrop/view in ${opts.cwd}. Run \`seed bootstrap\` to link this repo to your passport.`);
+    warnings.push(`No .seedrop/view in ${root}. Run \`seed bootstrap\` to link this root to your passport.`);
   }
-  if (viewContext.preflight?.checks?.some((check: ViewCheck) => check.status === "fail")) {
+  const viewPreflightFailed = viewContext.preflight?.checks?.some((check: ViewCheck) => check.status === "fail") ?? false;
+  if (viewPreflightFailed) {
     warnings.push(`View preflight has failed checks. Run \`seed view preflight --json\` for repair details.`);
   }
 
@@ -248,18 +319,22 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     });
   }
 
-  return {
+  const report: Omit<ContinuityReport, "orientation"> = {
     passportPath: opts.passportPath,
     passport,
     cwd: opts.cwd,
+    root,
+    rootKind,
     since,
     watermarkAdvanced,
     view: {
       present: viewPresent,
-      manifest,
-      signals,
+    manifest,
+    brief: viewBrief,
+    signals,
       latestPacket,
       currentRun,
+      latestRun,
       pendingHandoffs,
     },
     daemon: {
@@ -274,6 +349,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     joinedSpaces,
     warnings,
   };
+  return { ...report, orientation: buildOrientation(report, viewPreflightFailed) };
 }
 
 export function renderContinuity(report: ContinuityReport): string {
@@ -335,9 +411,14 @@ export function renderContinuity(report: ContinuityReport): string {
 
   lines.push(`## Where you are`);
   lines.push(`  cwd: ${report.cwd}`);
+  if (report.root !== report.cwd) lines.push(`  root: ${report.root} (${report.rootKind})`);
   if (report.view.present) {
     const m = report.view.manifest;
     lines.push(`  view: present (workspace_id: ${m?.workspace_id ?? "?"}, ${m?.files?.length ?? 0} tracked files)`);
+    if (report.view.brief?.success?.level) {
+      const success = report.view.brief.success;
+      lines.push(`  view success: ${success.level}${success.label ? ` ${success.label}` : ""}${success.required_level ? ` (requires ${success.required_level})` : ""}`);
+    }
     if (report.view.signals.length > 0) {
       lines.push(`  open signals: ${report.view.signals.length}`);
       for (const s of report.view.signals.slice(0, 5)) {
@@ -379,7 +460,7 @@ export function renderContinuity(report: ContinuityReport): string {
   if (p?.active_projects?.length) {
     lines.push(`## Active projects`);
     for (const proj of p.active_projects) {
-      const here = proj.root === report.cwd ? " ← you are here" : "";
+      const here = proj.root === report.root || proj.root === report.cwd ? " ← you are here" : "";
       const marker = isNew(proj.last_seen_at) ? " ⭑" : "";
       lines.push(`  - ${proj.id}${marker} @ ${proj.root}${here}`);
       if (proj.current_focus) lines.push(`      focus: ${proj.current_focus}`);
@@ -427,7 +508,7 @@ export function renderContinuity(report: ContinuityReport): string {
   }
 
   lines.push(`## Next move`);
-  for (const line of suggestNextMove(report)) lines.push(`  ${line}`);
+  lines.push(`  ${formatNextAction(report.orientation.next_action)}`);
   lines.push("");
 
   if (report.warnings.length > 0) {
@@ -439,51 +520,191 @@ export function renderContinuity(report: ContinuityReport): string {
   return lines.join("\n");
 }
 
-function suggestNextMove(report: ContinuityReport): string[] {
+function selectNextAction(report: Omit<ContinuityReport, "orientation">): OrientationNextAction {
   const p = report.passport;
-  if (!p) return ["Run `seed bootstrap --name <name> --purpose \"<purpose>\"` to create your passport."];
-  if (!report.view.present)
-    return ["Run `seed bootstrap` in this repo to link it to your passport and create `.seedrop/view/`."];
-  if (!report.daemon.reachable)
-    return ["Run `seed daemon status` / `seed daemon install` so the always-on Space coordinator is up."];
-
-  // Inbox takes priority over everything else — process @-mentions first.
-  if (report.inbox.unacked.length > 0) {
-    const oldest = report.inbox.unacked[0]!;
-    return [
-      `Process inbox: ${report.inbox.unacked.length} unacked mention(s). Start with [${oldest.id.slice(0, 8)}] from ${oldest.sender_passport_id}.`,
-    ];
+  if (!p) {
+    return {
+      kind: "setup",
+      command: "seed bootstrap --name <name> --purpose \"<purpose>\"",
+      reason: "Create a Seedrop passport for this machine before orienting work.",
+      source: "identity",
+      risk: "low",
+      requires_human: true,
+    };
+  }
+  if (!report.view.present) {
+    return {
+      kind: "setup",
+      command: "seed bootstrap",
+      reason: "Create and link `.seedrop/view` for this root.",
+      source: "view",
+      risk: "low",
+      requires_human: false,
+    };
   }
 
-  const moves: string[] = [];
+  if (report.inbox.unacked.length > 0) {
+    const oldest = report.inbox.unacked[0]!;
+    return {
+      kind: "inbox",
+      command: `seed inbox ack ${oldest.id.slice(0, 8)} --result done`,
+      reason: `Process inbox: ${report.inbox.unacked.length} unacked mention(s). Start with [${oldest.id.slice(0, 8)}] from ${oldest.sender_passport_id}.`,
+      source: "inbox",
+      risk: "medium",
+      requires_human: false,
+    };
+  }
+
   if (report.view.signals.length > 0) {
-    moves.push(`Resolve open signal: ${report.view.signals[0]?.target} (${report.view.signals[0]?.intent ?? "—"}).`);
+    const signal = report.view.signals[0]!;
+    return {
+      kind: "signal",
+      command: `seed view signals`,
+      reason: `Resolve open signal: ${signal.target} (${signal.intent ?? "no intent"}).`,
+      source: "signal",
+      risk: signal.type === "lock" ? "high" : "medium",
+      requires_human: false,
+    };
   }
   if (report.view.pendingHandoffs.length > 0) {
     const handoff = report.view.pendingHandoffs[0]!;
-    moves.push(`Review handoff [${handoff.handoff_id.slice(0, 8)}] from ${handoff.source_agent}: \`seed handoff read ${handoff.handoff_id}\`.`);
+    return {
+      kind: "handoff",
+      command: `seed handoff read ${handoff.handoff_id}`,
+      reason: `Review handoff [${handoff.handoff_id.slice(0, 8)}] from ${handoff.source_agent}: ${handoff.summary}.`,
+      source: "handoff",
+      risk: "medium",
+      requires_human: false,
+    };
   }
+
+  const latestValidation = report.view.currentRun?.validation?.at(-1) ?? report.view.latestRun?.validation?.at(-1);
+  if (latestValidation?.status === "failed") {
+    return {
+      kind: "verify",
+      command: latestValidation.command,
+      reason: `Resolve failed validation from the latest run: ${latestValidation.command}.`,
+      source: "run",
+      risk: "high",
+      requires_human: false,
+    };
+  }
+
+  if (report.view.latestRun?.status === "blocked" || report.view.latestRun?.status === "failed") {
+    return {
+      kind: "run",
+      command: "seed handoff create --to <agent> --summary \"...\"",
+      reason: `Latest run is ${report.view.latestRun.status}: ${report.view.latestRun.goal}.`,
+      source: "run",
+      risk: report.view.latestRun.status === "failed" ? "high" : "medium",
+      requires_human: false,
+    };
+  }
+
   if (report.view.currentRun) {
     const run = report.view.currentRun;
     const action = run.next_actions?.[0];
-    if (action) {
-      moves.push(`Continue current run "${run.goal}": ${action.command ?? action.reason}.`);
-    } else {
-      moves.push(`Continue current run "${run.goal}", then log progress with \`seed run log --summary "..."\`.`);
-    }
+    return {
+      kind: "run",
+      command: action?.command ?? `seed run log --summary "..."`,
+      reason: action ? `Continue current run "${run.goal}": ${action.reason}.` : `Continue current run "${run.goal}", then log progress.`,
+      source: "run",
+      risk: "medium",
+      requires_human: false,
+    };
   }
+
   const pkt = report.view.latestPacket;
   if (pkt?.next_actions?.length) {
-    moves.push(`Continue last continuity packet: "${pkt.next_actions[0]}".`);
+    return {
+      kind: "continuity",
+      reason: `Continue last continuity packet: "${pkt.next_actions[0]}".`,
+      source: "continuity",
+      risk: "low",
+      requires_human: false,
+    };
   }
+
   const lastMsg = report.joinedSpaces.flatMap((s) => s.recentMessages).slice(-1)[0];
   if (lastMsg && p.agent_id && lastMsg.author_passport_id !== p.agent_id) {
-    moves.push(`Reply to ${lastMsg.author_passport_id} in space: "${truncate(lastMsg.content, 60)}".`);
+    return {
+      kind: "space",
+      command: "seed space messages <space>",
+      reason: `Reply to ${lastMsg.author_passport_id} in space: "${truncate(lastMsg.content, 60)}".`,
+      source: "space",
+      risk: "low",
+      requires_human: false,
+    };
   }
-  if (moves.length === 0) {
-    moves.push(`No queued work. Pick a focus, then \`seed view log --mission "..." --summary "..."\`.`);
-  }
-  return moves;
+
+  return {
+    kind: "focus",
+    command: `seed run start --goal "..."`,
+    reason: `No queued work. Pick a focus, then start a run or log orientation.`,
+    source: "view",
+    risk: "low",
+    requires_human: false,
+  };
+}
+
+function buildOrientation(report: Omit<ContinuityReport, "orientation">, viewPreflightFailed: boolean): OrientationReport {
+  const latestRun = report.view.latestRun ?? report.view.currentRun;
+  return {
+    schema_version: "1.0",
+    identity: {
+      present: report.passport !== null,
+      agent_id: report.passport?.agent_id ?? null,
+      passport_path: report.passportPath,
+      source: report.passport ? "passport" : "missing",
+    },
+    place: {
+      cwd: report.cwd,
+      root: report.root,
+      root_kind: report.rootKind,
+      view_present: report.view.present,
+      workspace_id: report.view.manifest?.workspace_id ?? null,
+    },
+    traces: {
+      latest_continuity_at: report.view.latestPacket?.created_at ?? null,
+      current_run_id: report.view.currentRun?.run_id ?? null,
+      current_run_goal: report.view.currentRun?.goal ?? null,
+      latest_run_status: latestRun?.status ?? null,
+      pending_handoffs: report.view.pendingHandoffs.length,
+      open_signals: report.view.signals.length,
+    },
+    coordination: {
+      daemon_reachable: report.daemon.reachable,
+      inbox_unacked: report.inbox.unacked.length,
+      joined_spaces: report.joinedSpaces.map((space) => space.name),
+      online_sessions: report.daemon.presence.filter((presence) => presence.online).length,
+    },
+    health: {
+      warnings: report.warnings,
+      view_preflight_failed: viewPreflightFailed,
+      view_success_level: report.view.brief?.success?.level ?? null,
+      view_success_required: report.view.brief?.success?.required_level ?? null,
+      view_success_meets_required: report.view.brief?.success?.meets_required ?? null,
+    },
+    next_action: selectNextAction(report),
+  };
+}
+
+function formatNextAction(action: OrientationNextAction): string {
+  return action.command ? `${action.reason} Run: \`${action.command}\`.` : action.reason;
+}
+
+function resolveOrientationRoot(cwd: string): { root: string; kind: "git" | "folder" } {
+  const absolute = resolve(cwd);
+  const result = spawnSync("git", ["-C", absolute, "rev-parse", "--show-toplevel"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const gitRoot = result.status === 0 ? result.stdout.trim() : "";
+  return gitRoot ? { root: resolve(gitRoot), kind: "git" } : { root: absolute, kind: "folder" };
+}
+
+function rootKindFor(cwd: string, root: string): "git" | "folder" {
+  return resolveOrientationRoot(cwd).root === resolve(root) ? resolveOrientationRoot(cwd).kind : "folder";
 }
 
 function humanAge(iso: string): string {
@@ -620,13 +841,14 @@ async function postJson(url: string, body: unknown, passportId: string): Promise
 export async function runContinuity(argv: readonly string[], io: RunCliIO, opts: { defaultPassport: string; defaultUrl: string }): Promise<number> {
   const passportPath = readFlag(argv, "passport") ?? opts.defaultPassport;
   const spaceUrl = readFlag(argv, "url") ?? opts.defaultUrl;
-  const cwd = readFlag(argv, "cwd") ?? process.cwd();
+  const cwd = resolve(readFlag(argv, "cwd") ?? process.cwd());
+  const place = resolveOrientationRoot(cwd);
   const json = argv.includes("--json");
   const peek = argv.includes("--peek");
   const since = readFlag(argv, "since");
   const limit = Number(readFlag(argv, "messages") ?? "5");
 
-  const report = await buildContinuity({ passportPath, spaceUrl, cwd, messageLimit: limit, json, peek, since });
+  const report = await buildContinuity({ passportPath, spaceUrl, cwd, root: place.root, rootKind: place.kind, messageLimit: limit, json, peek, since });
   if (json) {
     io.stdout.write(JSON.stringify(report, null, 2) + "\n");
   } else {

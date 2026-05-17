@@ -57,6 +57,58 @@ describe("WorkspaceView", () => {
     expect(stored.files[0].hash).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("applies policy ignores, path purposes, recommended reads, and success requirements", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await writeFile(path.join(root, "package.json"), '{"scripts":{"test":"vitest run"}}\n');
+    await writeFile(path.join(root, ".DS_Store"), "noise\n");
+    await mkdir(path.join(root, "src"));
+    await writeFile(path.join(root, "src", "view.ts"), "export const ok = true;\n");
+    await mkdir(path.join(root, ".seedrop", "view"), { recursive: true });
+    await writeFile(
+      path.join(root, ".seedrop", "view", "policy.json"),
+      JSON.stringify({
+        purpose: "Demo orientation substrate.",
+        current_focus: "Keep View useful.",
+        required_success_level: "L2",
+        freshness_ttl_hours: 24,
+        ignore: [".DS_Store"],
+        path_purposes: {
+          "README.md": {
+            purpose: "Human overview.",
+            confidence: 0.9,
+            recommended_read_reason: "Start here",
+            recommended_read_priority: 1,
+          },
+          "src/": {
+            purpose: "Source tree.",
+            confidence: 0.8,
+          },
+          "src/view.ts": {
+            purpose: "View implementation.",
+            owner: "space",
+            confidence: 0.95,
+          },
+        },
+      }),
+    );
+
+    const manifest = await view().sync({ workspaceId: "demo" });
+    const brief = await view().brief();
+    const preflight = await view().preflight();
+
+    expect(manifest.files.map((file) => file.path)).toEqual(["package.json", "README.md", "src/view.ts"]);
+    expect(manifest.files.find((file) => file.path === "README.md")?.purpose).toBe("Human overview.");
+    expect(manifest.files.find((file) => file.path === "src/view.ts")).toMatchObject({
+      purpose: "View implementation.",
+      owner: "space",
+      confidence: 0.95,
+    });
+    expect(manifest.path_purposes?.map((entry) => entry.path)).toEqual(["README.md", "src/", "src/view.ts"]);
+    expect(manifest.recommended_reads[0]).toEqual({ path: "README.md", reason: "Project overview", priority: 1 });
+    expect(brief.success).toMatchObject({ level: "L2", required_level: "L2", meets_required: true });
+    expect(preflight.checks.find((check) => check.id === "view_success")).toMatchObject({ status: "pass" });
+  });
+
   it("logs continuity and assembles the active context", async () => {
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await view().sync();

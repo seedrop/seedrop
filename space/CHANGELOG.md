@@ -35,7 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Slice 6 identity binding for HTTP: `createServer({ identity })` accepts an injected `IdentityResolver`, keeping passport verification outside `@seedrop/space` while letting authenticated routes refuse unknown or forbidden passports before mutation.
 - Public `IdentityResolver` and `ResolvedIdentity` types, plus `SpaceAuthError` for resolver-level 401/403 failures.
 - Slice 5 HTTP wrapper exposing the bounded coordination surface via the Node `http` module — `createServer({ root, dataDir?, now?, ttlMs? })` returning a stock `http.Server`, with exactly the eight CHARTER routes: `POST /sessions`, `POST /presence/heartbeat`, `GET /presence`, `POST /spaces/:name/join`, `GET /spaces/:name/messages`, `POST /spaces/:name/messages`, `POST /spaces/:name/end`, and the `/notifications` trio (`GET`, `POST`, `POST /:id/ack`).
-- `X-Seed-Passport` request header threaded as the caller identity, with trust-only behavior when no identity resolver is configured.
+- `X-Seedrop-Passport` request header threaded as the caller identity, with trust-only behavior when no identity resolver is configured.
 - Typed-error → HTTP status mapper: validation → 400, not-found → 404, parse error → 500, fallback → 500.
 - `npm run smoke:http` script (`scripts/smoke-http.ts`) replaying the full 15-step CHARTER smoke against the HTTP server on an ephemeral port.
 - Slice 4 `Notification` static API (`send`, `list`, `ack`) over append-only per-passport JSONL with same-stream ACK tombstones.

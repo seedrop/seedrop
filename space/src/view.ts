@@ -8,6 +8,8 @@ import { WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.
 import {
   ContinuityPacketSchema,
   HandoffSchema,
+  PathPurposeSchema,
+  PolicyPathPurposeSchema,
   RunJournalSchema,
   SignalSchema,
   ViewPolicySchema,
@@ -19,6 +21,7 @@ import {
   Handoff,
   ManifestFile,
   NextAction,
+  PathPurpose,
   RecommendedRead,
   RunJournal,
   Signal,
@@ -40,6 +43,7 @@ export type {
   Handoff,
   ManifestFile,
   NextAction,
+  PathPurpose,
   RecommendedRead,
   RunJournal,
   RunStep,
@@ -59,6 +63,8 @@ export {
   ManifestFileSchema,
   HandoffSchema,
   NextActionSchema,
+  PathPurposeSchema,
+  PolicyPathPurposeSchema,
   RecommendedReadSchema,
   RunJournalSchema,
   RunStepSchema,
@@ -171,7 +177,10 @@ export interface ViewAuditOptions {
 }
 
 const DEFAULT_DATA_DIR = ".seedrop/view";
-const DEFAULT_IGNORE = new Set([".git", "node_modules", "dist", "coverage", ".seedrop"]);
+const DEFAULT_IGNORE = new Set([".git", "node_modules", "dist", "coverage", ".seedrop", ".DS_Store"]);
+const SUCCESS_LEVELS = ["L0", "L1", "L2", "L3", "L4"] as const;
+type ViewSuccessLevel = (typeof SUCCESS_LEVELS)[number];
+type ManifestFreshness = NonNullable<ViewBrief["manifest"]>["freshness"];
 
 export class WorkspaceView {
   readonly root: string;
@@ -226,23 +235,29 @@ export class WorkspaceView {
   async sync(options: SyncOptions = {}): Promise<WorkspaceManifest> {
     await this.ensureDirs();
     const previous = await this.readManifestIfPresent();
+    const policy = (await this.readPolicyResult()).value;
     const workspaceId = options.workspaceId ?? previous?.workspace_id ?? path.basename(this.root);
     const previousByPath = new Map(previous?.files.map((file) => [file.path, file]) ?? []);
-    const files = await this.scanFiles(options.ignore ?? []);
+    const policyPurposes = normalizePolicyPathPurposes(policy);
+    const files = await this.scanFiles([...(policy?.ignore ?? []), ...(options.ignore ?? [])]);
     const manifestFiles: ManifestFile[] = [];
 
     for (const filePath of files) {
       const absolutePath = path.join(this.root, filePath);
       const [fileStat, buffer] = await Promise.all([stat(absolutePath), readFile(absolutePath)]);
       const previousFile = previousByPath.get(filePath);
+      const annotation = policyPurposes.get(filePath);
+      const purpose = annotation?.purpose ?? previousFile?.purpose;
+      const owner = annotation?.owner ?? previousFile?.owner;
+      const confidence = annotation?.confidence ?? previousFile?.confidence;
       manifestFiles.push({
         path: filePath,
         kind: classifyFile(filePath),
         size_bytes: fileStat.size,
         hash: createHash("sha256").update(buffer).digest("hex"),
-        ...(previousFile?.purpose ? { purpose: previousFile.purpose } : {}),
-        ...(previousFile?.owner ? { owner: previousFile.owner } : {}),
-        ...(previousFile?.confidence !== undefined ? { confidence: previousFile.confidence } : {}),
+        ...(purpose ? { purpose } : {}),
+        ...(owner ? { owner } : {}),
+        ...(confidence !== undefined ? { confidence } : {}),
       });
     }
 
@@ -252,7 +267,15 @@ export class WorkspaceView {
       root: ".",
       updated_at: this.nowIso(),
       files: manifestFiles.sort((a, b) => comparePaths(a.path, b.path)),
-      recommended_reads: this.recommendedReads(manifestFiles),
+      path_purposes: [...policyPurposes.entries()]
+        .map(([pathKey, annotation]) => ({
+          path: pathKey,
+          purpose: annotation.purpose,
+          ...(annotation.owner ? { owner: annotation.owner } : {}),
+          ...(annotation.confidence !== undefined ? { confidence: annotation.confidence } : {}),
+        }))
+        .sort((a, b) => comparePaths(a.path, b.path)),
+      recommended_reads: this.recommendedReads(manifestFiles, policyPurposes),
     };
 
     await this.writeJson(this.manifestPath, manifest);
@@ -539,6 +562,16 @@ export class WorkspaceView {
     if (freshness === "stale") {
       nextActions.push(commandAction("seed view sync", "low", "Manifest is stale."));
     }
+    const success = await this.viewSuccess({
+      viewPresent,
+      manifest,
+      policy,
+      freshness,
+      verificationCommands,
+    });
+    if (!success.meets_required) {
+      nextActions.push(commandAction("seed view preflight --json", "low", `View is ${success.level}; policy requires ${success.required_level}.`));
+    }
 
     return {
       schema_version: "1.0",
@@ -573,6 +606,7 @@ export class WorkspaceView {
               freshness,
             },
           }),
+      success,
       verification_commands: verificationCommands,
       known_risks: [...(policy?.danger_zones ?? []), ...(policy?.sensitive_paths ?? [])],
       next_actions: uniqueNextActions(nextActions),
@@ -674,11 +708,19 @@ export class WorkspaceView {
     checks.push({ id: "view_present", status: "pass", summary: ".seedrop/view is present.", path: ".seedrop/view" });
 
     const manifestResult = await this.readManifestResult();
-    if (manifestResult.value) {
+    const manifest = manifestResult.value;
+    let manifestFreshness: ManifestFreshness = manifest
+      ? "fresh"
+      : manifestResult.error
+        ? "invalid"
+        : "missing";
+    if (manifest) {
       checks.push({ id: "manifest", status: "pass", summary: "Manifest parses.", path: "manifest.json" });
       if (options.checkManifestDrift === false) {
+        manifestFreshness = await this.cachedManifestFreshness();
         checks.push({ id: "manifest_freshness", status: "skipped", summary: "Manifest freshness check skipped for read-only context.", path: "manifest.json" });
-      } else if (await this.hasManifestDrift(manifestResult.value)) {
+      } else if (await this.hasManifestDrift(manifest)) {
+        manifestFreshness = "stale";
         checks.push({ id: "manifest_freshness", status: "warn", summary: "Manifest appears stale.", path: "manifest.json" });
         issues.push({ severity: "warning", code: "manifest_stale", message: "Manifest appears stale.", path: "manifest.json" });
         nextActions.push(commandAction("seed view sync", "low", "Refresh stale manifest."));
@@ -762,13 +804,39 @@ export class WorkspaceView {
       nextActions.push(commandAction("seed view preflight --json", "low", "Create .seedrop/view/policy.json when repo working agreements are known."));
     }
 
-    const verificationCommands = await this.inferVerificationCommands();
+    const verificationCommands = uniqueStrings([
+      ...(policyResult.value?.preferred_verification_commands ?? []),
+      ...(await this.inferVerificationCommands()),
+    ]);
     checks.push({
       id: "verification_commands",
       status: verificationCommands.length > 0 ? "pass" : "warn",
       summary: verificationCommands.length > 0 ? "Verification commands are discoverable." : "No verification commands discovered.",
       details: { commands: verificationCommands },
     });
+
+    const success = await this.viewSuccess({
+      viewPresent,
+      manifest,
+      policy: policyResult.value,
+      freshness: manifestFreshness,
+      verificationCommands,
+    });
+    const successStatus = success.meets_required ? (success.level === "L0" || success.level === "L1" ? "warn" : "pass") : "fail";
+    checks.push({
+      id: "view_success",
+      status: successStatus,
+      summary: `${success.level} ${success.label}: ${success.summary}`,
+      details: success,
+    });
+    if (!success.meets_required) {
+      issues.push({
+        severity: "error",
+        code: "view_success_below_required",
+        message: `View is ${success.level}; policy requires ${success.required_level}.`,
+      });
+      nextActions.push(commandAction("seed view brief --json", "low", "Inspect View success level and missing orientation evidence."));
+    }
 
     return {
       ok: !checks.some((check) => check.status === "fail"),
@@ -784,6 +852,8 @@ export class WorkspaceView {
     const nextActions: NextAction[] = [];
     const manifestResult = await this.readManifestResult();
     const manifest = manifestResult.value;
+    const policyResult = await this.readPolicyResult();
+    const policy = policyResult.value;
 
     if (!manifest) {
       const message = manifestResult.error ?? "Workspace manifest is missing.";
@@ -792,7 +862,7 @@ export class WorkspaceView {
       nextActions.push(commandAction("seed view sync", "low", "Create or repair workspace manifest."));
     } else {
       checks.push({ id: "manifest", status: "pass", summary: "Manifest parses.", path: "manifest.json" });
-      const actualFiles = new Set(await this.scanFiles([]));
+      const actualFiles = new Set(await this.scanFiles(policy?.ignore ?? []));
       const manifestFiles = new Map(manifest.files.map((file) => [file.path, file]));
 
       for (const filePath of actualFiles) {
@@ -831,6 +901,34 @@ export class WorkspaceView {
       if (issues.some((issue) => issue.code === "file_missing_from_manifest" || issue.code === "file_hash_changed")) {
         nextActions.push(commandAction("seed view sync", "low", "Refresh manifest drift."));
       }
+      const staleByAge = this.manifestStaleByAge(manifest, policy);
+      if (staleByAge) {
+        issues.push({
+          severity: "warning",
+          code: "manifest_age_stale",
+          message: staleByAge,
+          path: "manifest.json",
+        });
+        nextActions.push(commandAction("seed view sync", "low", "Refresh aged manifest."));
+      }
+
+      const unannotated = pickImportantPaths(manifest).filter((filePath) => manifestFiles.has(filePath) && !manifestFiles.get(filePath)?.purpose);
+      if (unannotated.length > 0) {
+        issues.push({
+          severity: "warning",
+          code: "manifest_low_signal",
+          message: "Important orientation paths are missing purpose annotations.",
+        });
+        checks.push({
+          id: "manifest_signal",
+          status: "warn",
+          summary: `${unannotated.length} important path(s) lack purpose annotations.`,
+          details: { paths: unannotated },
+        });
+        nextActions.push(commandAction("seed view sync", "low", "Add path_purposes in .seedrop/view/policy.json, then refresh the manifest."));
+      } else {
+        checks.push({ id: "manifest_signal", status: "pass", summary: "Important paths have purpose annotations." });
+      }
     }
 
     if (!existsSync(this.dataDir)) {
@@ -856,12 +954,27 @@ export class WorkspaceView {
 
     await this.collectMalformedArtifacts("runs", this.runsDir, RunJournalSchema, issues, checks);
     await this.collectMalformedArtifacts("handoffs", this.handoffsDir, HandoffSchema, issues, checks);
-    const policyResult = await this.readPolicyResult();
     if (policyResult.error) {
       issues.push({ severity: "error", code: "policy_malformed", message: policyResult.error, path: "policy.json" });
       checks.push({ id: "policy", status: "fail", summary: policyResult.error, path: "policy.json" });
     } else if (policyResult.value) {
       checks.push({ id: "policy", status: "pass", summary: "Policy parses.", path: "policy.json" });
+      if (!policyResult.value.purpose || !policyResult.value.current_focus) {
+        issues.push({
+          severity: "warning",
+          code: "policy_low_signal",
+          message: "Policy should include purpose and current_focus for one-fetch orientation.",
+          path: "policy.json",
+        });
+        checks.push({
+          id: "policy_signal",
+          status: "warn",
+          summary: "Policy is missing purpose or current_focus.",
+          path: "policy.json",
+        });
+      } else {
+        checks.push({ id: "policy_signal", status: "pass", summary: "Policy includes purpose and current focus.", path: "policy.json" });
+      }
     }
 
     const report: AuditReport = {
@@ -874,6 +987,73 @@ export class WorkspaceView {
       await this.writeJson(this.auditPath, report);
     }
     return report;
+  }
+
+  private async viewSuccess(input: {
+    viewPresent: boolean;
+    manifest?: WorkspaceManifest;
+    policy?: ViewPolicy;
+    freshness: ManifestFreshness;
+    verificationCommands: string[];
+  }): Promise<ViewBrief["success"]> {
+    const policy = input.policy;
+    const required = policy?.required_success_level;
+    let level: ViewSuccessLevel = "L0";
+    let summary = "Workspace View is missing.";
+
+    if (input.viewPresent) {
+      level = "L1";
+      summary = "Workspace View exists, but it is not yet a useful orientation packet.";
+    }
+
+    const l2Ready = Boolean(
+      input.manifest &&
+      input.freshness === "fresh" &&
+      policy?.purpose &&
+      input.verificationCommands.length > 0,
+    );
+    if (l2Ready) {
+      level = "L2";
+      summary = "View has purpose, fresh manifest, and verification commands.";
+    }
+
+    const runs = input.viewPresent ? await this.safeListRuns() : [];
+    const activeRun = runs.filter((run) => run.agent_id === this.agent && run.status === "in_progress").at(-1);
+    const activeRunHasEvidence = Boolean(
+      activeRun &&
+      (activeRun.steps.length > 0 ||
+        activeRun.changed_paths.length > 0 ||
+        activeRun.validation.length > 0 ||
+        activeRun.next_actions.length > 0 ||
+        activeRun.open_threads.length > 0),
+    );
+    if (l2Ready && activeRunHasEvidence) {
+      level = "L3";
+      summary = "Current work is represented by an active run with resume evidence.";
+    }
+
+    const handoffs = input.viewPresent ? await this.safeListHandoffs() : [];
+    const packets = input.viewPresent ? await this.safeListContinuityPackets() : [];
+    const latestRun = runs.at(-1);
+    const handoffReady = Boolean(
+      handoffs.some((handoff) => handoff.status === "pending" && (handoff.validation.length > 0 || handoff.next_actions.length > 0 || handoff.open_threads.length > 0)) ||
+        (latestRun &&
+          latestRun.validation.length > 0 &&
+          (latestRun.next_actions.length > 0 || latestRun.open_threads.length > 0)) ||
+        packets.some((packet) => packet.validation.status !== "unknown" && (packet.open_threads.length > 0 || packet.changed_paths.length > 0)),
+    );
+    if (l2Ready && handoffReady) {
+      level = "L4";
+      summary = "View has enough validated state for another agent to resume from it.";
+    }
+
+    return {
+      level,
+      label: successLabel(level),
+      summary,
+      ...(required ? { required_level: required } : {}),
+      meets_required: !required || compareSuccessLevels(level, required) >= 0,
+    };
   }
 
   private async ensureDirs(): Promise<void> {
@@ -930,12 +1110,11 @@ export class WorkspaceView {
     const walk = async (dir: string): Promise<void> => {
       const entries = await readdir(dir, { withFileTypes: true });
       for (const entry of entries) {
-        if (ignored.has(entry.name)) {
-          continue;
-        }
-
         const absolutePath = path.join(dir, entry.name);
         const relativePath = normalizeRelativePath(path.relative(this.root, absolutePath));
+        if (isIgnoredPath(entry.name, relativePath, ignored)) {
+          continue;
+        }
 
         if (entry.isDirectory()) {
           await walk(absolutePath);
@@ -949,7 +1128,7 @@ export class WorkspaceView {
     return out.sort(comparePaths);
   }
 
-  private recommendedReads(files: ManifestFile[]): RecommendedRead[] {
+  private recommendedReads(files: ManifestFile[], policyPurposes = new Map<string, NonNullable<ViewPolicy["path_purposes"]>[string]>()): RecommendedRead[] {
     const available = new Set(files.map((file) => file.path));
     const candidates: RecommendedRead[] = [
       { path: "README.md", reason: "Project overview", priority: 1 },
@@ -957,8 +1136,16 @@ export class WorkspaceView {
       { path: "pyproject.toml", reason: "Python package metadata", priority: 2 },
       { path: "Cargo.toml", reason: "Rust package metadata", priority: 2 },
     ];
+    for (const [pathKey, annotation] of policyPurposes) {
+      if (!annotation.recommended_read_reason || !available.has(pathKey)) continue;
+      candidates.push({
+        path: pathKey,
+        reason: annotation.recommended_read_reason,
+        priority: annotation.recommended_read_priority ?? 10,
+      });
+    }
 
-    return candidates.filter((candidate) => available.has(candidate.path));
+    return uniqueRecommendedReads(candidates.filter((candidate) => available.has(candidate.path)));
   }
 
   private async listContinuityPackets(): Promise<ContinuityPacket[]> {
@@ -1154,7 +1341,9 @@ export class WorkspaceView {
 
   private async hasManifestDrift(manifest: WorkspaceManifest): Promise<boolean> {
     try {
-      const actualFiles = new Set(await this.scanFiles([]));
+      const policy = (await this.readPolicyResult()).value;
+      if (this.manifestStaleByAge(manifest, policy)) return true;
+      const actualFiles = new Set(await this.scanFiles(policy?.ignore ?? []));
       if (actualFiles.size !== manifest.files.length) return true;
       for (const file of manifest.files) {
         if (!actualFiles.has(file.path)) return true;
@@ -1166,6 +1355,18 @@ export class WorkspaceView {
     } catch {
       return true;
     }
+  }
+
+  private manifestStaleByAge(manifest: WorkspaceManifest, policy?: ViewPolicy): string | undefined {
+    if (!policy?.freshness_ttl_hours) return undefined;
+    const updatedAt = Date.parse(manifest.updated_at);
+    if (Number.isNaN(updatedAt)) return "Manifest updated_at is not a valid timestamp.";
+    const maxAgeMs = policy.freshness_ttl_hours * 60 * 60 * 1000;
+    const ageMs = this.now().getTime() - updatedAt;
+    if (ageMs > maxAgeMs) {
+      return `Manifest is older than policy freshness_ttl_hours (${policy.freshness_ttl_hours}).`;
+    }
+    return undefined;
   }
 
   private async collectMalformedArtifacts(
@@ -1299,8 +1500,35 @@ function normalizePaths(paths: string[]): string[] {
   return paths.map((filePath) => normalizeRelativePath(filePath)).filter(Boolean);
 }
 
+function normalizePolicyPathPurposes(policy?: ViewPolicy): Map<string, NonNullable<ViewPolicy["path_purposes"]>[string]> {
+  const out = new Map<string, NonNullable<ViewPolicy["path_purposes"]>[string]>();
+  for (const [pathKey, annotation] of Object.entries(policy?.path_purposes ?? {})) {
+    out.set(normalizeRelativePath(pathKey), annotation);
+  }
+  return out;
+}
+
+function isIgnoredPath(name: string, relativePath: string, ignored: Set<string>): boolean {
+  if (ignored.has(name) || ignored.has(relativePath)) return true;
+  for (const ignorePath of ignored) {
+    if (relativePath.startsWith(`${ignorePath}/`)) return true;
+  }
+  return false;
+}
+
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))];
+}
+
+function uniqueRecommendedReads(values: RecommendedRead[]): RecommendedRead[] {
+  const seen = new Set<string>();
+  const out: RecommendedRead[] = [];
+  for (const value of values.sort((a, b) => a.priority - b.priority || comparePaths(a.path, b.path))) {
+    if (seen.has(value.path)) continue;
+    seen.add(value.path);
+    out.push(value);
+  }
+  return out;
 }
 
 function commandAction(command: string, risk: NextAction["risk"], reason: string): NextAction {
@@ -1327,10 +1555,30 @@ function uniqueNextActions(actions: NextAction[]): NextAction[] {
 
 function pickImportantPaths(manifest: WorkspaceManifest): string[] {
   const recommended = manifest.recommended_reads.map((read) => read.path);
+  const annotated = (manifest.path_purposes ?? []).map((entry) => entry.path);
   const packageFiles = manifest.files
     .map((file) => file.path)
     .filter((filePath) => ["package.json", "pyproject.toml", "Cargo.toml", "README.md", "AGENTS.md", "CLAUDE.md"].includes(filePath));
-  return uniqueStrings([...recommended, ...packageFiles]).slice(0, 20);
+  return uniqueStrings([...recommended, ...annotated, ...packageFiles]).slice(0, 20);
+}
+
+function compareSuccessLevels(actual: ViewSuccessLevel, required: ViewSuccessLevel): number {
+  return SUCCESS_LEVELS.indexOf(actual) - SUCCESS_LEVELS.indexOf(required);
+}
+
+function successLabel(level: ViewSuccessLevel): string {
+  switch (level) {
+    case "L0":
+      return "Missing";
+    case "L1":
+      return "Present";
+    case "L2":
+      return "Useful";
+    case "L3":
+      return "Active";
+    case "L4":
+      return "Handoff-Ready";
+  }
 }
 
 function compactTimestamp(iso: string): string {

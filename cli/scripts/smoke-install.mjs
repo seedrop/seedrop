@@ -111,7 +111,7 @@ async function main() {
     if (!view.stdout.includes("linked active project")) throw new Error(`view init: ${view.stdout}`);
     record("seed view init composes id + space", "pass");
 
-    const context = await run(projectDir, seedBin, ["view", "context"]);
+    const context = await run(projectDir, seedBin, ["view", "context", "--json"]);
     const parsed = JSON.parse(context.stdout);
     if (!parsed.manifest?.workspace_id) throw new Error(`view context shape: ${context.stdout}`);
     record("seed view context reads manifest", "pass");

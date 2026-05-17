@@ -23,6 +23,25 @@ export const ManifestFileSchema = z
   })
   .strict();
 
+export const PathPurposeSchema = z
+  .object({
+    path: RelativePath,
+    purpose: z.string().min(1),
+    owner: z.string().min(1).optional(),
+    confidence: z.number().min(0).max(1).optional(),
+  })
+  .strict();
+
+export const PolicyPathPurposeSchema = z
+  .object({
+    purpose: z.string().min(1),
+    owner: z.string().min(1).optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    recommended_read_reason: z.string().min(1).optional(),
+    recommended_read_priority: z.number().int().positive().optional(),
+  })
+  .strict();
+
 export const RecommendedReadSchema = z
   .object({
     path: RelativePath,
@@ -38,6 +57,7 @@ export const WorkspaceManifestSchema = z
     root: z.literal("."),
     updated_at: IsoDateTime,
     files: z.array(ManifestFileSchema),
+    path_purposes: z.array(PathPurposeSchema).optional(),
     recommended_reads: z.array(RecommendedReadSchema),
   })
   .strict()
@@ -164,6 +184,10 @@ export const ViewPolicySchema = z
     schema_version: z.literal("1.0").optional(),
     purpose: z.string().min(1).optional(),
     current_focus: z.string().min(1).optional(),
+    ignore: z.array(RelativePath).optional(),
+    path_purposes: z.record(PolicyPathPurposeSchema).optional(),
+    freshness_ttl_hours: z.number().positive().optional(),
+    required_success_level: z.enum(["L0", "L1", "L2", "L3", "L4"]).optional(),
     sensitive_paths: z.array(RelativePath).optional(),
     danger_zones: z.array(z.string().min(1)).optional(),
     preferred_verification_commands: z.array(z.string().min(1)).optional(),
@@ -173,7 +197,19 @@ export const ViewPolicySchema = z
     claim_policy: z.string().min(1).optional(),
     commit_policy: z.string().min(1).optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((policy, ctx) => {
+    for (const key of Object.keys(policy.path_purposes ?? {})) {
+      const result = RelativePath.safeParse(key);
+      if (!result.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["path_purposes", key],
+          message: "path purpose keys must be relative paths and may not contain '..'",
+        });
+      }
+    }
+  });
 
 export const SpaceLifecycleSchema = z.enum(["open", "active", "ended", "archived"]);
 
@@ -276,6 +312,8 @@ export const PresenceRecordSchema = SessionSchema.extend({
 
 export type FileKind = z.infer<typeof FileKindSchema>;
 export type ManifestFile = z.infer<typeof ManifestFileSchema>;
+export type PathPurpose = z.infer<typeof PathPurposeSchema>;
+export type PolicyPathPurpose = z.infer<typeof PolicyPathPurposeSchema>;
 export type RecommendedRead = z.infer<typeof RecommendedReadSchema>;
 export type WorkspaceManifest = z.infer<typeof WorkspaceManifestSchema>;
 export type ContinuityValidation = z.infer<typeof ContinuityValidationSchema>;

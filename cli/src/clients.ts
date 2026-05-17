@@ -6,12 +6,14 @@ import { fileURLToPath } from "node:url";
 
 export type ClientFormat = "json" | "toml";
 export type ClientVerificationStatus = "verified" | "community" | "unverified";
+export type ClientEntryShape = "standard" | "kilo";
 
 export interface ClientDefinition {
   label?: string;
   config: string | Partial<Record<NodeJS.Platform, string>>;
   format: ClientFormat;
   section: string;
+  entry_shape?: ClientEntryShape;
   default_agent?: string;
   restart?: string;
   verified?: {
@@ -121,7 +123,7 @@ export async function installClientConfig(
   }
   const raw = existsSync(client.configPath) ? await readFile(client.configPath, "utf8") : "";
   const updated = client.format === "json"
-    ? upsertJsonServer(raw, client.section, entry)
+    ? upsertJsonServer(raw, client.section, entry, client.entry_shape)
     : upsertTomlServer(raw, client.section, entry);
   if (existsSync(client.configPath)) {
     await writeFile(`${client.configPath}.bak.${Date.now()}`, raw, "utf8");
@@ -134,7 +136,7 @@ export async function clientHasSeedConfig(client: ResolvedClientDefinition): Pro
   const raw = await readFile(client.configPath, "utf8");
   if (client.format === "json") {
     try {
-      return getNested(JSON.parse(raw || "{}"), client.section) !== undefined;
+      return getNested(parseJsonLike(raw || "{}"), client.section) !== undefined;
     } catch {
       return false;
     }
@@ -147,8 +149,8 @@ export async function configuredPassport(client: ResolvedClientDefinition): Prom
   const raw = await readFile(client.configPath, "utf8");
   if (client.format === "json") {
     try {
-      const server = getNested(JSON.parse(raw || "{}"), client.section) as { env?: Record<string, string> } | undefined;
-      return server?.env?.SEEDROP_PASSPORT ?? null;
+      const server = getNested(parseJsonLike(raw || "{}"), client.section) as { env?: Record<string, string>; environment?: Record<string, string> } | undefined;
+      return server?.env?.SEEDROP_PASSPORT ?? server?.environment?.SEEDROP_PASSPORT ?? null;
     } catch {
       return null;
     }
@@ -189,10 +191,10 @@ export function renderManualInstall(passportPath: string, command: McpServerComm
   ].join("\n");
 }
 
-export function upsertJsonServer(raw: string, section: string, entry: McpServerEntry): string {
+export function upsertJsonServer(raw: string, section: string, entry: McpServerEntry, shape: ClientEntryShape = "standard"): string {
   let parsed: unknown;
   try {
-    parsed = raw.trim().length > 0 ? JSON.parse(raw) : {};
+    parsed = raw.trim().length > 0 ? parseJsonLike(raw) : {};
   } catch (error) {
     throw new Error(`Could not parse JSON config: ${(error as Error).message}`);
   }
@@ -200,11 +202,19 @@ export function upsertJsonServer(raw: string, section: string, entry: McpServerE
     throw new Error("JSON config root must be an object");
   }
   const root = parsed as Record<string, unknown>;
-  const existing = getNested(root, section) as { env?: Record<string, string> } | undefined;
-  setNested(root, section, {
-    ...entry,
-    env: { ...(existing?.env ?? {}), ...entry.env },
-  });
+  const existing = getNested(root, section) as { env?: Record<string, string>; environment?: Record<string, string> } | undefined;
+  const value = shape === "kilo"
+    ? {
+        type: "local",
+        command: [entry.command, ...entry.args],
+        environment: { ...(existing?.environment ?? {}), ...entry.env },
+        enabled: true,
+      }
+    : {
+        ...entry,
+        env: { ...(existing?.env ?? {}), ...entry.env },
+      };
+  setNested(root, section, value);
   return `${JSON.stringify(root, null, 2)}\n`;
 }
 
@@ -273,11 +283,67 @@ function validateClientDefinition(value: unknown): string | null {
   }
   if (def.format !== "json" && def.format !== "toml") return "format must be json or toml";
   if (typeof def.section !== "string" || def.section.length === 0) return "section must be a non-empty string";
+  if (def.entry_shape !== undefined && def.entry_shape !== "standard" && def.entry_shape !== "kilo") {
+    return "entry_shape must be standard or kilo";
+  }
   const status = (def.verified as { status?: unknown } | undefined)?.status;
   if (status !== undefined && status !== "verified" && status !== "community" && status !== "unverified") {
     return "verified.status must be verified, community, or unverified";
   }
   return null;
+}
+
+function parseJsonLike(raw: string): unknown {
+  return JSON.parse(stripJsonComments(raw));
+}
+
+function stripJsonComments(raw: string): string {
+  let out = "";
+  let inString = false;
+  let quote = "";
+  let escaped = false;
+
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i]!;
+    const next = raw[i + 1];
+
+    if (inString) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === quote) {
+        inString = false;
+        quote = "";
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      inString = true;
+      quote = ch;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "/" && next === "/") {
+      while (i < raw.length && raw[i] !== "\n") i += 1;
+      out += "\n";
+      continue;
+    }
+
+    if (ch === "/" && next === "*") {
+      i += 2;
+      while (i < raw.length && !(raw[i] === "*" && raw[i + 1] === "/")) i += 1;
+      i += 1;
+      continue;
+    }
+
+    out += ch;
+  }
+
+  return out;
 }
 
 function getNested(root: unknown, section: string): unknown {

@@ -7,6 +7,7 @@ export type {
   Handoff,
   ManifestFile,
   NextAction,
+  PathPurpose,
   RecommendedRead,
   RunJournal,
   RunStep,
@@ -60,6 +61,13 @@ export interface ViewBrief {
     recommended_reads: WorkspaceManifest["recommended_reads"];
     important_paths: string[];
     freshness: "fresh" | "stale" | "missing" | "invalid";
+  };
+  success: {
+    level: "L0" | "L1" | "L2" | "L3" | "L4";
+    label: string;
+    summary: string;
+    required_level?: "L0" | "L1" | "L2" | "L3" | "L4";
+    meets_required: boolean;
   };
   verification_commands: string[];
   known_risks: string[];

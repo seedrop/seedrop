@@ -427,7 +427,7 @@ async function requirePassport(req: IncomingMessage, options: CreateServerOption
   const value = (Array.isArray(raw) ? raw[0] : raw)?.trim();
   if (!value) {
     throw new SpaceValidationError(
-      [{ code: "custom", path: [PASSPORT_HEADER], message: "X-Seed-Passport header is required" }],
+      [{ code: "custom", path: [PASSPORT_HEADER], message: "X-Seedrop-Passport header is required" }],
       "request",
     );
   }
