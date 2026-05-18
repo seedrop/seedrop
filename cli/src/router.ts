@@ -425,6 +425,10 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
     return { command: "seed-space", args: ["handoff", ...rest] };
   }
 
+  if (domain === "task") {
+    return { command: "seed-space", args: ["task", ...rest] };
+  }
+
   throw new Error(`Unknown seed domain: ${domain}`);
 }
 

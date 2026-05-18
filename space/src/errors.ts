@@ -45,6 +45,31 @@ export class WorkspaceRunUnloggedChangesError extends WorkspaceViewError {
   }
 }
 
+export class TaskNotFoundError extends WorkspaceViewError {
+  constructor(public readonly taskId: string) {
+    super(`Task not found: ${taskId}`);
+    this.name = "TaskNotFoundError";
+  }
+}
+
+export class TaskConflictError extends WorkspaceViewError {
+  constructor(message: string) {
+    super(message);
+    this.name = "TaskConflictError";
+  }
+}
+
+export class TaskBlockedError extends WorkspaceViewError {
+  constructor(
+    public readonly taskId: string,
+    public readonly openBlockers: string[],
+  ) {
+    const bullets = openBlockers.slice(0, 3).map((id) => `  - ${id}`).join("\n");
+    super(`Task ${taskId} is blocked by ${openBlockers.length} open task(s):\n${bullets}`);
+    this.name = "TaskBlockedError";
+  }
+}
+
 export class WorkspaceViewValidationError extends WorkspaceViewError {
   constructor(
     public readonly issues: ZodIssue[],

@@ -167,6 +167,36 @@ export const RunJournalSchema = z
   })
   .strict();
 
+export const TaskStatusSchema = z.enum([
+  "open",
+  "claimed",
+  "in_progress",
+  "blocked",
+  "done",
+  "dropped",
+]);
+
+export const TaskSchema = z
+  .object({
+    schema_version: z.literal("1.0"),
+    task_id: z.string().uuid(),
+    title: z.string().min(1).max(120),
+    description: z.string().max(2000).optional(),
+    status: TaskStatusSchema,
+    owner: z.string().min(1).optional(),
+    assigned_by: z.string().min(1).optional(),
+    assigned_note: z.string().min(1).max(500).optional(),
+    from_knowledge: z.string().min(1).optional(),
+    created_at: IsoDateTime,
+    updated_at: IsoDateTime,
+    blocked_by: z.array(z.string().uuid()).optional(),
+    related_runs: z.array(z.string().uuid()),
+    related_handoffs: z.array(z.string().uuid()).optional(),
+    decline_reason: z.string().min(1).max(500).optional(),
+    drop_reason: z.string().min(1).max(500).optional(),
+  })
+  .strict();
+
 export const HandoffSchema = z
   .object({
     schema_version: z.literal("1.0"),
@@ -334,6 +364,8 @@ export type RunValidationEntry = z.infer<typeof RunValidationEntrySchema>;
 export type RunStep = z.infer<typeof RunStepSchema>;
 export type RunJournal = z.infer<typeof RunJournalSchema>;
 export type Handoff = z.infer<typeof HandoffSchema>;
+export type Task = z.infer<typeof TaskSchema>;
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export type ViewPolicy = z.infer<typeof ViewPolicySchema>;
 export type SpaceLifecycle = z.infer<typeof SpaceLifecycleSchema>;
 export type SpaceMember = z.infer<typeof SpaceMemberSchema>;

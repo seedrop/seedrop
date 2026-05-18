@@ -13,6 +13,8 @@ export type {
   RunStep,
   RunValidationEntry,
   Signal,
+  Task,
+  TaskStatus,
   ViewPolicy,
   WorkspaceManifest,
 } from "./schema.js";
@@ -102,6 +104,8 @@ export interface WorkspaceContext {
   latest_run?: RunJournal;
   active_runs?: RunJournal[];
   pending_handoffs?: Handoff[];
+  active_tasks?: import("./schema.js").Task[];
+  open_tasks_count?: number;
   latest_audit?: AuditReport;
   preflight?: ViewPreflightReport;
   next_actions?: NextAction[];

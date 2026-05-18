@@ -4,7 +4,15 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ZodType } from "zod";
-import { WorkspaceRunDirtyTreeError, WorkspaceRunUnloggedChangesError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
+import {
+  TaskBlockedError,
+  TaskConflictError,
+  TaskNotFoundError,
+  WorkspaceRunDirtyTreeError,
+  WorkspaceRunUnloggedChangesError,
+  WorkspaceViewParseError,
+  WorkspaceViewValidationError,
+} from "./errors.js";
 import {
   ContinuityPacketSchema,
   HandoffSchema,
@@ -12,6 +20,8 @@ import {
   PolicyPathPurposeSchema,
   RunJournalSchema,
   SignalSchema,
+  TaskSchema,
+  TaskStatusSchema,
   ViewPolicySchema,
   WorkspaceManifestSchema,
 } from "./schema.js";
@@ -25,6 +35,8 @@ import {
   RecommendedRead,
   RunJournal,
   Signal,
+  Task,
+  TaskStatus,
   ViewBrief,
   WorkspaceContext,
   WorkspaceManifest,
@@ -49,6 +61,8 @@ export type {
   RunStep,
   RunValidationEntry,
   Signal,
+  Task,
+  TaskStatus,
   ViewBrief,
   ViewCheck,
   ViewPolicy,
@@ -70,10 +84,21 @@ export {
   RunStepSchema,
   RunValidationEntrySchema,
   SignalSchema,
+  TaskSchema,
+  TaskStatusSchema,
   ViewPolicySchema,
   WorkspaceManifestSchema,
 } from "./schema.js";
-export { WorkspaceRunDirtyTreeError, WorkspaceRunUnloggedChangesError, WorkspaceViewError, WorkspaceViewParseError, WorkspaceViewValidationError } from "./errors.js";
+export {
+  TaskBlockedError,
+  TaskConflictError,
+  TaskNotFoundError,
+  WorkspaceRunDirtyTreeError,
+  WorkspaceRunUnloggedChangesError,
+  WorkspaceViewError,
+  WorkspaceViewParseError,
+  WorkspaceViewValidationError,
+} from "./errors.js";
 
 export interface WorkspaceViewOptions {
   root?: string;
@@ -123,6 +148,7 @@ export interface RunStartInput {
   goal: string;
   agent?: string;
   newRun?: boolean;
+  taskId?: string;
 }
 
 export interface RunUpdateInput {
@@ -153,6 +179,45 @@ export interface RunStartResult {
   run: RunJournal;
   warnings: string[];
   next_actions: NextAction[];
+}
+
+export interface TaskCreateInput {
+  title: string;
+  description?: string;
+  fromKnowledge?: string;
+  blockedBy?: string[];
+  agent?: string;
+}
+
+export interface TaskAssignInput {
+  taskId: string;
+  to: string;
+  note?: string;
+  agent?: string;
+}
+
+export interface TaskDeclineInput {
+  taskId: string;
+  reason?: string;
+  agent?: string;
+}
+
+export interface TaskPauseInput {
+  taskId: string;
+  status?: "blocked" | "open";
+  agent?: string;
+}
+
+export interface TaskDropInput {
+  taskId: string;
+  reason?: string;
+  agent?: string;
+}
+
+export interface TaskListFilter {
+  status?: TaskStatus;
+  owner?: string;
+  fromKnowledge?: string;
 }
 
 export interface HandoffCreateInput {
@@ -191,6 +256,7 @@ export class WorkspaceView {
   readonly signalsDir: string;
   readonly runsDir: string;
   readonly handoffsDir: string;
+  readonly tasksDir: string;
   readonly knowledgeDir: string;
   readonly policyPath: string;
   readonly auditPath: string;
@@ -208,6 +274,7 @@ export class WorkspaceView {
     this.signalsDir = path.join(this.dataDir, "signals");
     this.runsDir = path.join(this.dataDir, "runs");
     this.handoffsDir = path.join(this.dataDir, "handoffs");
+    this.tasksDir = path.join(this.dataDir, "tasks");
     this.knowledgeDir = path.join(this.dataDir, "knowledge");
     this.policyPath = path.join(this.dataDir, "policy.json");
     this.auditPath = path.join(this.dataDir, "audit.json");
@@ -424,6 +491,9 @@ export class WorkspaceView {
       next_actions: [],
     };
     await this.writeRun(run);
+    if (input.taskId) {
+      await this.linkTaskRun(input.taskId, run.run_id);
+    }
     return { run, warnings: [], next_actions: [] };
   }
 
@@ -501,6 +571,206 @@ export class WorkspaceView {
 
     return runs.sort((a, b) => a.started_at.localeCompare(b.started_at));
   }
+
+  // ─── Tasks ─────────────────────────────────────────────────────────────────
+
+  private taskPath(taskId: string): string {
+    return path.join(this.tasksDir, `${taskId}.json`);
+  }
+
+  async createTask(input: TaskCreateInput): Promise<Task> {
+    await this.ensureDirs();
+    const now = this.nowIso();
+    const task: Task = {
+      schema_version: "1.0",
+      task_id: randomUUID(),
+      title: input.title,
+      ...(input.description ? { description: input.description } : {}),
+      status: "open",
+      ...(input.fromKnowledge ? { from_knowledge: input.fromKnowledge } : {}),
+      created_at: now,
+      updated_at: now,
+      ...(input.blockedBy && input.blockedBy.length > 0 ? { blocked_by: input.blockedBy } : {}),
+      related_runs: [],
+    };
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async getTask(taskId: string): Promise<Task> {
+    try {
+      return await this.readJson(this.taskPath(taskId), TaskSchema);
+    } catch (error) {
+      if (error instanceof WorkspaceViewParseError || (error as NodeJS.ErrnoException)?.code === "ENOENT") {
+        throw new TaskNotFoundError(taskId);
+      }
+      throw error;
+    }
+  }
+
+  async listTasks(filter: TaskListFilter = {}): Promise<Task[]> {
+    await this.ensureDirs();
+    const entries = await readdir(this.tasksDir, { withFileTypes: true });
+    const tasks: Task[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      try {
+        const task = await this.readJson(path.join(this.tasksDir, entry.name), TaskSchema);
+        if (filter.status && task.status !== filter.status) continue;
+        if (filter.owner && task.owner !== filter.owner) continue;
+        if (filter.fromKnowledge && task.from_knowledge !== filter.fromKnowledge) continue;
+        tasks.push(task);
+      } catch {
+        continue;
+      }
+    }
+    return tasks.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+
+  async claimTask(taskId: string, agent?: string): Promise<Task> {
+    const who = agent ?? this.agent;
+    const task = await this.getTask(taskId);
+    if (task.status !== "open") {
+      throw new TaskConflictError(`Task ${taskId} cannot be claimed (status: ${task.status}, owner: ${task.owner ?? "none"}).`);
+    }
+    task.owner = who;
+    task.status = "claimed";
+    delete task.assigned_by;
+    delete task.assigned_note;
+    delete task.decline_reason;
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async assignTask(input: TaskAssignInput): Promise<Task> {
+    const assigner = input.agent ?? this.agent;
+    const task = await this.getTask(input.taskId);
+    if (task.status === "done" || task.status === "dropped") {
+      throw new TaskConflictError(`Task ${input.taskId} cannot be assigned (status: ${task.status}).`);
+    }
+    task.owner = input.to;
+    task.assigned_by = assigner;
+    if (input.note) task.assigned_note = input.note;
+    else delete task.assigned_note;
+    if (task.status === "open") task.status = "claimed";
+    delete task.decline_reason;
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async acceptTask(taskId: string, agent?: string): Promise<Task> {
+    const who = agent ?? this.agent;
+    const task = await this.getTask(taskId);
+    if (task.owner !== who) {
+      throw new TaskConflictError(`Task ${taskId} is owned by ${task.owner ?? "no one"}; only the owner can accept.`);
+    }
+    delete task.assigned_by;
+    delete task.assigned_note;
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async declineTask(input: TaskDeclineInput): Promise<Task> {
+    const who = input.agent ?? this.agent;
+    const task = await this.getTask(input.taskId);
+    if (task.owner !== who) {
+      throw new TaskConflictError(`Task ${input.taskId} is owned by ${task.owner ?? "no one"}; only the owner can decline.`);
+    }
+    delete task.owner;
+    delete task.assigned_by;
+    delete task.assigned_note;
+    task.status = "open";
+    if (input.reason) task.decline_reason = input.reason;
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async startTask(taskId: string, agent?: string): Promise<Task> {
+    const who = agent ?? this.agent;
+    const task = await this.getTask(taskId);
+    if (task.owner && task.owner !== who) {
+      throw new TaskConflictError(`Task ${taskId} is owned by ${task.owner}; only the owner can start it.`);
+    }
+    await this.assertNotBlocked(task);
+    if (!task.owner) task.owner = who;
+    task.status = "in_progress";
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async pauseTask(input: TaskPauseInput): Promise<Task> {
+    const who = input.agent ?? this.agent;
+    const task = await this.getTask(input.taskId);
+    if (task.owner !== who) {
+      throw new TaskConflictError(`Task ${input.taskId} is owned by ${task.owner ?? "no one"}; only the owner can pause.`);
+    }
+    task.status = input.status ?? "blocked";
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async doneTask(taskId: string, agent?: string): Promise<Task> {
+    const who = agent ?? this.agent;
+    const task = await this.getTask(taskId);
+    if (task.owner !== who) {
+      throw new TaskConflictError(`Task ${taskId} is owned by ${task.owner ?? "no one"}; only the owner can complete.`);
+    }
+    await this.assertNotBlocked(task);
+    task.status = "done";
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async dropTask(input: TaskDropInput): Promise<Task> {
+    const who = input.agent ?? this.agent;
+    const task = await this.getTask(input.taskId);
+    if (task.owner && task.owner !== who) {
+      throw new TaskConflictError(`Task ${input.taskId} is owned by ${task.owner}; only the owner can drop.`);
+    }
+    task.status = "dropped";
+    if (input.reason) task.drop_reason = input.reason;
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async linkTaskRun(taskId: string, runId: string): Promise<Task> {
+    const task = await this.getTask(taskId);
+    if (!task.related_runs.includes(runId)) {
+      task.related_runs.push(runId);
+      task.updated_at = this.nowIso();
+      await this.writeJson(this.taskPath(task.task_id), task);
+    }
+    return task;
+  }
+
+  private async assertNotBlocked(task: Task): Promise<void> {
+    if (!task.blocked_by || task.blocked_by.length === 0) return;
+    const openBlockers: string[] = [];
+    for (const blockerId of task.blocked_by) {
+      try {
+        const blocker = await this.getTask(blockerId);
+        if (blocker.status !== "done" && blocker.status !== "dropped") {
+          openBlockers.push(blockerId);
+        }
+      } catch {
+        // Missing blocker — treat as open (defensive: we don't know the state).
+        openBlockers.push(blockerId);
+      }
+    }
+    if (openBlockers.length > 0) {
+      throw new TaskBlockedError(task.task_id, openBlockers);
+    }
+  }
+
+  // ─── Handoffs ─────────────────────────────────────────────────────────────
 
   async createHandoff(input: HandoffCreateInput): Promise<Handoff> {
     await this.ensureDirs();
@@ -710,6 +980,13 @@ export class WorkspaceView {
     const pendingHandoffs = (await this.safeListHandoffs()).filter(
       (handoff) => handoff.status === "pending" && handoff.recipient === this.agent,
     );
+    const allTasks = await this.safeListTasks();
+    const activeTasks = allTasks.filter(
+      (task) =>
+        (task.owner === this.agent && (task.status === "claimed" || task.status === "in_progress" || task.status === "blocked"))
+        || (task.owner === undefined && task.status === "open"),
+    );
+    const openTasksCount = allTasks.filter((task) => task.status === "open").length;
     const preflight = await this.preflight({ checkManifestDrift: false });
     const latestAudit = await this.readCachedAuditReport();
 
@@ -724,6 +1001,8 @@ export class WorkspaceView {
       ...(latestRun ? { latest_run: latestRun } : {}),
       active_runs: activeRuns,
       pending_handoffs: pendingHandoffs,
+      ...(activeTasks.length > 0 ? { active_tasks: activeTasks } : {}),
+      open_tasks_count: openTasksCount,
       latest_audit: latestAudit,
       preflight,
       next_actions: uniqueNextActions([...brief.next_actions, ...preflight.next_actions]),
@@ -1147,6 +1426,7 @@ export class WorkspaceView {
       mkdir(this.signalsDir, { recursive: true }),
       mkdir(this.runsDir, { recursive: true }),
       mkdir(this.handoffsDir, { recursive: true }),
+      mkdir(this.tasksDir, { recursive: true }),
       mkdir(this.knowledgeDir, { recursive: true }),
     ]);
   }
@@ -1292,6 +1572,21 @@ export class WorkspaceView {
       }
     }
     return handoffs.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+
+  private async safeListTasks(): Promise<Task[]> {
+    if (!existsSync(this.tasksDir)) return [];
+    const entries = await readdir(this.tasksDir, { withFileTypes: true });
+    const tasks: Task[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      try {
+        tasks.push(await this.readJson(path.join(this.tasksDir, entry.name), TaskSchema));
+      } catch {
+        continue;
+      }
+    }
+    return tasks.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   private async safeListSignals(options: { includeExpired?: boolean } = {}): Promise<Signal[]> {

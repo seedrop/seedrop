@@ -111,6 +111,8 @@ export type {
   AuditReport,
   ContinuityPacket,
   ContinuityValidation,
+  Task,
+  TaskStatus,
   ViewBrief,
   ViewCheck,
   ViewPreflightReport,

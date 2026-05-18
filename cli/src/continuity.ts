@@ -62,6 +62,15 @@ interface ViewSignal {
   expires_at?: string;
 }
 
+interface ViewTask {
+  task_id: string;
+  title: string;
+  status: "open" | "claimed" | "in_progress" | "blocked" | "done" | "dropped";
+  owner?: string;
+  assigned_by?: string;
+  from_knowledge?: string;
+}
+
 type ContinuityPacket = Partial<SpaceContinuityPacket> & {
   // cli reads this extra field on packets surfaced by the daemon; not in the wire schema yet.
   next_actions?: string[];
@@ -194,6 +203,8 @@ export interface ContinuityReport {
     currentRun?: ViewRun;
     latestRun?: ViewRun;
     pendingHandoffs: ViewHandoff[];
+    activeTasks: ViewTask[];
+    openTasksCount: number;
   };
   daemon: {
     url: string;
@@ -239,6 +250,8 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   const currentRun = viewContext.current_run as ViewRun | undefined;
   const latestRun = viewContext.latest_run as ViewRun | undefined;
   const pendingHandoffs = (viewContext.pending_handoffs ?? []) as ViewHandoff[];
+  const activeTasks = (viewContext.active_tasks ?? []) as ViewTask[];
+  const openTasksCount = typeof viewContext.open_tasks_count === "number" ? viewContext.open_tasks_count : 0;
   if (!viewPresent) {
     warnings.push(`No .seedrop/view in ${root}. Run \`seed bootstrap\` to link this root to your passport.`);
   }
@@ -330,6 +343,8 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
       currentRun,
       latestRun,
       pendingHandoffs,
+      activeTasks,
+      openTasksCount,
     },
     daemon: {
       url: opts.spaceUrl,
@@ -462,6 +477,25 @@ export function renderContinuity(report: ContinuityReport): string {
       for (const handoff of report.view.pendingHandoffs.slice(0, 3)) {
         lines.push(`    - [${handoff.handoff_id.slice(0, 8)}] from ${handoff.source_agent}: ${truncate(handoff.summary, 80)}`);
       }
+    }
+    const myAgentId = report.passport?.agent_id;
+    const yoursActive = report.view.activeTasks.filter((t) => t.owner === myAgentId && t.status !== "open");
+    const pendingAccept = report.view.activeTasks.filter((t) => t.owner === myAgentId && t.assigned_by && t.assigned_by !== myAgentId);
+    if (yoursActive.length > 0) {
+      lines.push(`  your tasks: ${yoursActive.length}`);
+      for (const task of yoursActive.slice(0, 3)) {
+        const from = task.from_knowledge ? ` (from ${task.from_knowledge})` : "";
+        lines.push(`    - [${task.task_id.slice(0, 8)}] ${task.status}: ${truncate(task.title, 80)}${from}`);
+      }
+    }
+    if (pendingAccept.length > 0) {
+      lines.push(`  assigned to you (pending accept): ${pendingAccept.length}`);
+      for (const task of pendingAccept.slice(0, 3)) {
+        lines.push(`    - [${task.task_id.slice(0, 8)}] by ${task.assigned_by}: ${truncate(task.title, 80)}`);
+      }
+    }
+    if (report.view.openTasksCount > 0) {
+      lines.push(`  open tasks (unclaimed): ${report.view.openTasksCount}`);
     }
   } else {
     lines.push(`  view: absent`);

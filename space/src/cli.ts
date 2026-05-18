@@ -20,6 +20,17 @@ function defaultPassportPath(): string {
   return join(homedir(), ".seedrop", "id", "passport.json");
 }
 
+function defaultAgentId(): string {
+  try {
+    const passportPath = defaultPassportPath();
+    if (!existsSync(passportPath)) return "agent";
+    const parsed = JSON.parse(readFileSync(passportPath, "utf8")) as { agent_id?: string };
+    return typeof parsed.agent_id === "string" && parsed.agent_id.length > 0 ? parsed.agent_id : "agent";
+  } catch {
+    return "agent";
+  }
+}
+
 function readActivePassportFromState(): string | null {
   const statePath = join(homedir(), ".seedrop", "state", "active-passport.json");
   try {
@@ -99,7 +110,7 @@ async function run(args: ParsedArgs): Promise<void> {
 
   const view = WorkspaceView.open({
     root: args.flags.get("root")?.[0] ?? process.cwd(),
-    agent: args.flags.get("agent")?.[0] ?? "agent",
+    agent: args.flags.get("agent")?.[0] ?? defaultAgentId(),
   });
 
   if (args.namespace === "run") {
@@ -109,6 +120,11 @@ async function run(args: ParsedArgs): Promise<void> {
 
   if (args.namespace === "handoff") {
     await handoffCommand(command, args, view);
+    return;
+  }
+
+  if (args.namespace === "task") {
+    await taskCommand(command, args, view);
     return;
   }
 
@@ -365,6 +381,7 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
       await view.startRun({
         goal: requireFlag(args, "goal"),
         newRun: args.flags.has("new"),
+        taskId: args.flags.get("task")?.[0],
       }),
     );
     return;
@@ -408,6 +425,91 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
   throw new Error(`Unknown run command: ${command ?? ""}`);
 }
 
+async function taskCommand(command: string | undefined, args: ParsedArgs, view: WorkspaceView): Promise<void> {
+  if (command === "create") {
+    printJson(
+      await view.createTask({
+        title: requireFlag(args, "title"),
+        description: args.flags.get("description")?.[0],
+        fromKnowledge: args.flags.get("from-knowledge")?.[0],
+        blockedBy: args.flags.get("blocked-by") ?? [],
+      }),
+    );
+    return;
+  }
+  if (command === "claim") {
+    printJson(await view.claimTask(requireValue(args, 0, "task id")));
+    return;
+  }
+  if (command === "assign") {
+    printJson(
+      await view.assignTask({
+        taskId: requireValue(args, 0, "task id"),
+        to: requireValue(args, 1, "agent"),
+        note: args.flags.get("note")?.[0],
+      }),
+    );
+    return;
+  }
+  if (command === "accept") {
+    printJson(await view.acceptTask(requireValue(args, 0, "task id")));
+    return;
+  }
+  if (command === "decline") {
+    printJson(
+      await view.declineTask({
+        taskId: requireValue(args, 0, "task id"),
+        reason: args.flags.get("reason")?.[0],
+      }),
+    );
+    return;
+  }
+  if (command === "start") {
+    printJson(await view.startTask(requireValue(args, 0, "task id")));
+    return;
+  }
+  if (command === "pause") {
+    const statusFlag = args.flags.get("status")?.[0];
+    const status = statusFlag === "open" ? "open" : statusFlag === "blocked" || statusFlag === undefined ? "blocked" : (() => {
+      throw new Error(`--status must be 'blocked' or 'open' (got '${statusFlag}').`);
+    })();
+    printJson(await view.pauseTask({ taskId: requireValue(args, 0, "task id"), status }));
+    return;
+  }
+  if (command === "done") {
+    printJson(await view.doneTask(requireValue(args, 0, "task id")));
+    return;
+  }
+  if (command === "drop") {
+    printJson(
+      await view.dropTask({
+        taskId: requireValue(args, 0, "task id"),
+        reason: args.flags.get("reason")?.[0],
+      }),
+    );
+    return;
+  }
+  if (command === "list") {
+    const status = args.flags.get("status")?.[0];
+    const tasks = await view.listTasks({
+      status: status as Parameters<typeof view.listTasks>[0] extends infer T ? T extends { status?: infer S } ? S : never : never,
+      owner: args.flags.get("owner")?.[0],
+      fromKnowledge: args.flags.get("from-knowledge")?.[0],
+    });
+    if (args.flags.has("json")) printJson(tasks);
+    else for (const task of tasks) {
+      const owner = task.owner ?? "—";
+      console.log(`${task.task_id.slice(0, 8)}\t${task.status}\t${owner}\t${task.title}`);
+    }
+    return;
+  }
+  if (command === "show") {
+    printJson(await view.getTask(requireValue(args, 0, "task id")));
+    return;
+  }
+  throw new Error(`Unknown task command: ${command ?? ""}`);
+}
+
 async function handoffCommand(command: string | undefined, args: ParsedArgs, view: WorkspaceView): Promise<void> {
   if (command === "create") {
     printJson(
@@ -442,7 +544,7 @@ async function handoffCommand(command: string | undefined, args: ParsedArgs, vie
 
 function parseArgs(argv: string[]): ParsedArgs {
   const [first, second, ...remaining] = argv;
-  const isNamespace = first === "view" || first === "run" || first === "handoff";
+  const isNamespace = first === "view" || first === "run" || first === "handoff" || first === "task";
   const namespace = isNamespace ? first : undefined;
   const command = isNamespace ? second : first;
   const rest = isNamespace ? remaining : argv.slice(1);
