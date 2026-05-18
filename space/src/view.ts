@@ -403,7 +403,7 @@ export class WorkspaceView {
         commands: input.validation?.commands ?? [],
         ...(input.validation?.notes ? { notes: input.validation.notes } : {}),
       },
-      changed_paths: input.changedPaths ?? [],
+      changed_paths: this.toWorkspaceRelativeMany(input.changedPaths ?? []),
       git_status: this.snapshotGitStatus(),
     };
 
@@ -433,7 +433,7 @@ export class WorkspaceView {
     const signal: Signal = {
       id: randomUUID(),
       type: input.type ?? "claim",
-      target: normalizeRelativePath(input.target),
+      target: this.toWorkspaceRelative(input.target),
       owner: input.owner ?? this.agent,
       created_at: createdAt.toISOString(),
       expires_at: new Date(createdAt.getTime() + ttlMs).toISOString(),
@@ -450,9 +450,14 @@ export class WorkspaceView {
   async releaseSignal(input: ReleaseSignalInput): Promise<Signal[]> {
     const signals = await this.listSignals({ includeExpired: true });
     const released: Signal[] = [];
+    // Relativize target at the input boundary so the comparison in
+    // matchesSignal is apples-to-apples with the stored signal.target.
+    const normalized: ReleaseSignalInput = input.target
+      ? { ...input, target: this.toWorkspaceRelative(input.target) }
+      : input;
 
     for (const signal of signals) {
-      if (!matchesSignal(signal, input)) {
+      if (!matchesSignal(signal, normalized)) {
         continue;
       }
       const filename = await this.findSignalFilename(signal.id);
@@ -491,7 +496,7 @@ export class WorkspaceView {
       }
       if (input.claim && input.claim.length > 0) {
         const signals = await this.safeListSignals();
-        const targets = new Set(input.claim.map((p) => normalizeRelativePath(p)));
+        const targets = new Set(this.toWorkspaceRelativeMany(input.claim));
         const conflicts = signals
           .filter((s) => s.owner !== agentId && targets.has(s.target))
           .map((s) => ({
@@ -542,17 +547,20 @@ export class WorkspaceView {
 
   async logRun(input: RunUpdateInput): Promise<RunJournal> {
     const run = await this.requireActiveRun(input.agent);
+    // Relativize once at the input boundary so we cannot store a path the
+    // RelativePath schema would reject on the next read.
+    const relativeChangedPaths = this.toWorkspaceRelativeMany(input.changedPaths ?? []);
     if (input.summary) {
       run.steps.push({
         summary: input.summary,
         recorded_at: this.nowIso(),
-        changed_paths: normalizePaths(input.changedPaths ?? []),
+        changed_paths: relativeChangedPaths,
       });
     }
     if (input.decision) run.decisions.push(input.decision);
     if (input.assumption) run.assumptions.push(input.assumption);
     if (input.thread) run.open_threads.push(input.thread);
-    run.changed_paths = uniqueStrings([...run.changed_paths, ...normalizePaths(input.changedPaths ?? [])]);
+    run.changed_paths = uniqueStrings([...run.changed_paths, ...relativeChangedPaths]);
     if (input.nextActions) run.next_actions = input.nextActions;
     return await this.updateRun(run);
   }
@@ -633,20 +641,37 @@ export class WorkspaceView {
   }
 
   async listRuns(): Promise<RunJournal[]> {
+    const { runs } = await this.listRunsWithErrors();
+    return runs;
+  }
+
+  async listRunsWithErrors(): Promise<{ runs: RunJournal[]; malformed: Array<{ filename: string; error: string }> }> {
     await this.ensureDirs();
     const entries = await readdir(this.runsDir, { withFileTypes: true });
     const runs: RunJournal[] = [];
+    const malformed: Array<{ filename: string; error: string }> = [];
 
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
       try {
         runs.push(await this.readJson(path.join(this.runsDir, entry.name), RunJournalSchema));
-      } catch {
-        continue;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        malformed.push({ filename: entry.name, error: message });
+        // Surface to stderr so the agent (and CI) sees corrupted run files
+        // instead of them being silently invisible. The error message is
+        // structured, so a future API consumer can also call
+        // listRunsWithErrors() to get them programmatically.
+        process.stderr.write(
+          `seedrop: skipping malformed run file ${entry.name}: ${message.split("\n")[0]}\n`,
+        );
       }
     }
 
-    return runs.sort((a, b) => a.started_at.localeCompare(b.started_at));
+    return {
+      runs: runs.sort((a, b) => a.started_at.localeCompare(b.started_at)),
+      malformed,
+    };
   }
 
   // ─── Tasks ─────────────────────────────────────────────────────────────────
@@ -1777,7 +1802,14 @@ export class WorkspaceView {
   private async requireActiveRun(agent = this.agent): Promise<RunJournal> {
     const run = await this.activeRun(agent);
     if (!run) {
-      throw new Error(`No active run for ${agent}. Run \`seed run start --goal "..."\` first.`);
+      // Check whether there are malformed run files on disk — if so, the
+      // run isn't missing, it's corrupted. Surface that fact instead of
+      // misleading the agent into thinking they never started one.
+      const { malformed } = await this.listRunsWithErrors();
+      const corruptionHint = malformed.length > 0
+        ? ` (${malformed.length} run file(s) on disk failed to parse: ${malformed.slice(0, 2).map((m) => m.filename).join(", ")}${malformed.length > 2 ? `, +${malformed.length - 2} more` : ""}. Check ${this.runsDir} for corrupted journals — likely cause: paths stored in non-relative form.)`
+        : "";
+      throw new Error(`No active run for ${agent}.${corruptionHint} Run \`seed run start --goal "..."\` first.`);
     }
     return run;
   }
@@ -1790,6 +1822,39 @@ export class WorkspaceView {
 
   private async writeRun(run: RunJournal): Promise<void> {
     await this.writeJson(this.runPath(run.run_id), run);
+  }
+
+  /**
+   * Normalize a user-provided path to a workspace-relative POSIX string.
+   * Absolute paths are relativized against this.root. Throws if the path
+   * escapes the workspace root or is empty. This is the *input boundary*
+   * for all user-provided paths (run.changed_paths, signal.target,
+   * packet.changed_paths, etc.) so the write side cannot produce a path
+   * the read-side RelativePath schema would reject.
+   */
+  private toWorkspaceRelative(input: string): string {
+    if (!input || input.trim().length === 0) {
+      throw new Error("Path must be non-empty.");
+    }
+    const trimmed = input.trim();
+    const candidate = path.isAbsolute(trimmed)
+      ? path.relative(this.root, trimmed)
+      : trimmed;
+    const normalized = candidate.split(path.sep).join("/").replace(/\/+/g, "/");
+    if (normalized.length === 0) {
+      throw new Error(`Path resolves to workspace root itself: ${input}`);
+    }
+    if (normalized === ".." || normalized.startsWith("../") || normalized.includes("/../")) {
+      throw new Error(`Path escapes workspace root (${this.root}): ${input}`);
+    }
+    if (path.isAbsolute(normalized) || normalized.startsWith("/")) {
+      throw new Error(`Path could not be made relative to workspace root (${this.root}): ${input}`);
+    }
+    return normalized;
+  }
+
+  private toWorkspaceRelativeMany(inputs: readonly string[]): string[] {
+    return inputs.map((input) => this.toWorkspaceRelative(input));
   }
 
   private runPath(runId: string): string {
@@ -1982,7 +2047,7 @@ function matchesSignal(signal: Signal, input: ReleaseSignalInput): boolean {
   if (input.type && signal.type !== input.type) {
     return false;
   }
-  if (input.target && signal.target !== normalizeRelativePath(input.target)) {
+  if (input.target && signal.target !== input.target) {
     return false;
   }
   if (input.owner && signal.owner !== input.owner) {
