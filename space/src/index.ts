@@ -109,6 +109,8 @@ export type {
 export type {
   AuditIssue,
   AuditReport,
+  ContinuityPacket,
+  ContinuityValidation,
   ViewBrief,
   ViewCheck,
   ViewPreflightReport,

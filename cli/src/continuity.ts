@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { WorkspaceView, type ViewCheck } from "@seedrop/space";
+import { WorkspaceView, type ContinuityPacket as SpaceContinuityPacket, type ViewBrief as SpaceViewBrief, type ViewCheck } from "@seedrop/space";
 import { readContinuityState, writeContinuityState } from "./continuity-state.js";
 import type { RunCliIO } from "./router.js";
 
@@ -50,21 +50,7 @@ interface ViewManifest {
   updated_at?: string;
 }
 
-interface ViewBrief {
-  success?: {
-    level?: "L0" | "L1" | "L2" | "L3" | "L4";
-    label?: string;
-    summary?: string;
-    required_level?: "L0" | "L1" | "L2" | "L3" | "L4";
-    meets_required?: boolean;
-  };
-  git_status?: {
-    is_repo: boolean;
-    is_dirty: boolean;
-    uncommitted_count: number;
-    uncommitted_paths?: string[];
-  };
-}
+type ViewBrief = Pick<SpaceViewBrief, "success" | "git_status">;
 
 interface ViewSignal {
   id: string;
@@ -76,20 +62,10 @@ interface ViewSignal {
   expires_at?: string;
 }
 
-interface ContinuityPacket {
-  mission?: string;
-  summary?: string;
+type ContinuityPacket = Partial<SpaceContinuityPacket> & {
+  // cli reads this extra field on packets surfaced by the daemon; not in the wire schema yet.
   next_actions?: string[];
-  open_threads?: string[];
-  validation?: { status?: string; commands?: string[] };
-  created_at?: string;
-  git_status?: {
-    is_repo: boolean;
-    is_dirty: boolean;
-    uncommitted_count: number;
-    uncommitted_paths?: string[];
-  };
-}
+};
 
 interface ViewRun {
   run_id: string;
