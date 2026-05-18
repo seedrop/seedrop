@@ -106,6 +106,12 @@ export interface WorkspaceContext {
   pending_handoffs?: Handoff[];
   active_tasks?: import("./schema.js").Task[];
   open_tasks_count?: number;
+  other_agents?: Array<{
+    agent_id: string;
+    active_runs: Array<{ run_id: string; goal: string; started_at: string; changed_paths: string[] }>;
+    claims: Array<{ signal_id: string; target: string; intent: string; expires_at: string }>;
+    in_progress_tasks: Array<{ task_id: string; title: string }>;
+  }>;
   latest_audit?: AuditReport;
   preflight?: ViewPreflightReport;
   next_actions?: NextAction[];

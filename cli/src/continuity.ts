@@ -205,6 +205,12 @@ export interface ContinuityReport {
     pendingHandoffs: ViewHandoff[];
     activeTasks: ViewTask[];
     openTasksCount: number;
+    otherAgents: Array<{
+      agent_id: string;
+      active_runs: Array<{ run_id: string; goal: string; started_at: string; changed_paths: string[] }>;
+      claims: Array<{ signal_id: string; target: string; intent: string; expires_at: string }>;
+      in_progress_tasks: Array<{ task_id: string; title: string }>;
+    }>;
   };
   daemon: {
     url: string;
@@ -252,6 +258,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   const pendingHandoffs = (viewContext.pending_handoffs ?? []) as ViewHandoff[];
   const activeTasks = (viewContext.active_tasks ?? []) as ViewTask[];
   const openTasksCount = typeof viewContext.open_tasks_count === "number" ? viewContext.open_tasks_count : 0;
+  const otherAgents = (viewContext.other_agents ?? []) as ContinuityReport["view"]["otherAgents"];
   if (!viewPresent) {
     warnings.push(`No .seedrop/view in ${root}. Run \`seed bootstrap\` to link this root to your passport.`);
   }
@@ -345,6 +352,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
       pendingHandoffs,
       activeTasks,
       openTasksCount,
+      otherAgents,
     },
     daemon: {
       url: opts.spaceUrl,
@@ -496,6 +504,22 @@ export function renderContinuity(report: ContinuityReport): string {
     }
     if (report.view.openTasksCount > 0) {
       lines.push(`  open tasks (unclaimed): ${report.view.openTasksCount}`);
+    }
+    if (report.view.otherAgents.length > 0) {
+      lines.push(`  other agents:`);
+      for (const other of report.view.otherAgents) {
+        for (const run of other.active_runs.slice(0, 1)) {
+          const paths = run.changed_paths.slice(0, 3).join(", ");
+          const morePaths = run.changed_paths.length > 3 ? `, +${run.changed_paths.length - 3} more` : "";
+          lines.push(`    ${other.agent_id}: active run "${truncate(run.goal, 60)}" (${run.run_id.slice(0, 8)}${paths ? `, ${paths}${morePaths}` : ""})`);
+        }
+        for (const task of other.in_progress_tasks.slice(0, 1)) {
+          lines.push(`    ${other.agent_id}: task "${truncate(task.title, 60)}" in_progress (${task.task_id.slice(0, 8)})`);
+        }
+        for (const claim of other.claims.slice(0, 1)) {
+          lines.push(`    ${other.agent_id}: claim on ${claim.target} (intent: "${truncate(claim.intent, 50)}")`);
+        }
+      }
     }
   } else {
     lines.push(`  view: absent`);

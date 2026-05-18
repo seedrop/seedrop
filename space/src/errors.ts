@@ -70,6 +70,33 @@ export class TaskBlockedError extends WorkspaceViewError {
   }
 }
 
+export class WorkspaceRunClaimConflictError extends WorkspaceViewError {
+  constructor(
+    public readonly conflicts: Array<{ path: string; owner: string; signalId: string; intent: string; expiresAt: string }>,
+  ) {
+    const bullets = conflicts.slice(0, 3).map((c) =>
+      `  - ${c.path} (claimed by ${c.owner}, intent: "${c.intent}", expires ${c.expiresAt})`,
+    ).join("\n");
+    super(
+      `Cannot start run: ${conflicts.length} path(s) are claimed by other agents:\n${bullets}\nCoordinate via \`seed space post\`, wait for the claims to expire, or pass --force.`,
+    );
+    this.name = "WorkspaceRunClaimConflictError";
+  }
+}
+
+export class WorkspaceRunTaskConflictError extends WorkspaceViewError {
+  constructor(
+    public readonly taskId: string,
+    public readonly owner: string | undefined,
+    public readonly status: string,
+  ) {
+    super(
+      `Cannot start run on task ${taskId}: owned by ${owner ?? "no one"}, status=${status}. Only the owner can start a run on an in-flight task. Pass --force to override.`,
+    );
+    this.name = "WorkspaceRunTaskConflictError";
+  }
+}
+
 export class WorkspaceViewValidationError extends WorkspaceViewError {
   constructor(
     public readonly issues: ZodIssue[],

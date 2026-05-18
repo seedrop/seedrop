@@ -398,6 +398,8 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
         goal: requireFlag(args, "goal"),
         newRun: args.flags.has("new"),
         taskId: args.flags.get("task")?.[0],
+        claim: args.flags.get("claim") ?? [],
+        force: args.flags.has("force"),
       }),
     );
     return;

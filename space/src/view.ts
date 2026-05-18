@@ -8,7 +8,9 @@ import {
   TaskBlockedError,
   TaskConflictError,
   TaskNotFoundError,
+  WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
+  WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
   WorkspaceViewParseError,
   WorkspaceViewValidationError,
@@ -93,7 +95,9 @@ export {
   TaskBlockedError,
   TaskConflictError,
   TaskNotFoundError,
+  WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
+  WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
   WorkspaceViewError,
   WorkspaceViewParseError,
@@ -149,6 +153,8 @@ export interface RunStartInput {
   agent?: string;
   newRun?: boolean;
   taskId?: string;
+  claim?: string[];
+  force?: boolean;
 }
 
 export interface RunUpdateInput {
@@ -473,6 +479,34 @@ export class WorkspaceView {
       };
     }
 
+    if (!input.force) {
+      if (input.taskId) {
+        const task = await this.getTask(input.taskId);
+        if (task.owner && task.owner !== agentId && task.status !== "done" && task.status !== "dropped") {
+          throw new WorkspaceRunTaskConflictError(task.task_id, task.owner, task.status);
+        }
+        if (task.blocked_by && task.blocked_by.length > 0) {
+          await this.assertNotBlocked(task);
+        }
+      }
+      if (input.claim && input.claim.length > 0) {
+        const signals = await this.safeListSignals();
+        const targets = new Set(input.claim.map((p) => normalizeRelativePath(p)));
+        const conflicts = signals
+          .filter((s) => s.owner !== agentId && targets.has(s.target))
+          .map((s) => ({
+            path: s.target,
+            owner: s.owner,
+            signalId: s.id,
+            intent: s.intent,
+            expiresAt: s.expires_at,
+          }));
+        if (conflicts.length > 0) {
+          throw new WorkspaceRunClaimConflictError(conflicts);
+        }
+      }
+    }
+
     const now = this.nowIso();
     const run: RunJournal = {
       schema_version: "1.0",
@@ -493,6 +527,15 @@ export class WorkspaceView {
     await this.writeRun(run);
     if (input.taskId) {
       await this.linkTaskRun(input.taskId, run.run_id);
+    }
+    if (input.claim && input.claim.length > 0) {
+      for (const target of input.claim) {
+        await this.claimSignal({
+          target,
+          intent: `run ${run.run_id.slice(0, 8)}: ${input.goal}`,
+          owner: agentId,
+        });
+      }
     }
     return { run, warnings: [], next_actions: [] };
   }
@@ -987,6 +1030,46 @@ export class WorkspaceView {
         || (task.owner === undefined && task.status === "open"),
     );
     const openTasksCount = allTasks.filter((task) => task.status === "open").length;
+
+    const allSignals = await this.safeListSignals();
+    const otherAgentsMap = new Map<string, {
+      agent_id: string;
+      active_runs: Array<{ run_id: string; goal: string; started_at: string; changed_paths: string[] }>;
+      claims: Array<{ signal_id: string; target: string; intent: string; expires_at: string }>;
+      in_progress_tasks: Array<{ task_id: string; title: string }>;
+    }>();
+    const upsert = (id: string) => {
+      if (!otherAgentsMap.has(id)) {
+        otherAgentsMap.set(id, { agent_id: id, active_runs: [], claims: [], in_progress_tasks: [] });
+      }
+      return otherAgentsMap.get(id)!;
+    };
+    for (const run of activeRuns) {
+      if (run.agent_id !== this.agent) {
+        upsert(run.agent_id).active_runs.push({
+          run_id: run.run_id,
+          goal: run.goal,
+          started_at: run.started_at,
+          changed_paths: run.changed_paths,
+        });
+      }
+    }
+    for (const signal of allSignals) {
+      if (signal.owner !== this.agent) {
+        upsert(signal.owner).claims.push({
+          signal_id: signal.id,
+          target: signal.target,
+          intent: signal.intent,
+          expires_at: signal.expires_at,
+        });
+      }
+    }
+    for (const task of allTasks) {
+      if (task.owner && task.owner !== this.agent && task.status === "in_progress") {
+        upsert(task.owner).in_progress_tasks.push({ task_id: task.task_id, title: task.title });
+      }
+    }
+    const otherAgents = [...otherAgentsMap.values()].sort((a, b) => a.agent_id.localeCompare(b.agent_id));
     const preflight = await this.preflight({ checkManifestDrift: false });
     const latestAudit = await this.readCachedAuditReport();
 
@@ -1003,6 +1086,7 @@ export class WorkspaceView {
       pending_handoffs: pendingHandoffs,
       ...(activeTasks.length > 0 ? { active_tasks: activeTasks } : {}),
       open_tasks_count: openTasksCount,
+      ...(otherAgents.length > 0 ? { other_agents: otherAgents } : {}),
       latest_audit: latestAudit,
       preflight,
       next_actions: uniqueNextActions([...brief.next_actions, ...preflight.next_actions]),
