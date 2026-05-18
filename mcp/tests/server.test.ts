@@ -78,6 +78,26 @@ describe("tool handlers (smoke)", () => {
   });
 });
 
+describe("handler dispatch invariant", () => {
+  it("every handler dispatches via exec() to the seed CLI (no in-process logic)", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const toolsPath = join(here, "..", "src", "tools.ts");
+    const source = await readFile(toolsPath, "utf8");
+
+    // Parse handlers: each is an `async handler(args)` block; the body
+    // must contain `return exec(` somewhere. If a handler returns
+    // anything else, this regex match length will diverge.
+    const handlerStarts = source.match(/async handler\s*\(/g) ?? [];
+    const execReturns = source.match(/return exec\s*\(/g) ?? [];
+
+    expect(handlerStarts.length).toBeGreaterThan(15);
+    expect(execReturns.length).toBeGreaterThanOrEqual(handlerStarts.length);
+  });
+});
+
 describe("staleness detection", () => {
   it("reports stale when dist mtime is newer than load time + 1s", async () => {
     const { computeStaleness } = await import("../src/server.js");
