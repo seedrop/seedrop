@@ -15,6 +15,7 @@ describe("tools registry", () => {
         "seedrop_handoff_read",
         "seedrop_inbox",
         "seedrop_inbox_ack",
+        "seedrop_manual",
         "seedrop_run_finish",
         "seedrop_run_log",
         "seedrop_run_start",

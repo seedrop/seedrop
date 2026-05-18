@@ -433,6 +433,10 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
     return { command: "seed-space", args: ["diff", ...rest] };
   }
 
+  if (domain === "manual") {
+    return { command: "seed-space", args: ["manual", ...rest] };
+  }
+
   throw new Error(`Unknown seed domain: ${domain}`);
 }
 

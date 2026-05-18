@@ -145,6 +145,21 @@ async function run(args: ParsedArgs): Promise<void> {
     return;
   }
 
+  if (command === "manual") {
+    const { seedropManual } = await import("./manual.js");
+    const sectionFlag = args.values[0] ?? args.flags.get("section")?.[0];
+    const valid = ["all", "concepts", "workflows", "state", "anti-patterns"] as const;
+    const section = (valid as readonly string[]).includes(sectionFlag ?? "")
+      ? (sectionFlag as (typeof valid)[number])
+      : "all";
+    if (args.flags.has("json")) {
+      printJson({ section, content: seedropManual(section) });
+    } else {
+      console.log(seedropManual(section));
+    }
+    return;
+  }
+
   if (command === "diff") {
     const { diffView, renderViewDiff } = await import("./diff.js");
     const since = args.flags.get("since")?.[0];

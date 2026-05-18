@@ -42,6 +42,29 @@ function strArrayArg(args: Record<string, unknown>, key: string): string[] {
 
 export const tools: ToolDef[] = [
   {
+    name: "seedrop_manual",
+    description:
+      "Return the agent-shaped Seedrop cheat sheet: 4 primitives, 5-layer model, common workflows (sprint → tasks, run lifecycle, handoffs), state queries, and anti-patterns. Call this ONCE at session start and cache the result — every subsequent 'how do I X in seedrop' question is answered offline from this content. Cheaper than discovering through trial and error. Pass section to retrieve a slice ('concepts' | 'workflows' | 'state' | 'anti-patterns' | 'all', defaults to 'all').",
+    inputSchema: {
+      type: "object",
+      properties: {
+        section: {
+          type: "string",
+          enum: ["all", "concepts", "workflows", "state", "anti-patterns"],
+          description: "Which section to return. Defaults to 'all' (full document).",
+        },
+        cwd: { type: "string", description: "Workspace directory (rarely needed — the manual is global)." },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["manual"];
+      const section = strArg(args, "section");
+      if (section) cmd.push(section);
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
     name: "seedrop_continuity",
     description:
       "Run Seedrop's boot block: identity, current repo View, daemon presence, recent Space messages, and a next-move suggestion. Call this whenever the user asks about Seedrop, mentions 'where was I', or works in a repo with `.seedrop/view/`. Returns Markdown by default; pass `json: true` for structured output.",
