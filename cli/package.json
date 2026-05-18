@@ -4,7 +4,7 @@
   "description": "Top-level Seedrop CLI router for id, space, and view commands.",
   "type": "module",
   "bin": {
-    "seed": "./dist/cli.js"
+    "seed": "./bin/seed.mjs"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,6 +25,8 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [
+    "bin/",
+    "src/",
     "dist/",
     "clients.json",
     "README.md",
@@ -45,7 +47,8 @@
   },
   "dependencies": {
     "@seedrop/id": "^0.1.0-alpha.8",
-    "@seedrop/space": "^0.1.0-alpha.2"
+    "@seedrop/space": "^0.1.0-alpha.2",
+    "tsx": "^4.22.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

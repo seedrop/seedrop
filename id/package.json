@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "seed-id": "./dist/cli.js"
+    "seed-id": "./bin/seed-id.mjs"
   },
   "exports": {
     ".": {
@@ -25,6 +25,8 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [
+    "bin/",
+    "src/",
     "dist/",
     "docs/",
     "examples/",
@@ -48,11 +50,11 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.1.6",
-    "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.6"
   },
   "dependencies": {
+    "tsx": "^4.22.0",
     "zod": "^3.23.0"
   }
 }

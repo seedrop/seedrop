@@ -10,7 +10,7 @@
   "scripts": {
     "build": "npm run build -ws",
     "test": "npm test -ws",
-    "link": "npm run build -ws && npm link --workspace @seedrop/cli && npm link --workspace @seedrop/mcp && npm link --workspace @seedrop/id",
+    "link": "npm run build --workspace @seedrop/space --workspace @seedrop/id && npm link --workspace @seedrop/cli && npm link --workspace @seedrop/mcp && npm link --workspace @seedrop/id",
     "unlink": "npm unlink --workspace @seedrop/cli --workspace @seedrop/mcp --workspace @seedrop/id"
   },
   "engines": {

@@ -44,11 +44,24 @@ Until packages are published, install from this workspace:
 ```bash
 git clone <repo> && cd seedrop
 npm install
-npm run link            # builds workspaces, symlinks `seed` + `seed-mcp` + `seed-id` into your global bin
-seed --version          # confirm it's on PATH
+npm run link            # symlinks `seed` + `seed-mcp` + `seed-id` into your global bin
+seed help               # confirm it's on PATH
 ```
 
 `npm run unlink` reverses the symlinks. Once published to npm, this section becomes `npm install -g @seedrop/cli`.
+
+### Dev loop — source-first
+
+`seed`, `seed-mcp`, and `seed-id` are launched via `tsx` from their workspace's `src/`. Edits to `cli/src/*` or `mcp/src/*` are reflected immediately on the next invocation — no build step required.
+
+Edits to `space/src/*` or `id/src/*` (the libraries consumed by cli/mcp via `@seedrop/space` and `@seedrop/id`) **do** require a rebuild of those workspaces, because cross-workspace imports still resolve through each workspace's `dist/` entrypoint:
+
+```bash
+npm run build -w space   # after editing space/src/*
+npm run build -w id      # after editing id/src/*
+```
+
+Startup overhead from tsx is ~60ms vs running compiled dist directly, measured cold. `npm run build -ws` still produces dist artifacts for release tarballs.
 
 ### First time on this machine
 
