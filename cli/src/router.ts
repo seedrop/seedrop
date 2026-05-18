@@ -1809,6 +1809,12 @@ function resolveBundledScript(command: string): string | null {
   try {
     const entryUrl = import.meta.resolve(pkg);
     const entryPath = fileURLToPath(entryUrl);
+    // Prefer the source-first bin shim (bin/<command>.mjs) when present —
+    // edits to src/ are reflected on the next invocation without a build.
+    // Falls back to dist/cli.js for published tarballs that ship only dist.
+    const workspaceRoot = dirname(dirname(entryPath));
+    const sourceShim = join(workspaceRoot, "bin", `${command}.mjs`);
+    if (existsSync(sourceShim)) return sourceShim;
     return join(dirname(entryPath), "cli.js");
   } catch {
     return null;
