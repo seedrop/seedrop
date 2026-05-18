@@ -532,6 +532,59 @@ describe("WorkspaceView", () => {
     expect(content).toBe("custom\n");
   });
 
+  it("finishRun status=completed auto-syncs the manifest", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await writeFile(path.join(root, ".gitignore"), ".seedrop/\n");
+    gitCommitAll(root, "init");
+    await view().sync();
+    await view().startRun({ goal: "test auto-sync" });
+    // Add a new file after sync — manifest is now stale.
+    await writeFile(path.join(root, "NEW.md"), "added during run\n");
+
+    const before = await view().readManifest();
+    expect(before.files.map((f) => f.path)).not.toContain("NEW.md");
+
+    // Commit so the dirty-tree gate doesn't fire.
+    gitCommitAll(root, "add NEW");
+    await view().logRun({ summary: "added NEW.md", changedPaths: ["NEW.md"] });
+    await view().finishRun({ status: "completed" });
+
+    const after = await view().readManifest();
+    expect(after.files.map((f) => f.path)).toContain("NEW.md");
+  });
+
+  it("finishRun suggests a continuity packet when run was non-trivial and no packet was written", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await writeFile(path.join(root, ".gitignore"), ".seedrop/\n");
+    gitCommitAll(root, "init");
+    await view().sync();
+    await view().startRun({ goal: "test packet suggestion" });
+    await view().logRun({ summary: "did stuff", changedPaths: ["README.md"] });
+
+    const run = await view().finishRun({ status: "completed" });
+    const reasons = run.next_actions.map((a) => a.reason ?? "");
+    expect(reasons.some((r) => /Log a continuity packet/.test(r))).toBe(true);
+  });
+
+  it("finishRun does NOT suggest a packet when one was written during the run", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await writeFile(path.join(root, ".gitignore"), ".seedrop/\n");
+    gitCommitAll(root, "init");
+    await view().sync();
+    await view().startRun({ goal: "with packet" });
+    await view().logRun({ summary: "step 1", changedPaths: ["README.md"] });
+    // Advance time so the packet's created_at is after run.started_at
+    now = new Date(now.getTime() + 1000);
+    await view().log({ mission: "captured mid-run", summary: "wrote packet here" });
+
+    const run = await view().finishRun({ status: "completed" });
+    const reasons = run.next_actions.map((a) => a.reason ?? "");
+    expect(reasons.some((r) => /Log a continuity packet/.test(r))).toBe(false);
+  });
+
   it("brief surfaces git_status and a next_action when the tree is dirty (no run required)", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");

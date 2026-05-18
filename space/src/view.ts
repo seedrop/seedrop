@@ -595,6 +595,40 @@ export class WorkspaceView {
     run.status = input.status;
     run.finished_at = this.nowIso();
     if (input.nextActions) run.next_actions = input.nextActions;
+
+    if (input.status === "completed") {
+      // Auto-sync the manifest so the View reflects the post-run state.
+      // Swallowed if policy is invalid — `seed view sync` will surface the error explicitly.
+      try {
+        await this.sync();
+      } catch {
+        // intentional: dedicated sync command surfaces policy errors
+      }
+
+      // Suggest a continuity packet if this run had non-trivial activity
+      // and no packet has been written since the run started.
+      const nonTrivial =
+        run.changed_paths.length > 0 ||
+        run.validation.length > 0 ||
+        run.decisions.length > 0 ||
+        run.open_threads.length > 0 ||
+        run.steps.length > 1;
+      if (nonTrivial) {
+        const packets = await this.safeListContinuityPackets();
+        const hasRecentPacket = packets.some((p) => p.created_at >= run.started_at);
+        if (!hasRecentPacket) {
+          const suggestion = commandAction(
+            'seed view log --mission "..." --summary "..."',
+            "low",
+            "Log a continuity packet to capture this run's outcome — no packet has been written since the run started.",
+          );
+          if (!run.next_actions.some((existing) => existing.command === suggestion.command)) {
+            run.next_actions = [...run.next_actions, suggestion];
+          }
+        }
+      }
+    }
+
     return await this.updateRun(run);
   }
 
