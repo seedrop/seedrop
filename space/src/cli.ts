@@ -168,6 +168,22 @@ async function run(args: ParsedArgs): Promise<void> {
     return;
   }
 
+  if (command === "explain") {
+    const topic = args.values[0];
+    if (!topic) throw new Error("seed view explain requires a topic: a path, or 'success'");
+    const { explainPath, explainSuccess, renderExplainPath, renderExplainSuccess } = await import("./explain.js");
+    if (topic === "success") {
+      const report = await explainSuccess(view);
+      if (args.flags.has("json")) printJson(report);
+      else console.log(renderExplainSuccess(report));
+      return;
+    }
+    const report = await explainPath(view, topic);
+    if (args.flags.has("json")) printJson(report);
+    else console.log(renderExplainPath(report));
+    return;
+  }
+
   if (command === "log") {
     const mission = requireFlag(args, "mission");
     const summary = requireFlag(args, "summary");
