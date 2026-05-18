@@ -117,6 +117,9 @@ async function route(req: IncomingMessage, res: ServerResponse, options: CreateS
   if (method === "GET" && match(segments, ["health"])) {
     return handleHealth(res, options);
   }
+  if (method === "GET" && match(segments, ["status"])) {
+    return handleStatus(res, options);
+  }
   if (method === "POST" && match(segments, ["sessions"])) {
     return handleSessions(req, res, url, options);
   }
@@ -166,6 +169,119 @@ async function route(req: IncomingMessage, res: ServerResponse, options: CreateS
     class: "not_found",
     details: { path: url.pathname },
   }));
+}
+
+async function handleStatus(res: ServerResponse, options: CreateServerOptions): Promise<void> {
+  const presence = await Presence.list({ ...options });
+  const health = options.health;
+  const startedAt = health?.startedAt ?? new Date().toISOString();
+  const uptimeMs = Math.max(0, Date.now() - Date.parse(startedAt));
+  const uptimeText = formatDuration(uptimeMs);
+  const onlinePresence = presence.filter((p) => p.online).map((p) => ({
+    passport_id: p.passport_id,
+    working_on: p.working_on,
+    updated_at: p.last_seen_at,
+  }));
+  const html = renderStatusHtml({
+    service: health?.service ?? "seed-space",
+    version: health?.version ?? SPACE_VERSION,
+    startedAt,
+    uptimeText,
+    host: health?.host ?? "127.0.0.1",
+    port: health?.port ?? 18791,
+    onlinePresence,
+    knownAgentIds: [...(health?.knownAgentIds ?? options.knownAgentIds ?? [])],
+    registeredPassports: (health?.registeredPassports ?? []).map((p) => ({
+      passport_id: p.passportId,
+      agent_id: p.agentId,
+      path: p.path,
+    })),
+  });
+  res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  res.end(html);
+}
+
+function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderStatusHtml(data: {
+  service: string;
+  version: string;
+  startedAt: string;
+  uptimeText: string;
+  host: string;
+  port: number;
+  onlinePresence: Array<{ passport_id: string; working_on?: string; updated_at: string }>;
+  knownAgentIds: string[];
+  registeredPassports: Array<{ passport_id: string; agent_id?: string; path?: string }>;
+}): string {
+  const onlineRows = data.onlinePresence.length === 0
+    ? `<tr><td colspan="3" class="empty">No agents online</td></tr>`
+    : data.onlinePresence
+        .map(
+          (p) =>
+            `<tr><td>${escapeHtml(p.passport_id)}</td><td>${p.working_on ? escapeHtml(p.working_on) : "<em>(idle)</em>"}</td><td>${escapeHtml(p.updated_at)}</td></tr>`,
+        )
+        .join("\n");
+  const passportRows = data.registeredPassports
+    .map(
+      (p) =>
+        `<tr><td>${escapeHtml(p.agent_id ?? "?")}</td><td>${escapeHtml(p.passport_id)}</td><td><code>${escapeHtml(p.path ?? "")}</code></td></tr>`,
+    )
+    .join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="10">
+<title>Seedrop daemon status</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1d1d1d; }
+  h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 1.5rem; }
+  h2 { font-size: 1rem; margin: 1.5rem 0 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; color: #555; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
+  th { color: #555; font-weight: 500; }
+  code { background: #f4f4f4; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.9em; }
+  .empty { color: #999; font-style: italic; }
+  .dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; background: #2a9d57; margin-right: 0.4em; }
+</style>
+</head>
+<body>
+<h1><span class="dot"></span>${escapeHtml(data.service)}</h1>
+<div class="meta">version ${escapeHtml(data.version)} · uptime ${escapeHtml(data.uptimeText)} · listening on ${escapeHtml(data.host)}:${data.port}</div>
+
+<h2>Online agents (${data.onlinePresence.length})</h2>
+<table>
+  <thead><tr><th>passport</th><th>working on</th><th>updated</th></tr></thead>
+  <tbody>${onlineRows}</tbody>
+</table>
+
+<h2>Registered passports (${data.registeredPassports.length})</h2>
+<table>
+  <thead><tr><th>agent</th><th>passport id</th><th>path</th></tr></thead>
+  <tbody>${passportRows || `<tr><td colspan="3" class="empty">none</td></tr>`}</tbody>
+</table>
+
+<p class="meta"><a href="/health">/health</a> · refreshes every 10s</p>
+</body>
+</html>`;
 }
 
 async function handleHealth(res: ServerResponse, options: CreateServerOptions): Promise<void> {

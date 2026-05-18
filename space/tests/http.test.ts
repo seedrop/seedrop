@@ -348,4 +348,14 @@ describe("http server", () => {
     expect(result.status).toBe(200);
     expect(result.body.messages).toEqual([]);
   });
+
+  it("serves an HTML status page at /status", async () => {
+    const response = await fetch(`${baseUrl}/status`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toMatch(/text\/html/);
+    const body = await response.text();
+    expect(body).toMatch(/<title>Seedrop daemon status<\/title>/);
+    expect(body).toMatch(/Online agents/);
+    expect(body).toMatch(/Registered passports/);
+  });
 });
