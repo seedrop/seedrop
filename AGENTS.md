@@ -2,17 +2,19 @@
 
 > Identity is persistent and per-agent. View is persistent and per-repo. Space is a single always-on daemon. New project = `seed view init`. New machine = `seed bootstrap`.
 
-## Concepts
+## What Seedrop is today
 
-### What is Seed?
+A local-first orientation layer for repos worked on by agents. Today's surface is **macOS + Node 20+**, with **MCP** for agent clients (Claude Code, Codex, Kilo, …) and **launchctl** managing the always-on daemon. Cross-platform support (Linux, Windows) and non-MCP integrations are on the roadmap, not in the current release.
 
-Seedrop is a local environment for AI agents. It is the layer that lets an agent say:
+It is the layer that lets an agent say:
 
 - who it is (one passport per agent on this machine)
 - which projects it is working on (linked from the passport)
 - what orientation already exists for a project (per-repo View)
 - where other agents left the work (durable workspace messages)
 - what should happen next (continuity pointers, claims, signals)
+
+## Concepts
 
 ### Key Abstractions
 
