@@ -1225,11 +1225,18 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
     }
   } else if (platform() === "darwin" && existsSync(launchAgentPlistPath())) {
     const plist = await readFile(launchAgentPlistPath(), "utf8");
-    const missing = expectedPassports.filter((passport) => !plist.includes(passport.path));
-    if (missing.length === 0) {
-      add("daemon_registered_passports", "pass", `daemon plist registers known passports`, { plist: launchAgentPlistPath() });
+    const expectedAgentsDir = join(homedir(), ".seedrop", "id", "agents");
+    if (plist.includes(`>${expectedAgentsDir}<`) && plist.includes(`>${operatorPath}<`)) {
+      // New-style plist uses --agents-dir; daemon will auto-discover at startup.
+      add("daemon_registered_passports", "pass", `daemon plist uses --agents-dir (${expectedAgentsDir.replace(homedir(), "~")})`, { plist: launchAgentPlistPath() });
     } else {
-      add("daemon_registered_passports", "fail", `daemon plist does not register all passports`, { missing }, "seed daemon install");
+      // Legacy plist with hardcoded --passport per agent; check each.
+      const missing = expectedPassports.filter((passport) => !plist.includes(passport.path));
+      if (missing.length === 0) {
+        add("daemon_registered_passports", "pass", `daemon plist registers known passports`, { plist: launchAgentPlistPath() });
+      } else {
+        add("daemon_registered_passports", "fail", `daemon plist does not register all passports`, { missing }, "seed daemon install");
+      }
     }
   } else {
     add("daemon_registered_passports", "warn", `daemon passport registration unknown`, {}, platform() === "darwin" ? "seed daemon install" : "seed space serve");
@@ -1571,18 +1578,22 @@ async function daemonInstall(argv: readonly string[], io: RunCliIO): Promise<num
     return 1;
   }
 
-  // Auto-discover all agent passports under ~/.seedrop/id/agents/ so the daemon
-  // can resolve principal_chain for any of them.
+  // Pass --agents-dir to the daemon instead of one --passport per agent. The
+  // daemon discovers agent passports under ~/.seedrop/id/agents/ at startup
+  // AND watches that directory at runtime, so adding a new agent (via
+  // `seed bootstrap --as <agent>`) does NOT require a plist edit or daemon
+  // restart. The plist becomes static.
   const agentsDir = join(homedir(), ".seedrop", "id", "agents");
-  const passportPaths: string[] = [operatorPath];
-  if (existsSync(agentsDir)) {
-    const { readdirSync } = await import("node:fs");
-    for (const entry of readdirSync(agentsDir)) {
-      if (entry.endsWith(".json")) passportPaths.push(join(agentsDir, entry));
-    }
-  }
+  await mkdir(agentsDir, { recursive: true });
 
-  const seedBin = fileURLToPath(import.meta.url).replace(/router\.js$/, "cli.js");
+  // Resolve the seed binary the daemon should invoke. Prefer the source-first
+  // bin shim (cli/bin/seed.mjs) when present so edits to src/ are reflected
+  // without a build. Fall back to dist/cli.js for published tarballs.
+  const routerPath = fileURLToPath(import.meta.url);
+  const workspaceRoot = dirname(dirname(routerPath)); // .../cli/src/router.ts -> .../cli  (or .../cli/dist/router.js -> .../cli)
+  const sourceShim = join(workspaceRoot, "bin", "seed.mjs");
+  const distBin = join(workspaceRoot, "dist", "cli.js");
+  const seedBin = existsSync(sourceShim) ? sourceShim : distBin;
   const node = process.execPath;
   const logDir = join(spaceRoot, "logs");
   await mkdir(logDir, { recursive: true });
@@ -1591,7 +1602,8 @@ async function daemonInstall(argv: readonly string[], io: RunCliIO): Promise<num
     label: DAEMON_LABEL,
     node,
     seedBin,
-    passportPaths,
+    operatorPassportPath: operatorPath,
+    agentsDir,
     spaceRoot,
     port,
     home: homedir(),
@@ -1612,7 +1624,8 @@ async function daemonInstall(argv: readonly string[], io: RunCliIO): Promise<num
 
   io.stdout.write(`installed daemon plist: ${plistPath}\n`);
   io.stdout.write(`daemon listening on http://127.0.0.1:${port} (root: ${spaceRoot})\n`);
-  io.stdout.write(`registered passports (${passportPaths.length}): ${passportPaths.map((p) => p.replace(homedir(), "~")).join(", ")}\n`);
+  io.stdout.write(`operator passport: ${operatorPath.replace(homedir(), "~")}\n`);
+  io.stdout.write(`agents dir (auto-discovered + watched): ${agentsDir.replace(homedir(), "~")}\n`);
   io.stdout.write(`logs: ${logDir}/{out,err}.log\n`);
   return 0;
 }
@@ -1654,16 +1667,14 @@ function renderPlist(opts: {
   label: string;
   node: string;
   seedBin: string;
-  passportPaths: readonly string[];
+  operatorPassportPath: string;
+  agentsDir: string;
   spaceRoot: string;
   port: string;
   home: string;
   logDir: string;
 }): string {
   const escape = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const passportArgs = opts.passportPaths
-    .flatMap((p) => [`    <string>--passport</string>`, `    <string>${escape(p)}</string>`])
-    .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -1676,7 +1687,10 @@ function renderPlist(opts: {
     <string>${escape(opts.seedBin)}</string>
     <string>space</string>
     <string>serve</string>
-${passportArgs}
+    <string>--passport</string>
+    <string>${escape(opts.operatorPassportPath)}</string>
+    <string>--agents-dir</string>
+    <string>${escape(opts.agentsDir)}</string>
     <string>--root</string>
     <string>${escape(opts.spaceRoot)}</string>
     <string>--port</string>
@@ -1689,7 +1703,7 @@ ${passportArgs}
     <key>HOME</key>
     <string>${escape(opts.home)}</string>
     <key>SEEDROP_PASSPORT</key>
-    <string>${escape(opts.passportPaths[0] ?? "")}</string>
+    <string>${escape(opts.operatorPassportPath)}</string>
     <key>SEEDROP_SPACE_ROOT</key>
     <string>${escape(opts.spaceRoot)}</string>
   </dict>

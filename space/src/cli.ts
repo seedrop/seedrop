@@ -251,13 +251,21 @@ async function run(args: ParsedArgs): Promise<void> {
 }
 
 async function serveCommand(args: ParsedArgs): Promise<void> {
-  const passportPaths = args.flags.get("passport") ?? [defaultPassportPath()];
+  const explicitPassports = args.flags.get("passport");
+  const agentsDirs = args.flags.get("agents-dir");
+  const passportPaths = explicitPassports && explicitPassports.length > 0
+    ? explicitPassports
+    : agentsDirs && agentsDirs.length > 0
+      ? [] // no explicit passports; the resolver discovers from agentsDirs
+      : [defaultPassportPath()];
   const started = await startSpaceServer({
     root: args.flags.get("root")?.[0] ?? defaultSpaceRoot(),
     dataDir: args.flags.get("data-dir")?.[0],
     passportPaths,
     passportId: args.flags.get("passport-id")?.[0],
     passportIds: args.flags.get("passport-id"),
+    agentsDirs,
+    watchAgentsDirs: agentsDirs && agentsDirs.length > 0 && !args.flags.has("no-watch"),
     host: args.flags.get("host")?.[0],
     port: parsePort(args.flags.get("port")?.[0]),
   });

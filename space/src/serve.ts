@@ -1,4 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { existsSync, watch, type FSWatcher } from "node:fs";
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { z } from "zod";
@@ -27,6 +29,20 @@ export interface PassportIdentityResolverOptions {
   passportPaths?: readonly string[];
   passportId?: string;
   passportIds?: readonly string[];
+  /**
+   * Directories containing per-agent passport JSON files (typically
+   * `~/.seedrop/id/agents/`). Every `*.json` is loaded as a passport in
+   * addition to those passed via passportPath(s). Drops the launchctl
+   * plist's hardcoded passport list as a maintenance burden.
+   */
+  agentsDirs?: readonly string[];
+  /**
+   * When true (default false), the resolver watches each agentsDir for new
+   * passport files and admits them without a daemon restart. Existing
+   * snapshot fields (health.registeredPassports, chainResolver) stay frozen
+   * to the startup set; auth and DM delivery for new agents work immediately.
+   */
+  watchAgentsDirs?: boolean;
 }
 
 export interface ServeOptions extends PassportIdentityResolverOptions {
@@ -48,14 +64,69 @@ export interface StartedSpaceServer {
   identities: PassportIdentity[];
 }
 
+export interface PassportIdentityResolverResult {
+  identity: PassportIdentity;
+  identities: PassportIdentity[];
+  resolver: IdentityResolver;
+  /** Re-read passports from agentsDirs and admit any new ones. No-op if no dirs configured. */
+  refresh: () => Promise<PassportIdentity[]>;
+  /** Stop fs.watch handles started by watchAgentsDirs. Called on server close. */
+  stopWatching: () => void;
+}
+
 export async function createPassportIdentityResolver(
   options: PassportIdentityResolverOptions,
-): Promise<{ identity: PassportIdentity; identities: PassportIdentity[]; resolver: IdentityResolver }> {
-  const identities = await readPassportIdentities(options);
+): Promise<PassportIdentityResolverResult> {
   const allowedPassportIds = new Map<string, PassportIdentity>();
-  for (const identity of identities) {
-    for (const value of [identity.passportId, identity.agentId, identity.name]) {
-      if (value) allowedPassportIds.set(value, identity);
+  let identities: PassportIdentity[] = [];
+
+  function indexIdentities(next: PassportIdentity[]): void {
+    allowedPassportIds.clear();
+    for (const identity of next) {
+      for (const value of [identity.passportId, identity.agentId, identity.name]) {
+        if (value) allowedPassportIds.set(value, identity);
+      }
+    }
+    identities = next;
+  }
+
+  identities = await readPassportIdentities(options);
+  indexIdentities(identities);
+
+  const watchers: FSWatcher[] = [];
+  let refreshTimer: NodeJS.Timeout | null = null;
+  let refreshInFlight = false;
+
+  async function refresh(): Promise<PassportIdentity[]> {
+    if (refreshInFlight) return identities;
+    refreshInFlight = true;
+    try {
+      const next = await readPassportIdentities(options);
+      indexIdentities(next);
+      return next;
+    } finally {
+      refreshInFlight = false;
+    }
+  }
+
+  if (options.watchAgentsDirs && options.agentsDirs && options.agentsDirs.length > 0) {
+    for (const dir of options.agentsDirs) {
+      if (!existsSync(dir)) continue;
+      try {
+        const watcher = watch(dir, { persistent: false }, (_event, filename) => {
+          if (typeof filename === "string" && !filename.endsWith(".json")) return;
+          if (refreshTimer) return;
+          refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            void refresh().catch(() => {
+              // ignore — refresh errors are non-fatal; next call picks up
+            });
+          }, 100); // 100ms debounce — passport writes are atomic but multi-step
+        });
+        watchers.push(watcher);
+      } catch {
+        // fs.watch can fail on unsupported filesystems; degrade silently
+      }
     }
   }
 
@@ -76,6 +147,21 @@ export async function createPassportIdentityResolver(
           autonomous: identity.autonomous,
         };
       },
+    },
+    refresh,
+    stopWatching: () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+      for (const watcher of watchers) {
+        try {
+          watcher.close();
+        } catch {
+          // ignore
+        }
+      }
+      watchers.length = 0;
     },
   };
 }
@@ -121,7 +207,7 @@ export function resolvePrincipalChain(
 export async function startSpaceServer(options: ServeOptions): Promise<StartedSpaceServer> {
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 18791;
-  const { identity, identities, resolver } = await createPassportIdentityResolver(options);
+  const { identity, identities, resolver, stopWatching } = await createPassportIdentityResolver(options);
   const server = createServer({
     root: options.root,
     dataDir: options.dataDir,
@@ -143,6 +229,7 @@ export async function startSpaceServer(options: ServeOptions): Promise<StartedSp
       knownAgentIds: identities.map((id) => id.agentId),
     },
   });
+  server.once("close", () => stopWatching());
 
   await new Promise<void>((resolve, reject) => {
     const onError = (error: Error): void => {
@@ -183,12 +270,23 @@ export async function readPassportIdentity(options: { passportPath: string; pass
 }
 
 async function readPassportIdentities(options: PassportIdentityResolverOptions): Promise<PassportIdentity[]> {
-  const passportPaths = options.passportPaths ?? (options.passportPath ? [options.passportPath] : []);
+  const explicit = options.passportPaths ?? (options.passportPath ? [options.passportPath] : []);
+  const fromDirs = await collectPassportPathsFromDirs(options.agentsDirs ?? []);
+  // Combine explicit paths (operator + any --passport flags) with
+  // auto-discovered agent passports. Deduplicate by absolute path.
+  const seen = new Set<string>();
+  const passportPaths: string[] = [];
+  for (const p of [...explicit, ...fromDirs]) {
+    const resolved = path.resolve(p);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    passportPaths.push(p);
+  }
   if (passportPaths.length === 0) {
-    throw new Error("At least one passport path is required");
+    throw new Error("At least one passport path or agents-dir is required");
   }
   const passportIds = options.passportIds ?? (options.passportId ? [options.passportId] : []);
-  return Promise.all(
+  const results = await Promise.allSettled(
     passportPaths.map((passportPath, index) =>
       readPassportIdentity({
         passportPath,
@@ -196,4 +294,27 @@ async function readPassportIdentities(options: PassportIdentityResolverOptions):
       }),
     ),
   );
+  // Skip unreadable / invalid passport files instead of failing the entire
+  // resolver — agent passport files can briefly be in inconsistent states
+  // during atomic writes from `seed bootstrap --as <agent>`.
+  return results
+    .filter((r): r is PromiseFulfilledResult<PassportIdentity> => r.status === "fulfilled")
+    .map((r) => r.value);
+}
+
+async function collectPassportPathsFromDirs(dirs: readonly string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    try {
+      const entries = await readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+        out.push(path.join(dir, entry.name));
+      }
+    } catch {
+      // ignore — dir might be unreadable; treat as empty
+    }
+  }
+  return out;
 }
