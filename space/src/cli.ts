@@ -145,6 +145,15 @@ async function run(args: ParsedArgs): Promise<void> {
     return;
   }
 
+  if (command === "diff") {
+    const { diffView, renderViewDiff } = await import("./diff.js");
+    const since = args.flags.get("since")?.[0];
+    const report = await diffView(view, { since });
+    if (args.flags.has("json")) printJson(report);
+    else console.log(renderViewDiff(report));
+    return;
+  }
+
   if (command === "context") {
     const context = await view.context();
     if (args.flags.has("json")) printJson(context);
