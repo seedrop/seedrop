@@ -710,6 +710,36 @@ export class WorkspaceView {
     }
   }
 
+  /**
+   * Resolve a task ID prefix to the unique full UUID. Accepts the full
+   * UUID unchanged, accepts a >=4-char prefix that uniquely identifies a
+   * task. Throws TaskNotFoundError on no match or ambiguous match.
+   * This is the CLI ergonomics layer — `seed task list` shows 8-char
+   * prefixes; users should be able to paste those back without looking
+   * up the full UUID.
+   */
+  async resolveTaskId(prefixOrFullId: string): Promise<string> {
+    const trimmed = prefixOrFullId.trim();
+    if (trimmed.length === 0) throw new TaskNotFoundError("(empty)");
+    // Full UUID: pass through.
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+      return trimmed;
+    }
+    if (trimmed.length < 4) {
+      throw new TaskNotFoundError(`${trimmed} (prefix too short — need at least 4 hex chars)`);
+    }
+    const tasks = await this.listTasks();
+    const matches = tasks.filter((t) => t.task_id.startsWith(trimmed));
+    if (matches.length === 0) {
+      throw new TaskNotFoundError(prefixOrFullId);
+    }
+    if (matches.length > 1) {
+      const sample = matches.slice(0, 3).map((m) => `${m.task_id.slice(0, 12)} (${m.title})`).join("; ");
+      throw new TaskNotFoundError(`${prefixOrFullId} is ambiguous — matches ${matches.length} tasks: ${sample}`);
+    }
+    return matches[0]!.task_id;
+  }
+
   async listTasks(filter: TaskListFilter = {}): Promise<Task[]> {
     await this.ensureDirs();
     const entries = await readdir(this.tasksDir, { withFileTypes: true });

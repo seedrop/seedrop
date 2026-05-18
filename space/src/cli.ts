@@ -13,11 +13,37 @@ const DEFAULT_SPACE_PORT = 18791;
 const DEFAULT_SPACE_URL = `http://127.0.0.1:${DEFAULT_SPACE_PORT}`;
 
 function defaultPassportPath(): string {
-  const envPath = process.env.SEEDROP_PASSPORT?.trim();
-  if (envPath) return envPath;
+  // Precedence: active-passport > env > operator.
+  // Active is set by `seed login <agent>` and is a deliberate action right
+  // now. Env (SEEDROP_PASSPORT) is set passively at MCP install time and
+  // never updated — letting it beat `seed login` made the login command a
+  // no-op inside any MCP-spawned process. We invert: deliberate beats
+  // passive. Operator passport is the last-resort fallback.
   const active = readActivePassportFromState();
   if (active) return active;
+  const envPath = process.env.SEEDROP_PASSPORT?.trim();
+  if (envPath) return envPath;
   return join(homedir(), ".seedrop", "id", "passport.json");
+}
+
+/**
+ * Commands that mutate persisted state (write a JSON file, change a status,
+ * post a message). For these we surface the identity so the user sees who
+ * the action is attributed to before reading the result.
+ */
+function isMutatingCommand(namespace: string | undefined, command: string | undefined): boolean {
+  if (!command) return false;
+  if (namespace === "run") {
+    return ["start", "log", "decision", "thread", "verify", "finish"].includes(command);
+  }
+  if (namespace === "task") {
+    return ["create", "claim", "assign", "accept", "decline", "start", "pause", "done", "drop"].includes(command);
+  }
+  if (namespace === "handoff") {
+    return ["create", "accept"].includes(command);
+  }
+  // Top-level commands (no namespace) that mutate.
+  return ["log", "sync", "init", "claim", "release"].includes(command);
 }
 
 function defaultAgentId(): string {
@@ -108,10 +134,19 @@ async function run(args: ParsedArgs): Promise<void> {
     return;
   }
 
+  const resolvedAgent = args.flags.get("agent")?.[0] ?? defaultAgentId();
   const view = WorkspaceView.open({
     root: args.flags.get("root")?.[0] ?? process.cwd(),
-    agent: args.flags.get("agent")?.[0] ?? defaultAgentId(),
+    agent: resolvedAgent,
   });
+
+  // Announce identity for mutating commands so the agent (and any
+  // watching human) immediately sees who they're acting as. Silenced by
+  // --quiet for scripts that don't want it. Goes to stderr so JSON
+  // output on stdout stays clean.
+  if (isMutatingCommand(args.namespace, command) && !args.flags.has("quiet")) {
+    process.stderr.write(`[acting as ${resolvedAgent}]\n`);
+  }
 
   if (args.namespace === "run") {
     await runJournalCommand(command, args, view);
@@ -476,6 +511,11 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
 }
 
 async function taskCommand(command: string | undefined, args: ParsedArgs, view: WorkspaceView): Promise<void> {
+  // Most task verbs take a task id as their first positional. Resolve once
+  // here so short ID prefixes (the form `seed task list` displays) work
+  // everywhere without each verb having to remember.
+  const resolveId = (label = "task id"): Promise<string> => view.resolveTaskId(requireValue(args, 0, label));
+
   if (command === "create") {
     printJson(
       await view.createTask({
@@ -488,13 +528,13 @@ async function taskCommand(command: string | undefined, args: ParsedArgs, view: 
     return;
   }
   if (command === "claim") {
-    printJson(await view.claimTask(requireValue(args, 0, "task id")));
+    printJson(await view.claimTask(await resolveId()));
     return;
   }
   if (command === "assign") {
     printJson(
       await view.assignTask({
-        taskId: requireValue(args, 0, "task id"),
+        taskId: await resolveId(),
         to: requireValue(args, 1, "agent"),
         note: args.flags.get("note")?.[0],
       }),
@@ -502,20 +542,20 @@ async function taskCommand(command: string | undefined, args: ParsedArgs, view: 
     return;
   }
   if (command === "accept") {
-    printJson(await view.acceptTask(requireValue(args, 0, "task id")));
+    printJson(await view.acceptTask(await resolveId()));
     return;
   }
   if (command === "decline") {
     printJson(
       await view.declineTask({
-        taskId: requireValue(args, 0, "task id"),
+        taskId: await resolveId(),
         reason: args.flags.get("reason")?.[0],
       }),
     );
     return;
   }
   if (command === "start") {
-    printJson(await view.startTask(requireValue(args, 0, "task id")));
+    printJson(await view.startTask(await resolveId()));
     return;
   }
   if (command === "pause") {
@@ -523,17 +563,17 @@ async function taskCommand(command: string | undefined, args: ParsedArgs, view: 
     const status = statusFlag === "open" ? "open" : statusFlag === "blocked" || statusFlag === undefined ? "blocked" : (() => {
       throw new Error(`--status must be 'blocked' or 'open' (got '${statusFlag}').`);
     })();
-    printJson(await view.pauseTask({ taskId: requireValue(args, 0, "task id"), status }));
+    printJson(await view.pauseTask({ taskId: await resolveId(), status }));
     return;
   }
   if (command === "done") {
-    printJson(await view.doneTask(requireValue(args, 0, "task id")));
+    printJson(await view.doneTask(await resolveId()));
     return;
   }
   if (command === "drop") {
     printJson(
       await view.dropTask({
-        taskId: requireValue(args, 0, "task id"),
+        taskId: await resolveId(),
         reason: args.flags.get("reason")?.[0],
       }),
     );
@@ -554,7 +594,7 @@ async function taskCommand(command: string | undefined, args: ParsedArgs, view: 
     return;
   }
   if (command === "show") {
-    printJson(await view.getTask(requireValue(args, 0, "task id")));
+    printJson(await view.getTask(await resolveId()));
     return;
   }
   throw new Error(`Unknown task command: ${command ?? ""}`);
