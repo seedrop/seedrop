@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { isMutatingCommand, shouldAnnounceIdentity } from "./announce.js";
 import { SpaceHttpClient } from "./client.js";
 import { startSpaceServer } from "./serve.js";
 import { readPassportIdentity } from "./serve.js";
@@ -24,26 +25,6 @@ function defaultPassportPath(): string {
   const envPath = process.env.SEEDROP_PASSPORT?.trim();
   if (envPath) return envPath;
   return join(homedir(), ".seedrop", "id", "passport.json");
-}
-
-/**
- * Commands that mutate persisted state (write a JSON file, change a status,
- * post a message). For these we surface the identity so the user sees who
- * the action is attributed to before reading the result.
- */
-function isMutatingCommand(namespace: string | undefined, command: string | undefined): boolean {
-  if (!command) return false;
-  if (namespace === "run") {
-    return ["start", "log", "decision", "thread", "verify", "finish"].includes(command);
-  }
-  if (namespace === "task") {
-    return ["create", "claim", "assign", "accept", "decline", "start", "pause", "done", "drop"].includes(command);
-  }
-  if (namespace === "handoff") {
-    return ["create", "accept"].includes(command);
-  }
-  // Top-level commands (no namespace) that mutate.
-  return ["log", "sync", "init", "claim", "release"].includes(command);
 }
 
 function defaultAgentId(): string {
@@ -145,11 +126,17 @@ async function run(args: ParsedArgs): Promise<void> {
     agent: resolvedAgent,
   });
 
-  // Announce identity for mutating commands so the agent (and any
-  // watching human) immediately sees who they're acting as. Silenced by
-  // --quiet for scripts that don't want it. Goes to stderr so JSON
-  // output on stdout stays clean.
-  if (isMutatingCommand(args.namespace, command) && !args.flags.has("quiet")) {
+  // Announce identity for mutating commands so a watching human sees who
+  // they're acting as. Suppressed when stderr is piped/redirected — e.g.
+  // `seed ... 2>&1 | jq` — so JSON consumers don't get a corrupted stream.
+  if (
+    shouldAnnounceIdentity({
+      isMutating: isMutatingCommand(args.namespace, command),
+      quietFlag: args.flags.has("quiet"),
+      quietEnv: process.env.SEEDROP_QUIET,
+      stderrIsTTY: process.stderr.isTTY,
+    })
+  ) {
     process.stderr.write(`[acting as ${resolvedAgent}]\n`);
   }
 
