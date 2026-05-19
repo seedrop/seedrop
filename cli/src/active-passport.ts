@@ -65,3 +65,47 @@ export async function clearActivePassport(): Promise<boolean> {
   await rm(path, { force: true });
   return true;
 }
+
+export type PassportSource = "active" | "env" | "operator";
+
+export interface PassportResolution {
+  path: string;
+  source: PassportSource;
+  /** Best-effort label of the active passport's agent_id when source === "active". */
+  agent_id?: string;
+}
+
+/**
+ * Pure resolution of the three-tier passport chain. Inputs are the current
+ * environment so this can be unit-tested without touching the disk.
+ *
+ * Precedence (matches space/src/cli.ts and the audit at
+ * .seedrop/view/knowledge/mcp-cli-coverage-2026-05-19.md): active > env >
+ * operator. Deliberate beats passive — `seed login <agent>` wins over an
+ * MCP-installed SEEDROP_PASSPORT env.
+ */
+export function resolvePassportFrom(opts: {
+  active: ActivePassportState | null;
+  env: string | undefined;
+  operator: string;
+}): PassportResolution {
+  if (opts.active) {
+    return { path: opts.active.passport_path, source: "active", agent_id: opts.active.agent_id };
+  }
+  const trimmed = opts.env?.trim();
+  if (trimmed) return { path: trimmed, source: "env" };
+  return { path: opts.operator, source: "operator" };
+}
+
+/**
+ * Sync resolution that mirrors `defaultPassportPath()` but exposes the
+ * source label so callers (continuity, view explain) can announce which
+ * passport this session actually resolved to.
+ */
+export function resolvePassportSync(): PassportResolution {
+  return resolvePassportFrom({
+    active: readActivePassportSync(),
+    env: process.env.SEEDROP_PASSPORT,
+    operator: join(homedir(), ".seedrop", "id", "passport.json"),
+  });
+}

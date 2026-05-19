@@ -327,7 +327,7 @@ describe("continuity", () => {
       const code = await runCli(["continuity", "--full"], io, fakeRunner());
       expect(code).toBe(0);
       const out = io.stdoutText();
-      expect(out).toContain("agent_id: claude");
+      expect(out).toContain("acting as: claude");
       expect(out).toContain("view: absent");
       expect(out).toContain("daemon");
       expect(out).toContain("reachable: no");

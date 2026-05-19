@@ -226,12 +226,18 @@ async function run(args: ParsedArgs): Promise<void> {
     if (topic === "success") {
       const report = await explainSuccess(view);
       if (args.flags.has("json")) printJson(report);
-      else console.log(renderExplainSuccess(report));
+      else {
+        console.log(`acting as: ${resolvedAgent}`);
+        console.log(renderExplainSuccess(report));
+      }
       return;
     }
     const report = await explainPath(view, topic);
     if (args.flags.has("json")) printJson(report);
-    else console.log(renderExplainPath(report));
+    else {
+      console.log(`acting as: ${resolvedAgent}`);
+      console.log(renderExplainPath(report));
+    }
     return;
   }
 

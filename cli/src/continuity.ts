@@ -4,11 +4,14 @@ import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { WorkspaceView, type ContinuityPacket as SpaceContinuityPacket, type ViewBrief as SpaceViewBrief, type ViewCheck } from "@seedrop/space";
+import type { PassportSource } from "./active-passport.js";
 import { readContinuityState, writeContinuityState } from "./continuity-state.js";
 import type { RunCliIO } from "./router.js";
 
 export interface ContinuityOptions {
   passportPath: string;
+  /** How `passportPath` was resolved: deliberate login (active) > env > operator fallback. */
+  passportSource?: PassportSource;
   spaceUrl: string;
   cwd: string;
   root?: string;
@@ -189,6 +192,8 @@ interface JoinedSpaceSummary {
 
 export interface ContinuityReport {
   passportPath: string;
+  /** How the passport path was resolved (omitted only for older callers). */
+  passportSource?: PassportSource;
   passport: Passport | null;
   cwd: string;
   root: string;
@@ -338,6 +343,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
 
   const report: Omit<ContinuityReport, "orientation"> = {
     passportPath: opts.passportPath,
+    passportSource: opts.passportSource,
     passport,
     cwd: opts.cwd,
     root,
@@ -398,9 +404,10 @@ function renderContinuityBrief(report: ContinuityReport): string[] {
 
   lines.push("## Identity");
   if (p) {
-    lines.push(`  agent_id: ${p.agent_id}`);
+    lines.push(`  acting as: ${p.agent_id}${formatPassportSourceTag(report.passportSource)}`);
     if (p.name && p.name !== p.agent_id) lines.push(`  name: ${p.name}`);
     if (p.purpose) lines.push(`  purpose: ${p.purpose}`);
+    lines.push(`  passport: ${formatPassportLocation(report.passportPath)}`);
   } else {
     lines.push(`  (none — run \`seed bootstrap --name <n> --purpose "<p>"\`)`);
   }
@@ -490,11 +497,12 @@ function renderContinuityFull(report: ContinuityReport): string {
 
   lines.push("## Identity");
   if (p) {
-    lines.push(`  agent_id: ${p.agent_id}`);
+    lines.push(`  acting as: ${p.agent_id}${formatPassportSourceTag(report.passportSource)}`);
     if (p.name && p.name !== p.agent_id) lines.push(`  name: ${p.name}`);
     if (p.purpose) lines.push(`  purpose: ${p.purpose}`);
     if (p.issued_by) lines.push(`  issued_by: ${p.issued_by}`);
     if (p.autonomous) lines.push(`  autonomous: true`);
+    lines.push(`  passport: ${formatPassportLocation(report.passportPath)}`);
     lines.push(`  active_projects: ${p.active_projects?.length ?? 0}`);
   } else {
     lines.push(`  (none — run \`seed bootstrap --name <n> --purpose "<p>"\`)`);
@@ -926,6 +934,21 @@ function truncate(s: string, n: number): string {
   return `${s.slice(0, n - 1)}…`;
 }
 
+export function formatPassportSourceTag(source: PassportSource | undefined): string {
+  if (!source) return "";
+  if (source === "active") return " (via active passport — `seed login`)";
+  if (source === "env") return " (via SEEDROP_PASSPORT env)";
+  return " (operator default)";
+}
+
+export function formatPassportLocation(absPath: string): string {
+  const home = homedir();
+  if (absPath.startsWith(`${home}/`) || absPath === home) {
+    return `~${absPath.slice(home.length)}`;
+  }
+  return absPath;
+}
+
 function formatAuthor(m: SpaceMessage): string {
   const chain = m.principal_chain ?? [m.author_passport_id];
   if (m.author_autonomous) return `${chain[0]} [autonomous]`;
@@ -1039,8 +1062,17 @@ async function postJson(url: string, body: unknown, passportId: string): Promise
   }
 }
 
-export async function runContinuity(argv: readonly string[], io: RunCliIO, opts: { defaultPassport: string; defaultUrl: string }): Promise<number> {
-  const passportPath = readFlag(argv, "passport") ?? opts.defaultPassport;
+export async function runContinuity(
+  argv: readonly string[],
+  io: RunCliIO,
+  opts: { defaultPassport: string; defaultPassportSource?: PassportSource; defaultUrl: string },
+): Promise<number> {
+  // If --passport overrides the default, the resolution source from the
+  // outer resolver no longer describes what we're using. Treat an explicit
+  // override as "env-equivalent" (an out-of-band, caller-supplied path).
+  const explicit = readFlag(argv, "passport");
+  const passportPath = explicit ?? opts.defaultPassport;
+  const passportSource: PassportSource = explicit ? "env" : (opts.defaultPassportSource ?? "operator");
   const spaceUrl = readFlag(argv, "url") ?? opts.defaultUrl;
   const cwd = resolve(readFlag(argv, "cwd") ?? process.cwd());
   const place = resolveOrientationRoot(cwd);
@@ -1050,7 +1082,7 @@ export async function runContinuity(argv: readonly string[], io: RunCliIO, opts:
   const mode: ContinuityRenderMode = argv.includes("--full") ? "full" : argv.includes("--medium") ? "medium" : "brief";
   const limit = Number(readFlag(argv, "messages") ?? "5");
 
-  const report = await buildContinuity({ passportPath, spaceUrl, cwd, root: place.root, rootKind: place.kind, messageLimit: limit, json, peek, since });
+  const report = await buildContinuity({ passportPath, passportSource, spaceUrl, cwd, root: place.root, rootKind: place.kind, messageLimit: limit, json, peek, since });
   if (json) {
     io.stdout.write(JSON.stringify(report, null, 2) + "\n");
   } else {

@@ -6,7 +6,7 @@ import { homedir, platform } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import { readActivePassportSync, readActivePassport, writeActivePassport, clearActivePassport } from "./active-passport.js";
+import { readActivePassportSync, readActivePassport, writeActivePassport, clearActivePassport, resolvePassportSync, type PassportResolution } from "./active-passport.js";
 import {
   buildMcpServerEntry,
   clientHasSeedConfig,
@@ -104,20 +104,11 @@ function launchAgentPlistPath(): string {
 }
 
 export function defaultPassportPath(): string {
-  // Resolution order (aligned with space/src/cli.ts after the audit
-  // at .seedrop/view/knowledge/mcp-cli-coverage-2026-05-19.md flagged
-  // the inconsistency):
-  //   1. ~/.seedrop/state/active-passport.json (shell login — deliberate)
-  //   2. $SEEDROP_PASSPORT (MCP install — passive)
-  //   3. ~/.seedrop/id/passport.json (operator default)
-  // Deliberate beats passive. `seed login <agent>` overrides the
-  // MCP-installed env in any subprocess (matching the principle
-  // shipped in c3e05d3 for the space CLI).
-  const active = readActivePassportSync();
-  if (active) return active.passport_path;
-  const envPath = process.env.SEEDROP_PASSPORT?.trim();
-  if (envPath) return envPath;
-  return join(homedir(), ".seedrop", "id", "passport.json");
+  return resolvePassportSync().path;
+}
+
+export function defaultPassportResolution(): PassportResolution {
+  return resolvePassportSync();
 }
 
 export function defaultSpaceRoot(): string {
@@ -572,8 +563,10 @@ export async function runCli(
       return await runDaemon(argv.slice(1), io);
     }
     if (dispatch === "continuity") {
+      const resolution = defaultPassportResolution();
       return await runContinuity(argv.slice(1), io, {
-        defaultPassport: defaultPassportPath(),
+        defaultPassport: resolution.path,
+        defaultPassportSource: resolution.source,
         defaultUrl: defaultSpaceUrl(),
       });
     }
