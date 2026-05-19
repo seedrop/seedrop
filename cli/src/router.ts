@@ -104,14 +104,19 @@ function launchAgentPlistPath(): string {
 }
 
 export function defaultPassportPath(): string {
-  // Resolution order:
-  //   1. $SEEDROP_PASSPORT (per-process override; MCP server config sets this)
-  //   2. ~/.seedrop/state/active-passport.json (shell login)
+  // Resolution order (aligned with space/src/cli.ts after the audit
+  // at .seedrop/view/knowledge/mcp-cli-coverage-2026-05-19.md flagged
+  // the inconsistency):
+  //   1. ~/.seedrop/state/active-passport.json (shell login — deliberate)
+  //   2. $SEEDROP_PASSPORT (MCP install — passive)
   //   3. ~/.seedrop/id/passport.json (operator default)
-  const envPath = process.env.SEEDROP_PASSPORT?.trim();
-  if (envPath) return envPath;
+  // Deliberate beats passive. `seed login <agent>` overrides the
+  // MCP-installed env in any subprocess (matching the principle
+  // shipped in c3e05d3 for the space CLI).
   const active = readActivePassportSync();
   if (active) return active.passport_path;
+  const envPath = process.env.SEEDROP_PASSPORT?.trim();
+  if (envPath) return envPath;
   return join(homedir(), ".seedrop", "id", "passport.json");
 }
 
@@ -268,16 +273,18 @@ async function runLogout(io: RunCliIO): Promise<number> {
 }
 
 async function runWhoami(io: RunCliIO): Promise<number> {
+  // Resolution order matches defaultPassportPath():
+  // active-passport > $SEEDROP_PASSPORT > operator default.
   const envPath = process.env.SEEDROP_PASSPORT?.trim();
   const active = await readActivePassport();
   let source: string;
   let path: string;
-  if (envPath) {
-    source = "$SEEDROP_PASSPORT";
-    path = envPath;
-  } else if (active) {
+  if (active) {
     source = "seed login";
     path = active.passport_path;
+  } else if (envPath) {
+    source = "$SEEDROP_PASSPORT";
+    path = envPath;
   } else {
     source = "operator default";
     path = join(homedir(), ".seedrop", "id", "passport.json");

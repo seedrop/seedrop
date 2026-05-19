@@ -140,14 +140,25 @@ describe("resolveCommand", () => {
     expect(resolveCommand(["help"])).toBe("help");
   });
 
-  it("bare `seed` resolves based on passport presence", () => {
-    const prior = process.env.SEEDROP_PASSPORT;
+  it("bare `seed` resolves based on passport presence", async () => {
+    // Isolate $HOME so dev-machine active-passport doesn't leak into the
+    // precedence chain. Also cd to a scratch dir so resolveCommand's
+    // cwd-view check doesn't find this repo's .seedrop/view.
+    // Precedence: active > env > operator.
+    const prior = { passport: process.env.SEEDROP_PASSPORT, home: process.env.HOME, cwd: process.cwd() };
+    const scratch = await mkdtemp(join(tmpdir(), "seed-bare-test-"));
+    process.env.HOME = join(scratch, "home");
+    await mkdir(process.env.HOME, { recursive: true });
     process.env.SEEDROP_PASSPORT = "/nonexistent/__seed-test-no-passport__.json";
+    process.chdir(scratch);
     try {
       expect(resolveCommand([])).toBe("help");
     } finally {
-      if (prior === undefined) delete process.env.SEEDROP_PASSPORT;
-      else process.env.SEEDROP_PASSPORT = prior;
+      process.chdir(prior.cwd);
+      if (prior.passport === undefined) delete process.env.SEEDROP_PASSPORT;
+      else process.env.SEEDROP_PASSPORT = prior.passport;
+      if (prior.home !== undefined) process.env.HOME = prior.home;
+      await rm(scratch, { recursive: true, force: true });
     }
   });
 
@@ -194,14 +205,21 @@ describe("resolveCommand", () => {
 });
 
 describe("defaults", () => {
-  it("honors SEEDROP_PASSPORT env over home default", () => {
-    const prior = process.env.SEEDROP_PASSPORT;
+  it("honors SEEDROP_PASSPORT env when no active-passport state is set", async () => {
+    // Isolate $HOME so any real active-passport.json on the dev machine
+    // doesn't leak in. Precedence is now active > env > operator.
+    const prior = { passport: process.env.SEEDROP_PASSPORT, home: process.env.HOME };
+    const scratch = await mkdtemp(join(tmpdir(), "seed-defaults-test-"));
+    process.env.HOME = join(scratch, "home");
+    await mkdir(process.env.HOME, { recursive: true });
     process.env.SEEDROP_PASSPORT = "/tmp/custom-passport.json";
     try {
       expect(defaultPassportPath()).toBe("/tmp/custom-passport.json");
     } finally {
-      if (prior === undefined) delete process.env.SEEDROP_PASSPORT;
-      else process.env.SEEDROP_PASSPORT = prior;
+      if (prior.passport === undefined) delete process.env.SEEDROP_PASSPORT;
+      else process.env.SEEDROP_PASSPORT = prior.passport;
+      if (prior.home !== undefined) process.env.HOME = prior.home;
+      await rm(scratch, { recursive: true, force: true });
     }
   });
 
@@ -219,7 +237,7 @@ describe("defaults", () => {
 
 describe("continuity", () => {
   let scratch: string;
-  let envSnapshot: { passport?: string; spaceRoot?: string; spaceUrl?: string };
+  let envSnapshot: { passport?: string; spaceRoot?: string; spaceUrl?: string; home?: string };
 
   beforeEach(async () => {
     scratch = await mkdtemp(join(tmpdir(), "seed-continuity-test-"));
@@ -227,7 +245,12 @@ describe("continuity", () => {
       passport: process.env.SEEDROP_PASSPORT,
       spaceRoot: process.env.SEEDROP_SPACE_ROOT,
       spaceUrl: process.env.SEEDROP_SPACE_URL,
+      home: process.env.HOME,
     };
+    // Isolate $HOME so the dev machine's active-passport doesn't outrank
+    // SEEDROP_PASSPORT (precedence is active > env > operator post-2026-05-19).
+    process.env.HOME = join(scratch, "home");
+    await mkdir(process.env.HOME, { recursive: true });
     process.env.SEEDROP_PASSPORT = join(scratch, "passport.json");
     process.env.SEEDROP_SPACE_URL = "http://127.0.0.1:1"; // intentionally unreachable
   });
@@ -268,6 +291,7 @@ describe("continuity", () => {
     else process.env.SEEDROP_SPACE_ROOT = envSnapshot.spaceRoot;
     if (envSnapshot.spaceUrl === undefined) delete process.env.SEEDROP_SPACE_URL;
     else process.env.SEEDROP_SPACE_URL = envSnapshot.spaceUrl;
+    if (envSnapshot.home !== undefined) process.env.HOME = envSnapshot.home;
     await rm(scratch, { recursive: true, force: true });
   });
 
@@ -529,11 +553,14 @@ describe("seed login / logout / whoami", () => {
     expect(defaultPassportPath()).toBe(path);
   });
 
-  it("env var beats login state", async () => {
-    await makeAgentPassport("codex");
+  it("active-passport beats env var (deliberate beats passive)", async () => {
+    // After the 2026-05-19 alignment, active-passport (set by `seed login`)
+    // outranks $SEEDROP_PASSPORT (set passively at MCP install). Lets users
+    // override the MCP-installed identity per session via login.
+    const path = await makeAgentPassport("codex");
     await runCli(["login", "codex"], createIo(), fakeRunner());
     process.env.SEEDROP_PASSPORT = "/explicit/override.json";
-    expect(defaultPassportPath()).toBe("/explicit/override.json");
+    expect(defaultPassportPath()).toBe(path);
   });
 
   it("logout removes the state", async () => {
@@ -815,14 +842,19 @@ describe("seed init / doctor", () => {
 
 describe("runBootstrap", () => {
   let scratch: string;
-  let envSnapshot: { passport?: string; spaceRoot?: string };
+  let envSnapshot: { passport?: string; spaceRoot?: string; home?: string };
 
   beforeEach(async () => {
     scratch = await mkdtemp(join(tmpdir(), "seed-bootstrap-test-"));
     envSnapshot = {
       passport: process.env.SEEDROP_PASSPORT,
       spaceRoot: process.env.SEEDROP_SPACE_ROOT,
+      home: process.env.HOME,
     };
+    // Isolate $HOME so dev-machine active-passport doesn't outrank env
+    // (precedence is active > env > operator).
+    process.env.HOME = join(scratch, "home");
+    await mkdir(process.env.HOME, { recursive: true });
     process.env.SEEDROP_PASSPORT = join(scratch, "passport.json");
     process.env.SEEDROP_SPACE_ROOT = join(scratch, "space");
   });
@@ -832,6 +864,7 @@ describe("runBootstrap", () => {
     else process.env.SEEDROP_PASSPORT = envSnapshot.passport;
     if (envSnapshot.spaceRoot === undefined) delete process.env.SEEDROP_SPACE_ROOT;
     else process.env.SEEDROP_SPACE_ROOT = envSnapshot.spaceRoot;
+    if (envSnapshot.home !== undefined) process.env.HOME = envSnapshot.home;
     await rm(scratch, { recursive: true, force: true });
   });
 
