@@ -18,6 +18,16 @@ function gitCommitAll(dir: string, message: string): void {
   spawnSync("git", ["-C", dir, "commit", "-q", "-m", message]);
 }
 
+/**
+ * Stage a path so `git status --porcelain` reports it as tracked (`A `
+ * / `M `) rather than untracked (`??`). Needed for tests that exercise
+ * the run-finish dirty-tree gate, which now only blocks on tracked
+ * changes (task f3fc8250).
+ */
+function gitAdd(dir: string, ...paths: string[]): void {
+  spawnSync("git", ["-C", dir, "add", ...paths]);
+}
+
 let root: string;
 let now: Date;
 
@@ -391,9 +401,10 @@ describe("WorkspaceView", () => {
     expect(audit.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining(["runs_malformed", "handoffs_malformed"]));
   });
 
-  it("finishRun refuses status=completed when changed_paths are uncommitted", async () => {
+  it("finishRun refuses status=completed when tracked changed_paths are uncommitted", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");
+    gitAdd(root, "README.md"); // tracked (staged) — the gate fires
     await view().sync();
     await view().startRun({ goal: "test dirty gate" });
     await view().logRun({ summary: "step", changedPaths: ["README.md"] });
@@ -407,6 +418,7 @@ describe("WorkspaceView", () => {
   it("finishRun allows force=true to bypass the dirty-tree gate", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");
+    gitAdd(root, "README.md");
     await view().sync();
     await view().startRun({ goal: "test force" });
     await view().logRun({ summary: "step", changedPaths: ["README.md"] });
@@ -418,6 +430,7 @@ describe("WorkspaceView", () => {
   it("finishRun allows status=blocked even with uncommitted changed_paths", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");
+    gitAdd(root, "README.md");
     await view().sync();
     await view().startRun({ goal: "test blocked" });
     await view().logRun({ summary: "step", changedPaths: ["README.md"] });
@@ -426,12 +439,13 @@ describe("WorkspaceView", () => {
     expect(run.status).toBe("blocked");
   });
 
-  it("finishRun refuses status=completed when tree is dirty and run logged no changed_paths", async () => {
+  it("finishRun refuses status=completed when tree has tracked changes and run logged none", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");
+    gitAdd(root, "README.md"); // tracked-dirty
     await view().sync();
     await view().startRun({ goal: "test unlogged" });
-    // No logRun call — run.changed_paths stays empty while README.md is dirty in git.
+    // No logRun call — run.changed_paths stays empty while README.md is tracked-dirty in git.
 
     await expect(view().finishRun({ status: "completed" })).rejects.toThrow(WorkspaceRunUnloggedChangesError);
 
@@ -442,6 +456,7 @@ describe("WorkspaceView", () => {
   it("finishRun allows force=true to bypass the unlogged-changes gate", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");
+    gitAdd(root, "README.md");
     await view().sync();
     await view().startRun({ goal: "test force" });
 
@@ -452,6 +467,7 @@ describe("WorkspaceView", () => {
   it("finishRun allows status=blocked when tree is dirty with no logged changes", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");
+    gitAdd(root, "README.md");
     await view().sync();
     await view().startRun({ goal: "test blocked-unlogged" });
 
@@ -484,10 +500,44 @@ describe("WorkspaceView", () => {
     expect(run.status).toBe("completed");
   });
 
-  it("brief.success caps below L4 when run changed_paths are uncommitted", async () => {
+  it("finishRun ignores untracked-only noise (f3fc8250)", async () => {
+    gitInit(root);
+    // Establish a committed baseline so HEAD exists; subsequent untracked
+    // files are real "noise" (scratch notes, build artifacts) that should
+    // not block run completion.
+    await writeFile(path.join(root, ".gitignore"), ".seedrop/\n");
+    gitCommitAll(root, "init");
+    // An untracked scratch file the user left lying around — git status
+    // reports it as `??`, the new split gate classifies it as noise.
+    await writeFile(path.join(root, "scratch.md"), "# scratch notes\n");
+    await view().sync();
+    await view().startRun({ goal: "test untracked-only" });
+    // No changed_paths logged AND no tracked dirty files — should pass.
+    const run = await view().finishRun({ status: "completed" });
+    expect(run.status).toBe("completed");
+  });
+
+  it("finishRun ignores untracked noise even when run logged changed_paths (f3fc8250)", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await writeFile(path.join(root, ".gitignore"), ".seedrop/\n");
+    gitCommitAll(root, "init");
+    // The actual run's paths are clean in git, but an unrelated untracked
+    // scratch file is sitting in the worktree. The old gate would have
+    // refused on `paths.length > 0`; the new split gate ignores untracked.
+    await writeFile(path.join(root, "scratch.md"), "# scratch\n");
+    await view().sync();
+    await view().startRun({ goal: "test untracked-noise" });
+    await view().logRun({ summary: "step", changedPaths: ["README.md"] });
+    const run = await view().finishRun({ status: "completed" });
+    expect(run.status).toBe("completed");
+  });
+
+  it("brief.success caps below L4 when run changed_paths are tracked-uncommitted", async () => {
     gitInit(root);
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await writeFile(path.join(root, "package.json"), '{"scripts":{"test":"vitest run"}}\n');
+    gitAdd(root, "README.md", "package.json"); // tracked-dirty
     await mkdir(path.join(root, ".seedrop", "view"), { recursive: true });
     await writeFile(
       path.join(root, ".seedrop", "view", "policy.json"),

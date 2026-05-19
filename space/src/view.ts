@@ -489,7 +489,10 @@ export class WorkspaceView {
     if (!dirty.inside) {
       return { is_repo: false, is_dirty: false, uncommitted_count: 0 };
     }
-    const paths = dirty.paths;
+    // The packet records all dirty paths (tracked + untracked) so the
+    // downstream agent sees the full state of the worktree. Only the
+    // run-finish gate distinguishes the two — see f3fc8250.
+    const paths = [...dirty.tracked, ...dirty.untracked];
     return {
       is_repo: true,
       is_dirty: paths.length > 0,
@@ -675,15 +678,18 @@ export class WorkspaceView {
     const run = await this.resolveTargetRun(input);
     if (input.status === "completed" && !input.force) {
       const gitDirty = this.gitDirtyState();
-      if (gitDirty.inside && gitDirty.paths.length > 0) {
+      // Gate only on tracked changes. Untracked files are usually scratch
+      // notes or build artifacts; another agent can still resume from HEAD
+      // without them. Splitting tracked vs untracked closes task f3fc8250.
+      if (gitDirty.inside && gitDirty.tracked.length > 0) {
         if (run.changed_paths.length > 0) {
-          const dirtySet = new Set(gitDirty.paths);
+          const dirtySet = new Set(gitDirty.tracked);
           const dirtyChanged = run.changed_paths.filter((p) => dirtySet.has(p));
           if (dirtyChanged.length > 0) {
             throw new WorkspaceRunDirtyTreeError(dirtyChanged, run.changed_paths);
           }
         } else {
-          throw new WorkspaceRunUnloggedChangesError(gitDirty.paths);
+          throw new WorkspaceRunUnloggedChangesError(gitDirty.tracked);
         }
       }
     }
@@ -1398,14 +1404,24 @@ export class WorkspaceView {
 
     const gitDirty = this.gitDirtyState();
     if (gitDirty.inside) {
-      if (gitDirty.paths.length > 0) {
+      // Split tracked vs untracked. Tracked changes are a real shipping
+      // concern (another agent cloning HEAD won't see them); untracked
+      // files are usually scratch/build noise and surface as info only.
+      if (gitDirty.tracked.length > 0) {
         checks.push({
           id: "git_dirty",
           status: "warn",
-          summary: "Git worktree has local changes.",
-          details: { paths: gitDirty.paths },
+          summary: `Git worktree has ${gitDirty.tracked.length} tracked change(s).`,
+          details: { tracked: gitDirty.tracked, untracked: gitDirty.untracked },
         });
-        issues.push({ severity: "warning", code: "git_dirty", message: "Git worktree has local changes." });
+        issues.push({ severity: "warning", code: "git_dirty", message: "Git worktree has tracked local changes." });
+      } else if (gitDirty.untracked.length > 0) {
+        checks.push({
+          id: "git_dirty",
+          status: "pass",
+          summary: `Git worktree is clean apart from ${gitDirty.untracked.length} untracked file(s) (noise).`,
+          details: { untracked: gitDirty.untracked },
+        });
       } else {
         checks.push({ id: "git_dirty", status: "pass", summary: "Git worktree is clean." });
       }
@@ -1712,8 +1728,11 @@ export class WorkspaceView {
 
     if (compareSuccessLevels(level, "L4") >= 0) {
       const dirty = this.gitDirtyState();
-      if (dirty.inside && dirty.paths.length > 0) {
-        const dirtySet = new Set(dirty.paths);
+      // Only tracked changes can block L4 — untracked files don't affect
+      // whether another agent can resume from git alone. Matches the
+      // run-finish gate's tracked-only check (task f3fc8250).
+      if (dirty.inside && dirty.tracked.length > 0) {
+        const dirtySet = new Set(dirty.tracked);
         const trackedPaths = new Set<string>();
         for (const run of runs) {
           for (const p of run.changed_paths) trackedPaths.add(p);
@@ -2056,24 +2075,44 @@ export class WorkspaceView {
     return uniqueStrings(commands);
   }
 
-  private gitDirtyState(): { inside: boolean; paths: string[] } {
+  /**
+   * Git working-tree state split by category.
+   *
+   * `tracked` = files git already knows about that have local modifications
+   * (modified/added/deleted/renamed). These are the real shipping risk: a
+   * teammate cloning the repo at HEAD will not see this work, so the
+   * finishRun gate refuses on these.
+   *
+   * `untracked` = files git has never seen (`??` in --porcelain). Usually
+   * scratch notes, generated artifacts, or in-progress files outside the
+   * project's `.gitignore` policy. We surface them but do not block: another
+   * agent CAN resume from HEAD even with untracked junk lying around.
+   */
+  private gitDirtyState(): { inside: boolean; tracked: string[]; untracked: string[] } {
     const inside = spawnSync("git", ["-C", this.root, "rev-parse", "--is-inside-work-tree"], {
       encoding: "utf8",
     });
     if (inside.status !== 0 || inside.stdout.trim() !== "true") {
-      return { inside: false, paths: [] };
+      return { inside: false, tracked: [], untracked: [] };
     }
     const status = spawnSync("git", ["-C", this.root, "status", "--porcelain"], {
       encoding: "utf8",
     });
-    if (status.status !== 0) return { inside: true, paths: [] };
-    return {
-      inside: true,
-      paths: status.stdout
-        .split("\n")
-        .map((line) => line.slice(3).trim())
-        .filter(Boolean),
-    };
+    if (status.status !== 0) return { inside: true, tracked: [], untracked: [] };
+    const tracked: string[] = [];
+    const untracked: string[] = [];
+    for (const line of status.stdout.split("\n")) {
+      if (!line) continue;
+      const code = line.slice(0, 2);
+      const p = line.slice(3).trim();
+      if (!p) continue;
+      if (code === "??") {
+        untracked.push(p);
+      } else {
+        tracked.push(p);
+      }
+    }
+    return { inside: true, tracked, untracked };
   }
 
   private async hasManifestDrift(manifest: WorkspaceManifest): Promise<boolean> {
