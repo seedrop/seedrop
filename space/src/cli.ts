@@ -113,6 +113,11 @@ try {
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(message);
+  // Render structured recovery hints if the error carries any. They go
+  // to stderr so JSON output on stdout stays parseable.
+  const { renderRecovery } = await import("./errors.js");
+  const recovery = renderRecovery(error);
+  if (recovery) console.error(recovery);
   process.exitCode = 1;
 }
 

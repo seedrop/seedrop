@@ -816,7 +816,10 @@ export class WorkspaceView {
     const who = agent ?? this.agent;
     const task = await this.getTask(taskId);
     if (task.status !== "open") {
-      throw new TaskConflictError(`Task ${taskId} cannot be claimed (status: ${task.status}, owner: ${task.owner ?? "none"}).`);
+      throw new TaskConflictError(
+        `Task ${taskId} cannot be claimed (status: ${task.status}, owner: ${task.owner ?? "none"}).`,
+        { taskId, owner: task.owner, status: task.status, actor: who },
+      );
     }
     task.owner = who;
     task.status = "claimed";
@@ -832,7 +835,10 @@ export class WorkspaceView {
     const assigner = input.agent ?? this.agent;
     const task = await this.getTask(input.taskId);
     if (task.status === "done" || task.status === "dropped") {
-      throw new TaskConflictError(`Task ${input.taskId} cannot be assigned (status: ${task.status}).`);
+      throw new TaskConflictError(
+        `Task ${input.taskId} cannot be assigned (status: ${task.status}).`,
+        { taskId: input.taskId, status: task.status, actor: assigner },
+      );
     }
     task.owner = input.to;
     task.assigned_by = assigner;
@@ -849,7 +855,10 @@ export class WorkspaceView {
     const who = agent ?? this.agent;
     const task = await this.getTask(taskId);
     if (task.owner !== who) {
-      throw new TaskConflictError(`Task ${taskId} is owned by ${task.owner ?? "no one"}; only the owner can accept.`);
+      throw new TaskConflictError(
+        `Task ${taskId} is owned by ${task.owner ?? "no one"}; only the owner can accept.`,
+        { taskId, owner: task.owner, status: task.status, actor: who },
+      );
     }
     delete task.assigned_by;
     delete task.assigned_note;
@@ -862,7 +871,10 @@ export class WorkspaceView {
     const who = input.agent ?? this.agent;
     const task = await this.getTask(input.taskId);
     if (task.owner !== who) {
-      throw new TaskConflictError(`Task ${input.taskId} is owned by ${task.owner ?? "no one"}; only the owner can decline.`);
+      throw new TaskConflictError(
+        `Task ${input.taskId} is owned by ${task.owner ?? "no one"}; only the owner can decline.`,
+        { taskId: input.taskId, owner: task.owner, status: task.status, actor: who },
+      );
     }
     delete task.owner;
     delete task.assigned_by;
@@ -878,7 +890,10 @@ export class WorkspaceView {
     const who = agent ?? this.agent;
     const task = await this.getTask(taskId);
     if (task.owner && task.owner !== who) {
-      throw new TaskConflictError(`Task ${taskId} is owned by ${task.owner}; only the owner can start it.`);
+      throw new TaskConflictError(
+        `Task ${taskId} is owned by ${task.owner}; only the owner can start it.`,
+        { taskId, owner: task.owner, status: task.status, actor: who },
+      );
     }
     await this.assertNotBlocked(task);
     if (!task.owner) task.owner = who;
@@ -892,7 +907,10 @@ export class WorkspaceView {
     const who = input.agent ?? this.agent;
     const task = await this.getTask(input.taskId);
     if (task.owner !== who) {
-      throw new TaskConflictError(`Task ${input.taskId} is owned by ${task.owner ?? "no one"}; only the owner can pause.`);
+      throw new TaskConflictError(
+        `Task ${input.taskId} is owned by ${task.owner ?? "no one"}; only the owner can pause.`,
+        { taskId: input.taskId, owner: task.owner, status: task.status, actor: who },
+      );
     }
     task.status = input.status ?? "blocked";
     task.updated_at = this.nowIso();
@@ -904,7 +922,10 @@ export class WorkspaceView {
     const who = agent ?? this.agent;
     const task = await this.getTask(taskId);
     if (task.owner !== who) {
-      throw new TaskConflictError(`Task ${taskId} is owned by ${task.owner ?? "no one"}; only the owner can complete.`);
+      throw new TaskConflictError(
+        `Task ${taskId} is owned by ${task.owner ?? "no one"}; only the owner can complete.`,
+        { taskId, owner: task.owner, status: task.status, actor: who },
+      );
     }
     await this.assertNotBlocked(task);
     task.status = "done";
@@ -917,7 +938,10 @@ export class WorkspaceView {
     const who = input.agent ?? this.agent;
     const task = await this.getTask(input.taskId);
     if (task.owner && task.owner !== who) {
-      throw new TaskConflictError(`Task ${input.taskId} is owned by ${task.owner}; only the owner can drop.`);
+      throw new TaskConflictError(
+        `Task ${input.taskId} is owned by ${task.owner}; only the owner can drop.`,
+        { taskId: input.taskId, owner: task.owner, status: task.status, actor: who },
+      );
     }
     task.status = "dropped";
     if (input.reason) task.drop_reason = input.reason;
