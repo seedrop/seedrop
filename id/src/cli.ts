@@ -545,6 +545,13 @@ if (isInvokedAsScript(import.meta.url)) {
 }
 
 function isInvokedAsScript(metaUrl: string): boolean {
+  // The bin shim (id/bin/seed-id.mjs) sets SEEDROP_SHIM_INVOKE=1 before
+  // tsImport-ing this module. Without that signal, argv[1] would point at
+  // the shim file rather than this source, and the path-match check below
+  // would falsely treat us as a library import and silently skip runCli.
+  // That was codex's "no output" bug: every `seed id update` from the shim
+  // would exit 0 with no effect.
+  if (process.env.SEEDROP_SHIM_INVOKE === "1") return true;
   const entry = process.argv[1];
   if (!entry) return false;
   const target = fileURLToPath(metaUrl);
