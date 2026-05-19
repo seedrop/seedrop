@@ -177,6 +177,72 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "seedrop_view_sync",
+    description: desc("seed view sync [--workspace-id <id>]", "Refresh the repo View workspace manifest. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        workspace_id: { type: "string", description: "Optional workspace id to write into the manifest." },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["view", "sync"];
+      const workspaceId = strArg(args, "workspace_id");
+      if (workspaceId) cmd.push("--workspace-id", workspaceId);
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_view_audit",
+    description: desc("seed view audit --json", "Run deep View validation for manifest drift and expired signals. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" } },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      return exec(["view", "audit", "--json"], strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_view_explain",
+    description: desc("seed view explain <topic> --json", "Explain why a path is or is not represented in View, or explain View success when topic is 'success'. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        topic: { type: "string", description: "A workspace path, or 'success' for View success criteria." },
+      },
+      required: ["topic"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const topic = strArg(args, "topic");
+      if (!topic) return error("topic is required");
+      return exec(["view", "explain", topic, "--json"], strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_diff",
+    description: desc("seed diff [--since <iso|last-session|earliest>] --json", "Show View changes since an ISO-8601 timestamp, last-session, or earliest. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        since: { type: "string", description: "ISO-8601 timestamp, 'last-session', or 'earliest'." },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["diff", "--json"];
+      const since = strArg(args, "since");
+      if (since) cmd.push("--since", since);
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
     name: "seedrop_run_start",
     description: desc("seed run start --goal <goal> [--new]", "Start a repo-local run journal for the current agent and goal. Returns JSON."),
     inputSchema: {
@@ -240,6 +306,42 @@ export const tools: ToolDef[] = [
       const notes = strArg(args, "notes");
       if (notes) cmd.push("--notes", notes);
       return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_run_decision",
+    description: desc("seed run decision <text>", "Record a decision on the active repo-local run journal. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        decision: { type: "string" },
+      },
+      required: ["decision"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const decision = strArg(args, "decision");
+      if (!decision) return error("decision is required");
+      return exec(["run", "decision", decision], strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_run_thread",
+    description: desc("seed run thread <text>", "Record an open thread on the active repo-local run journal. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        thread: { type: "string" },
+      },
+      required: ["thread"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const thread = strArg(args, "thread");
+      if (!thread) return error("thread is required");
+      return exec(["run", "thread", thread], strArg(args, "cwd"));
     },
   },
   {
@@ -375,6 +477,109 @@ export const tools: ToolDef[] = [
       for (const t of openThreads) cmd.push("--open-thread", t);
       const changedPaths = Array.isArray(args.changed_paths) ? (args.changed_paths as unknown[]).filter((v): v is string => typeof v === "string") : [];
       for (const p of changedPaths) cmd.push("--changed-path", p);
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_signal_claim",
+    description: desc("seed view claim <target> <intent>", "Create an advisory claim signal lease for a View target. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        target: { type: "string" },
+        intent: { type: "string" },
+        owner: { type: "string" },
+        ttl_ms: { type: "number", description: "Lease TTL in milliseconds. Passed to CLI as --ttl." },
+        recovery: { type: "string", description: "Recovery guidance if the signal expires or conflicts." },
+      },
+      required: ["target", "intent"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const target = strArg(args, "target");
+      const intent = strArg(args, "intent");
+      if (!target || !intent) return error("target and intent are required");
+      const cmd = ["view", "claim", target, intent];
+      const owner = strArg(args, "owner");
+      if (owner) cmd.push("--owner", owner);
+      if (typeof args.ttl_ms === "number") cmd.push("--ttl", String(args.ttl_ms));
+      const recovery = strArg(args, "recovery");
+      if (recovery) cmd.push("--recovery", recovery);
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_signal_lock",
+    description: desc("seed view lock <target> <intent>", "Create an advisory lock signal lease for a View target. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        target: { type: "string" },
+        intent: { type: "string" },
+        owner: { type: "string" },
+        ttl_ms: { type: "number", description: "Lease TTL in milliseconds. Passed to CLI as --ttl." },
+        recovery: { type: "string", description: "Recovery guidance if the signal expires or conflicts." },
+      },
+      required: ["target", "intent"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const target = strArg(args, "target");
+      const intent = strArg(args, "intent");
+      if (!target || !intent) return error("target and intent are required");
+      const cmd = ["view", "lock", target, intent];
+      const owner = strArg(args, "owner");
+      if (owner) cmd.push("--owner", owner);
+      if (typeof args.ttl_ms === "number") cmd.push("--ttl", String(args.ttl_ms));
+      const recovery = strArg(args, "recovery");
+      if (recovery) cmd.push("--recovery", recovery);
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_signal_list",
+    description: desc("seed view signals [--include-expired]", "List active View signal leases, optionally including expired leases. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        include_expired: { type: "boolean", default: false },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["view", "signals"];
+      if (args.include_expired === true) cmd.push("--include-expired");
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_signal_release",
+    description: desc("seed view release [--id <id>|--target <target>|--owner <owner>|--type claim|lock]", "Release View signal leases by id, target, owner, or type. Returns JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        id: { type: "string" },
+        target: { type: "string" },
+        owner: { type: "string" },
+        type: { type: "string", enum: ["claim", "lock"] },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const id = strArg(args, "id");
+      const target = strArg(args, "target");
+      const owner = strArg(args, "owner");
+      const type = strArg(args, "type");
+      if (!id && !target && !owner && !type) return error("one of id, target, owner, or type is required");
+      const cmd = ["view", "release"];
+      if (id) cmd.push("--id", id);
+      if (target) cmd.push("--target", target);
+      if (owner) cmd.push("--owner", owner);
+      if (type) cmd.push("--type", type);
       return exec(cmd, strArg(args, "cwd"));
     },
   },
@@ -568,16 +773,27 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
       { tool: "seedrop_view_context", use_when: "Read full repo View state, active runs, tasks, signals, and open threads.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_view_brief", use_when: "Read the compact stable repo orientation packet.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_view_preflight", use_when: "Check whether it is safe to start or continue repo work.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_view_sync", use_when: "Refresh the View manifest after file changes or drift.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_view_audit", use_when: "Run deep View validation for manifest drift and expired signals.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_view_explain", use_when: "Explain View success criteria or why a path is not represented.", example: { cwd: "/path/to/repo", topic: "success" } },
+      { tool: "seedrop_diff", use_when: "Inspect View changes since last-session, earliest, or an ISO timestamp.", example: { cwd: "/path/to/repo", since: "last-session" } },
       { tool: "seedrop_view_log", use_when: "Leave a durable continuity packet after meaningful work.", example: { cwd: "/path/to/repo", mission: "Ship fix", summary: "Changed X and validated Y" } },
     ],
     run: [
       { tool: "seedrop_run_start", use_when: "Start or attach to a repo-local run journal for meaningful work.", example: { cwd: "/path/to/repo", goal: "Implement task" } },
       { tool: "seedrop_run_log", use_when: "Record progress and changed paths on the active run.", example: { cwd: "/path/to/repo", summary: "Implemented parser", changed_paths: ["src/parser.ts"] } },
       { tool: "seedrop_run_verify", use_when: "Record validation evidence for the active run.", example: { cwd: "/path/to/repo", command: "npm test", status: "passed" } },
+      { tool: "seedrop_run_decision", use_when: "Record a decision on the active run journal.", example: { cwd: "/path/to/repo", decision: "Use MCP wrapper parity for this command" } },
+      { tool: "seedrop_run_thread", use_when: "Record an open thread on the active run journal.", example: { cwd: "/path/to/repo", thread: "Confirm CLI parity after daemon restart" } },
       { tool: "seedrop_run_finish", use_when: "Close the active run as completed, blocked, or failed.", example: { cwd: "/path/to/repo", status: "completed" } },
     ],
     task: [],
-    signal: [],
+    signal: [
+      { tool: "seedrop_signal_claim", use_when: "Create an advisory claim signal for a target.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts", intent: "edit MCP wrappers" } },
+      { tool: "seedrop_signal_lock", use_when: "Create an advisory lock signal for exclusive target work.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts", intent: "avoid conflicting edits" } },
+      { tool: "seedrop_signal_list", use_when: "List current signal leases.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_signal_release", use_when: "Release signal leases by id, target, owner, or type.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts" } },
+    ],
     handoff: [
       { tool: "seedrop_handoff_create", use_when: "Create a durable handoff for another agent or human.", example: { cwd: "/path/to/repo", to: "claude", summary: "Continue from X" } },
       { tool: "seedrop_handoff_list", use_when: "List repo-local handoff artifacts.", example: { cwd: "/path/to/repo" } },

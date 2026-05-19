@@ -9,6 +9,7 @@ describe("tools registry", () => {
         "seedrop_bootstrap",
         "seedrop_continuity",
         "seedrop_daemon_status",
+        "seedrop_diff",
         "seedrop_handoff_accept",
         "seedrop_handoff_create",
         "seedrop_handoff_list",
@@ -17,20 +18,29 @@ describe("tools registry", () => {
         "seedrop_inbox_ack",
         "seedrop_index",
         "seedrop_manual",
+        "seedrop_run_decision",
         "seedrop_run_finish",
         "seedrop_run_log",
         "seedrop_run_start",
+        "seedrop_run_thread",
         "seedrop_run_verify",
+        "seedrop_signal_claim",
+        "seedrop_signal_list",
+        "seedrop_signal_lock",
+        "seedrop_signal_release",
         "seedrop_space_heartbeat",
         "seedrop_space_join",
         "seedrop_space_messages",
         "seedrop_space_post",
         "seedrop_space_presence",
         "seedrop_space_register",
+        "seedrop_view_audit",
         "seedrop_view_brief",
         "seedrop_view_context",
+        "seedrop_view_explain",
         "seedrop_view_log",
         "seedrop_view_preflight",
+        "seedrop_view_sync",
       ].sort(),
     );
   });
@@ -49,12 +59,21 @@ describe("tools registry", () => {
     const result = await index!.handler({});
     const parsed = JSON.parse(result.content[0]!.text) as Record<string, Array<{ tool: string }>>;
     expect(parsed.orient.map((entry) => entry.tool)).toContain("seedrop_continuity");
+    expect(parsed.view.map((entry) => entry.tool)).toContain("seedrop_view_sync");
+    expect(parsed.view.map((entry) => entry.tool)).toContain("seedrop_diff");
     expect(parsed.run.map((entry) => entry.tool)).toContain("seedrop_run_start");
+    expect(parsed.run.map((entry) => entry.tool)).toContain("seedrop_run_decision");
+    expect(parsed.signal.map((entry) => entry.tool)).toContain("seedrop_signal_claim");
+    expect(parsed.signal.map((entry) => entry.tool)).toContain("seedrop_signal_release");
     expect(parsed.handoff.map((entry) => entry.tool)).toContain("seedrop_handoff_create");
     expect(parsed.space.map((entry) => entry.tool)).toContain("seedrop_space_post");
     expect(parsed.daemon.map((entry) => entry.tool)).toContain("seedrop_daemon_status");
     expect(parsed.task).toEqual([]);
-    expect(parsed.signal).toEqual([]);
+    const indexedTools = new Set(Object.values(parsed).flat().map((entry) => entry.tool));
+    const exposedTools = new Set(tools.map((tool) => tool.name));
+    for (const tool of indexedTools) {
+      expect(exposedTools.has(tool)).toBe(true);
+    }
   });
 
   it("required tools declare their required args", () => {
@@ -66,6 +85,16 @@ describe("tools registry", () => {
     expect(join?.inputSchema).toMatchObject({ required: ["space"] });
     const runStart = tools.find((t) => t.name === "seedrop_run_start");
     expect(runStart?.inputSchema).toMatchObject({ required: ["goal"] });
+    const runDecision = tools.find((t) => t.name === "seedrop_run_decision");
+    expect(runDecision?.inputSchema).toMatchObject({ required: ["decision"] });
+    const runThread = tools.find((t) => t.name === "seedrop_run_thread");
+    expect(runThread?.inputSchema).toMatchObject({ required: ["thread"] });
+    const explain = tools.find((t) => t.name === "seedrop_view_explain");
+    expect(explain?.inputSchema).toMatchObject({ required: ["topic"] });
+    const signalClaim = tools.find((t) => t.name === "seedrop_signal_claim");
+    expect(signalClaim?.inputSchema).toMatchObject({ required: ["target", "intent"] });
+    const signalLock = tools.find((t) => t.name === "seedrop_signal_lock");
+    expect(signalLock?.inputSchema).toMatchObject({ required: ["target", "intent"] });
     const handoffRead = tools.find((t) => t.name === "seedrop_handoff_read");
     expect(handoffRead?.inputSchema).toMatchObject({ required: ["id"] });
   });
@@ -92,6 +121,13 @@ describe("tool handlers (smoke)", () => {
     const result = await tool!.handler({});
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("mission and summary are required");
+  });
+
+  it("seedrop_signal_release errors when no selector is provided", async () => {
+    const tool = tools.find((t) => t.name === "seedrop_signal_release");
+    const result = await tool!.handler({});
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("one of id, target, owner, or type is required");
   });
 });
 
