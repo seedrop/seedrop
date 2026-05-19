@@ -91,6 +91,10 @@ export const PacketGitStatusSchema = z
 
 export const ContinuityPacketSchema = z
   .object({
+    // schema_version was added in 1b8676dc for migration support.
+    // Optional so existing packets on disk (pre-versioning) still load;
+    // new writes include it. The migration loader injects "1.0" when missing.
+    schema_version: z.literal("1.0").optional(),
     id: z.string().uuid(),
     created_at: IsoDateTime,
     agent: z.string().min(1),

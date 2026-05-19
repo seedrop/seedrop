@@ -15,6 +15,12 @@ import {
   WorkspaceViewParseError,
   WorkspaceViewValidationError,
 } from "./errors.js";
+import { parseAndMigrate, type MigrationChain } from "./migrations.js";
+import {
+  ContinuityPacketMigrationChain,
+  RunJournalMigrationChain,
+  TaskMigrationChain,
+} from "./schema-migrations.js";
 import {
   ContinuityPacketSchema,
   HandoffSchema,
@@ -404,6 +410,7 @@ export class WorkspaceView {
   async log(input: LogInput): Promise<ContinuityPacket> {
     await this.ensureDirs();
     const packet: ContinuityPacket = {
+      schema_version: "1.0",
       id: randomUUID(),
       created_at: this.nowIso(),
       agent: input.agent ?? this.agent,
@@ -747,7 +754,7 @@ export class WorkspaceView {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
       try {
-        runs.push(await this.readJson(path.join(this.runsDir, entry.name), RunJournalSchema));
+        runs.push(await this.readJsonMigrated(path.join(this.runsDir, entry.name), RunJournalMigrationChain, RunJournalSchema));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         malformed.push({ filename: entry.name, error: message });
@@ -799,7 +806,7 @@ export class WorkspaceView {
 
   async getTask(taskId: string): Promise<Task> {
     try {
-      return await this.readJson(this.taskPath(taskId), TaskSchema);
+      return await this.readJsonMigrated(this.taskPath(taskId), TaskMigrationChain, TaskSchema);
     } catch (error) {
       if (error instanceof WorkspaceViewParseError || (error as NodeJS.ErrnoException)?.code === "ENOENT") {
         throw new TaskNotFoundError(taskId);
@@ -872,7 +879,7 @@ export class WorkspaceView {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
       try {
-        const task = await this.readJson(path.join(this.tasksDir, entry.name), TaskSchema);
+        const task = await this.readJsonMigrated(path.join(this.tasksDir, entry.name), TaskMigrationChain, TaskSchema);
         if (filter.status && task.status !== filter.status) continue;
         if (filter.owner && task.owner !== filter.owner) continue;
         if (filter.fromKnowledge && task.from_knowledge !== filter.fromKnowledge) continue;
@@ -1856,7 +1863,7 @@ export class WorkspaceView {
 
     for (const entry of entries) {
       if (entry.isFile() && entry.name.endsWith(".json")) {
-        packets.push(await this.readJson(path.join(this.continuityDir, entry.name), ContinuityPacketSchema));
+        packets.push(await this.readJsonMigrated(path.join(this.continuityDir, entry.name), ContinuityPacketMigrationChain, ContinuityPacketSchema));
       }
     }
 
@@ -1870,7 +1877,7 @@ export class WorkspaceView {
       const packets: ContinuityPacket[] = [];
       for (const entry of entries) {
         if (entry.isFile() && entry.name.endsWith(".json")) {
-          packets.push(await this.readJson(path.join(this.continuityDir, entry.name), ContinuityPacketSchema));
+          packets.push(await this.readJsonMigrated(path.join(this.continuityDir, entry.name), ContinuityPacketMigrationChain, ContinuityPacketSchema));
         }
       }
       return packets.sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -1886,7 +1893,7 @@ export class WorkspaceView {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
       try {
-        runs.push(await this.readJson(path.join(this.runsDir, entry.name), RunJournalSchema));
+        runs.push(await this.readJsonMigrated(path.join(this.runsDir, entry.name), RunJournalMigrationChain, RunJournalSchema));
       } catch {
         continue;
       }
@@ -1916,7 +1923,7 @@ export class WorkspaceView {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
       try {
-        tasks.push(await this.readJson(path.join(this.tasksDir, entry.name), TaskSchema));
+        tasks.push(await this.readJsonMigrated(path.join(this.tasksDir, entry.name), TaskMigrationChain, TaskSchema));
       } catch {
         continue;
       }
@@ -2216,6 +2223,25 @@ export class WorkspaceView {
       throw new WorkspaceViewValidationError(result.error.issues, filePath);
     }
     return result.data;
+  }
+
+  /**
+   * Like readJson, but routes the parsed JSON through a migration chain
+   * before the final Zod parse. Use this for any schema that may evolve
+   * across CLI versions (Task, RunJournal, ContinuityPacket today).
+   */
+  private async readJsonMigrated<T>(
+    filePath: string,
+    chain: MigrationChain,
+    schema: ZodType<T>,
+  ): Promise<T> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readFile(filePath, "utf8"));
+    } catch (error) {
+      throw new WorkspaceViewParseError(filePath, error instanceof Error ? error : new Error(String(error)));
+    }
+    return parseAndMigrate(parsed, chain, schema, filePath);
   }
 
   private nowIso(): string {

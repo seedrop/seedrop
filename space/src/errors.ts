@@ -308,6 +308,65 @@ export class SpaceValidationError extends SpaceError {
 }
 
 /**
+ * Thrown when a persisted view file has a `schema_version` that this
+ * CLI doesn't know how to read. Three flavors:
+ * - "forward": the stored version is newer than this CLI supports
+ *   (the workspace was touched by a newer toolchain).
+ * - "unknown": the stored version isn't a node in the migration chain
+ *   (likely a typo or a hand-edited file).
+ * - "no-path": the chain has a cycle or a gap reaching `current`.
+ *
+ * Recovery hints always include `seed --version` plus the npm upgrade
+ * command so the user can self-diagnose without reading source.
+ */
+export class SchemaVersionUnsupportedError extends WorkspaceViewError {
+  public readonly schema: string;
+  public readonly found: string;
+  public readonly supported: string;
+  public readonly path?: string;
+  public readonly reason: "forward" | "unknown" | "no-path";
+  constructor(opts: {
+    schema: string;
+    found: string;
+    supported: string;
+    path?: string;
+    reason: "forward" | "unknown" | "no-path";
+  }) {
+    const reasonDetail =
+      opts.reason === "forward"
+        ? `is version ${opts.found}, but this CLI supports up to ${opts.supported}`
+        : opts.reason === "unknown"
+          ? `has unknown version ${opts.found}; this CLI's migration chain does not include it`
+          : `cannot be migrated from ${opts.found} to ${opts.supported} — the migration chain is broken`;
+    const where = opts.path ? ` at ${opts.path}` : "";
+    super(`${opts.schema}${where} ${reasonDetail}.`, {
+      recovery: [
+        {
+          kind: "command",
+          command: "seed --version",
+          risk: "low",
+          requires_human: true,
+          reason: "Check your CLI version against the file's schema_version.",
+        },
+        {
+          kind: "command",
+          command: "npm i -g @seedrop/cli@latest",
+          risk: "low",
+          requires_human: true,
+          reason: "Upgrade if the file came from a newer toolchain.",
+        },
+      ],
+    });
+    this.name = "SchemaVersionUnsupportedError";
+    this.schema = opts.schema;
+    this.found = opts.found;
+    this.supported = opts.supported;
+    this.path = opts.path;
+    this.reason = opts.reason;
+  }
+}
+
+/**
  * Render a WorkspaceViewError's recovery list as a human-readable
  * block suitable for stderr. Returns an empty string when there is
  * no recovery (so callers can unconditionally append).
