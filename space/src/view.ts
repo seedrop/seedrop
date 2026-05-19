@@ -165,6 +165,15 @@ export interface RunUpdateInput {
   changedPaths?: string[];
   nextActions?: NextAction[];
   agent?: string;
+  /**
+   * Target a specific run instead of "latest active run for this agent."
+   * Required when the caller knows the run_id (e.g., they started it
+   * earlier in the session). Prevents cross-agent run confusion when
+   * identity changes mid-session orphan a run under the old identity
+   * while a different run is active under the new identity.
+   * Accepts a UUID or a >=4-char unique prefix.
+   */
+  runId?: string;
 }
 
 export interface RunVerifyInput {
@@ -172,6 +181,7 @@ export interface RunVerifyInput {
   status: "passed" | "failed" | "skipped";
   notes?: string;
   agent?: string;
+  runId?: string;
 }
 
 export interface RunFinishInput {
@@ -179,6 +189,7 @@ export interface RunFinishInput {
   nextActions?: NextAction[];
   agent?: string;
   force?: boolean;
+  runId?: string;
 }
 
 export interface RunStartResult {
@@ -545,8 +556,23 @@ export class WorkspaceView {
     return { run, warnings: [], next_actions: [] };
   }
 
+  /**
+   * Resolve the target run for a mutating verb. Prefers explicit runId
+   * (avoids the "latest active run for current agent" foot-gun when
+   * identity changes mid-session). Falls back to requireActiveRun.
+   */
+  private async resolveTargetRun(input: { agent?: string; runId?: string }): Promise<RunJournal> {
+    if (input.runId) {
+      const fullId = await this.resolveRunId(input.runId);
+      const run = (await this.listRuns()).find((r) => r.run_id === fullId);
+      if (!run) throw new Error(`Run ${fullId} not found.`);
+      return run;
+    }
+    return this.requireActiveRun(input.agent);
+  }
+
   async logRun(input: RunUpdateInput): Promise<RunJournal> {
-    const run = await this.requireActiveRun(input.agent);
+    const run = await this.resolveTargetRun(input);
     // Relativize once at the input boundary so we cannot store a path the
     // RelativePath schema would reject on the next read.
     const relativeChangedPaths = this.toWorkspaceRelativeMany(input.changedPaths ?? []);
@@ -574,7 +600,7 @@ export class WorkspaceView {
   }
 
   async verifyRun(input: RunVerifyInput): Promise<RunJournal> {
-    const run = await this.requireActiveRun(input.agent);
+    const run = await this.resolveTargetRun(input);
     run.validation.push({
       command: input.command,
       status: input.status,
@@ -585,7 +611,7 @@ export class WorkspaceView {
   }
 
   async finishRun(input: RunFinishInput): Promise<RunJournal> {
-    const run = await this.requireActiveRun(input.agent);
+    const run = await this.resolveTargetRun(input);
     if (input.status === "completed" && !input.force) {
       const gitDirty = this.gitDirtyState();
       if (gitDirty.inside && gitDirty.paths.length > 0) {
@@ -708,6 +734,33 @@ export class WorkspaceView {
       }
       throw error;
     }
+  }
+
+  /**
+   * Resolve a run ID prefix to the full UUID. Accepts the full UUID
+   * unchanged or a >=4-char unique prefix. Cross-references the runs
+   * directory directly (not just active runs) so finished/blocked runs
+   * are resolvable too. Throws Error on ambiguous or no match.
+   */
+  async resolveRunId(prefixOrFullId: string): Promise<string> {
+    const trimmed = prefixOrFullId.trim();
+    if (trimmed.length === 0) throw new Error("Empty run id.");
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+      return trimmed;
+    }
+    if (trimmed.length < 4) {
+      throw new Error(`Run id prefix too short (need >=4 chars): ${trimmed}`);
+    }
+    const runs = await this.listRuns();
+    const matches = runs.filter((r) => r.run_id.startsWith(trimmed));
+    if (matches.length === 0) {
+      throw new Error(`No run matches prefix ${prefixOrFullId}.`);
+    }
+    if (matches.length > 1) {
+      const sample = matches.slice(0, 3).map((m) => `${m.run_id.slice(0, 12)} (${m.goal})`).join("; ");
+      throw new Error(`Run id ${prefixOrFullId} is ambiguous — matches ${matches.length}: ${sample}`);
+    }
+    return matches[0]!.run_id;
   }
 
   /**

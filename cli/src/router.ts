@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
-import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import { homedir, platform } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -134,6 +134,40 @@ export function agentPassportPath(agent: string): string {
   return join(homedir(), ".seedrop", "id", "agents", `${slug}.json`);
 }
 
+async function readOutgoingAgentId(): Promise<string | null> {
+  try {
+    const active = await readActivePassport();
+    if (active?.agent_id) return active.agent_id;
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+async function listInProgressRunsInCwd(agentId: string): Promise<Array<{ run_id: string; goal: string }>> {
+  const runsDir = join(process.cwd(), ".seedrop", "view", "runs");
+  if (!existsSync(runsDir)) return [];
+  try {
+    const entries = await readdir(runsDir);
+    const matches: Array<{ run_id: string; goal: string }> = [];
+    for (const entry of entries) {
+      if (!entry.endsWith(".json")) continue;
+      try {
+        const raw = await readFile(join(runsDir, entry), "utf8");
+        const run = JSON.parse(raw) as { run_id?: string; agent_id?: string; status?: string; goal?: string };
+        if (run.agent_id === agentId && run.status === "in_progress" && run.run_id && run.goal) {
+          matches.push({ run_id: run.run_id, goal: run.goal });
+        }
+      } catch {
+        continue;
+      }
+    }
+    return matches;
+  } catch {
+    return [];
+  }
+}
+
 async function runLogin(argv: readonly string[], io: RunCliIO): Promise<number> {
   // Accept either an agent name or path: `seed login codex` or `seed login --passport /path.json`
   const json = argv.includes("--json");
@@ -163,6 +197,32 @@ async function runLogin(argv: readonly string[], io: RunCliIO): Promise<number> 
     writeCliFailure(io, json, "seedrop.passport.invalid", `Passport at ${target} is missing agent_id.`, "validation", null, { path: target });
     return 1;
   }
+
+  // Before switching identity, warn if the OUTGOING identity has
+  // in_progress runs in this repo. Switching mid-flight orphans them —
+  // subsequent `seed run log`/`finish` calls resolve under the new
+  // identity and won't find the old run. This was a real foot-gun:
+  // claude session in seedrop repo ran with codex active, started a
+  // run as codex, switched to claude, then logs landed on someone
+  // else's run that happened to be attributed to claude.
+  const outgoingAgent = await readOutgoingAgentId();
+  if (outgoingAgent && outgoingAgent !== passport.agent_id) {
+    const orphans = await listInProgressRunsInCwd(outgoingAgent);
+    if (orphans.length > 0) {
+      io.stdout.write(`⚠ ${outgoingAgent} has ${orphans.length} in_progress run(s) in ${process.cwd()}:\n`);
+      for (const run of orphans.slice(0, 3)) {
+        io.stdout.write(`    ${run.run_id.slice(0, 8)}  ${run.goal}\n`);
+      }
+      if (orphans.length > 3) {
+        io.stdout.write(`    +${orphans.length - 3} more\n`);
+      }
+      io.stdout.write(
+        `  These become unreachable from ${passport.agent_id} until you \`seed login ${outgoingAgent}\` again\n` +
+          `  or finish them with \`seed run finish --agent ${outgoingAgent} --status completed\`.\n\n`,
+      );
+    }
+  }
+
   await writeActivePassport({
     agent_id: passport.agent_id,
     passport_path: target,

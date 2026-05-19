@@ -476,6 +476,7 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
       await view.logRun({
         summary: requireFlag(args, "summary"),
         changedPaths: args.flags.get("changed-path") ?? [],
+        runId: args.flags.get("run-id")?.[0],
       }),
     );
     return;
@@ -494,6 +495,7 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
         command: requireFlag(args, "command"),
         status: runValidationStatus(requireFlag(args, "status")),
         notes: args.flags.get("notes")?.[0],
+        runId: args.flags.get("run-id")?.[0],
       }),
     );
     return;
@@ -503,6 +505,7 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
       await view.finishRun({
         status: runFinishStatus(args.flags.get("status")?.[0] ?? args.values[0]),
         force: args.flags.has("force"),
+        runId: args.flags.get("run-id")?.[0],
       }),
     );
     return;
