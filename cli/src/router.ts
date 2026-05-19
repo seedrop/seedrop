@@ -793,6 +793,20 @@ async function runInstall(argv: readonly string[], io: RunCliIO, runner: Command
 
   io.stdout.write(`✓ wrote ${resolved.label} MCP config: ${resolved.configPath}\n`);
   io.stdout.write(`  ${resolved.section}.env.SEEDROP_PASSPORT = ${passportPath}\n`);
+
+  // For Claude clients (Code + Desktop), also deploy the Seedrop skill so
+  // the agent auto-loads orientation guidance without an explicit tool
+  // call. Generated from the template that ships with the seedrop
+  // release — canonical content lives in seedrop_manual.
+  if (resolved.id === "claude-code" || resolved.id === "claude-desktop") {
+    const skillResult = await writeClaudeSkill(io);
+    if (skillResult.wrote) {
+      io.stdout.write(`✓ wrote Seedrop skill: ${skillResult.path}\n`);
+    } else if (skillResult.reason) {
+      io.stdout.write(`(skipped skill: ${skillResult.reason})\n`);
+    }
+  }
+
   if (resolved.restart) io.stdout.write(`\n${resolved.restart}\n`);
   return 0;
 }
@@ -1455,7 +1469,42 @@ async function installClaudeCode(
   io.stdout.write(`✓ wrote claude-code MCP config: ${configPath}\n`);
   io.stdout.write(`  mcpServers.seedrop.env.SEEDROP_PASSPORT = ${passportPath}\n`);
   io.stdout.write(`\nRestart Claude Code to pick up the change.\n`);
+  // Note: this legacy installClaudeCode path is reached only via the
+  // older flag shape. The modern generic installer above (around line
+  // 795) also writes the Seedrop skill via writeClaudeSkill().
   return 0;
+}
+
+async function writeClaudeSkill(io: RunCliIO): Promise<{ wrote: boolean; path?: string; reason?: string }> {
+  const skillsDir = join(homedir(), ".claude", "skills");
+  const skillPath = join(skillsDir, "seedrop.md");
+
+  // Locate the template relative to this module. Works both when running
+  // source-first (cli/src/router.ts → ../templates/seedrop-skill.md) and
+  // from dist (cli/dist/router.js → ../templates/seedrop-skill.md).
+  const routerPath = fileURLToPath(import.meta.url);
+  const workspaceRoot = dirname(dirname(routerPath));
+  const templatePath = join(workspaceRoot, "templates", "seedrop-skill.md");
+  if (!existsSync(templatePath)) {
+    return { wrote: false, reason: `template missing at ${templatePath}` };
+  }
+
+  try {
+    const template = await readFile(templatePath, "utf8");
+    await mkdir(skillsDir, { recursive: true });
+    // Backup any prior version so user customizations aren't silently lost.
+    if (existsSync(skillPath)) {
+      const prior = await readFile(skillPath, "utf8");
+      if (prior !== template) {
+        await writeFile(`${skillPath}.bak.${Date.now()}`, prior, "utf8");
+      }
+    }
+    await writeFile(skillPath, template, "utf8");
+    return { wrote: true, path: skillPath };
+  } catch (error) {
+    io.stderr.write(`(skill write failed: ${(error as Error).message})\n`);
+    return { wrote: false, reason: (error as Error).message };
+  }
 }
 
 async function installCodexCli(

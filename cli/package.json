@@ -28,6 +28,7 @@
     "bin/",
     "src/",
     "dist/",
+    "templates/",
     "clients.json",
     "README.md",
     "LICENSE",
