@@ -50,11 +50,44 @@ export class SpaceHttpClientError extends Error {
   readonly body: unknown;
 
   constructor(status: number, body: unknown) {
-    super(`Space HTTP request failed with status ${status}`);
+    super(spaceErrorMessage(status, body));
     this.name = "SpaceHttpClientError";
     this.status = status;
     this.body = body;
   }
+}
+
+function spaceErrorMessage(status: number, body: unknown): string {
+  if (
+    body &&
+    typeof body === "object" &&
+    "error" in body &&
+    body.error &&
+    typeof body.error === "object" &&
+    "message" in body.error &&
+    typeof body.error.message === "string"
+  ) {
+    return body.error.message;
+  }
+  return `Space HTTP request failed with status ${status}`;
+}
+
+function causeDetails(error: unknown): Record<string, unknown> {
+  if (!error || typeof error !== "object") return {};
+  const details: Record<string, unknown> = {
+    name: error instanceof Error ? error.name : undefined,
+    message: error instanceof Error ? error.message : undefined,
+  };
+  const maybeCause = (error as { cause?: unknown }).cause;
+  if (maybeCause && typeof maybeCause === "object") {
+    details.cause = {
+      name: maybeCause instanceof Error ? maybeCause.name : undefined,
+      message: maybeCause instanceof Error ? maybeCause.message : undefined,
+      code: "code" in maybeCause ? (maybeCause as { code?: unknown }).code : undefined,
+    };
+  }
+  if ("code" in error) details.code = (error as { code?: unknown }).code;
+  return Object.fromEntries(Object.entries(details).filter(([, value]) => value !== undefined));
 }
 
 export class SpaceHttpClient {
@@ -153,6 +186,9 @@ export class SpaceHttpClient {
       }
       return payload;
     } catch (error) {
+      if (error instanceof SpaceHttpClientError) {
+        throw error;
+      }
       if ((error as Error).name === "AbortError") {
         throw new SpaceHttpClientError(408, {
           error: {
@@ -164,7 +200,27 @@ export class SpaceHttpClient {
           },
         });
       }
-      throw error;
+      throw new SpaceHttpClientError(0, {
+        error: {
+          code: "seedrop.http.fetch_failed",
+          message: "Space HTTP request failed before a response was received. Check daemon health with `seed daemon status`.",
+          class: "io",
+          retryable: true,
+          details: {
+            method,
+            path,
+            base_url: this.baseUrl,
+            cause: causeDetails(error),
+          },
+          recovery: [
+            {
+              command: "seed daemon status",
+              reason: "Confirm whether the Seedrop daemon is running and reachable from this shell.",
+              risk: "low",
+            },
+          ],
+        },
+      });
     } finally {
       clearTimeout(timeout);
     }

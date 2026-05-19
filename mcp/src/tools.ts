@@ -44,6 +44,16 @@ function strArrayArg(args: Record<string, unknown>, key: string): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
 }
 
+function pushStringFlag(cmd: string[], args: Record<string, unknown>, key: string, flag: string): void {
+  const value = strArg(args, key);
+  if (value) cmd.push(flag, value);
+}
+
+function pushClientFlags(cmd: string[], args: Record<string, unknown>): void {
+  pushStringFlag(cmd, args, "url", "--url");
+  pushStringFlag(cmd, args, "passport", "--passport");
+}
+
 export const tools: ToolDef[] = [
   {
     name: "seedrop_index",
@@ -88,7 +98,7 @@ export const tools: ToolDef[] = [
   {
     name: "seedrop_continuity",
     description: desc(
-      "seed continuity [--json] [--messages N]",
+      "seed continuity [--brief|--medium|--full] [--json] [--messages N]",
       "Run Seedrop's boot block: identity, current repo View, daemon presence, recent Space messages, and a next-move suggestion. Call this whenever the user asks about Seedrop, mentions 'where was I', or works in a repo with `.seedrop/view/`. Returns Markdown by default; pass `json: true` for structured output.",
     ),
     inputSchema: {
@@ -97,6 +107,11 @@ export const tools: ToolDef[] = [
         cwd: { type: "string", description: "Project directory to orient against. Defaults to the server's cwd." },
         json: { type: "boolean", description: "Return structured JSON instead of human-readable Markdown.", default: false },
         messages: { type: "number", description: "Max recent messages per joined space (default 5).", default: 5 },
+        mode: { type: "string", enum: ["brief", "medium", "full"], description: "Plain-text detail level. Defaults to brief." },
+        passport: { type: "string", description: "Explicit passport path." },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        peek: { type: "boolean", description: "Do not advance the continuity watermark.", default: false },
+        since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
       },
       additionalProperties: false,
     },
@@ -104,14 +119,21 @@ export const tools: ToolDef[] = [
       const cwd = strArg(args, "cwd");
       const cmd = ["continuity"];
       if (args.json === true) cmd.push("--json");
+      const mode = strArg(args, "mode");
+      if (mode === "medium") cmd.push("--medium");
+      if (mode === "full") cmd.push("--full");
       if (typeof args.messages === "number") cmd.push("--messages", String(args.messages));
+      pushStringFlag(cmd, args, "passport", "--passport");
+      pushStringFlag(cmd, args, "url", "--url");
+      if (args.peek === true) cmd.push("--peek");
+      pushStringFlag(cmd, args, "since", "--since");
       return exec(cmd, cwd);
     },
   },
   {
     name: "seedrop_bootstrap",
     description: desc(
-      "seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]",
+      "seed bootstrap [--name <name>] [--purpose <purpose>] [--as <agent>] [--autonomous] [--no-link]",
       "Idempotent setup. With no passport: creates `~/.seedrop/id/passport.json` (requires `name` + `purpose`). With a passport: re-links the current repo to the global passport via `.seedrop/view/`. Pass `no_link: true` to skip the repo-link step.",
     ),
     inputSchema: {
@@ -122,6 +144,12 @@ export const tools: ToolDef[] = [
         cwd: { type: "string", description: "Project root to link. Defaults to the server's cwd." },
         role: { type: "string", description: "Optional role to attach to the active-project record." },
         current_focus: { type: "string", description: "Optional current focus to attach." },
+        as: { type: "string", description: "Create or link a named agent passport." },
+        autonomous: { type: "boolean", description: "Create an agent passport without a parent operator passport.", default: false },
+        agent_id: { type: "string", description: "Explicit passport agent_id." },
+        issued_by: { type: "string", description: "Explicit issuing principal." },
+        passport: { type: "string", description: "Explicit passport path." },
+        space_root: { type: "string", description: "Explicit Space root." },
         no_link: { type: "boolean", description: "Skip the per-repo link step.", default: false },
       },
       additionalProperties: false,
@@ -136,6 +164,12 @@ export const tools: ToolDef[] = [
       if (purpose) cmd.push("--purpose", purpose);
       if (role) cmd.push("--role", role);
       if (focus) cmd.push("--current-focus", focus);
+      pushStringFlag(cmd, args, "as", "--as");
+      if (args.autonomous === true) cmd.push("--autonomous");
+      pushStringFlag(cmd, args, "agent_id", "--agent-id");
+      pushStringFlag(cmd, args, "issued_by", "--issued-by");
+      pushStringFlag(cmd, args, "passport", "--passport");
+      pushStringFlag(cmd, args, "space_root", "--space-root");
       if (args.no_link === true) cmd.push("--no-link");
       return exec(cmd, strArg(args, "cwd"));
     },
@@ -244,13 +278,16 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_run_start",
-    description: desc("seed run start --goal <goal> [--new]", "Start a repo-local run journal for the current agent and goal. Returns JSON."),
+    description: desc("seed run start --goal <goal> [--new] [--task <id>] [--claim <path>] [--force]", "Start a repo-local run journal for the current agent and goal. Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
         cwd: { type: "string" },
         goal: { type: "string" },
         new: { type: "boolean", default: false },
+        task: { type: "string", description: "Task id or prefix to link to the run." },
+        claim: { type: "array", items: { type: "string" }, description: "Paths or targets claimed by this run." },
+        force: { type: "boolean", description: "Bypass claim conflict checks.", default: false },
       },
       required: ["goal"],
       additionalProperties: false,
@@ -260,6 +297,9 @@ export const tools: ToolDef[] = [
       if (!goal) return error("goal is required");
       const cmd = ["run", "start", "--goal", goal];
       if (args.new === true) cmd.push("--new");
+      pushStringFlag(cmd, args, "task", "--task");
+      for (const claim of strArrayArg(args, "claim")) cmd.push("--claim", claim);
+      if (args.force === true) cmd.push("--force");
       return exec(cmd, strArg(args, "cwd"));
     },
   },
@@ -272,6 +312,7 @@ export const tools: ToolDef[] = [
         cwd: { type: "string" },
         summary: { type: "string" },
         changed_paths: { type: "array", items: { type: "string" } },
+        run_id: { type: "string", description: "Explicit run id or prefix." },
       },
       required: ["summary"],
       additionalProperties: false,
@@ -281,6 +322,7 @@ export const tools: ToolDef[] = [
       if (!summary) return error("summary is required");
       const cmd = ["run", "log", "--summary", summary];
       for (const changedPath of strArrayArg(args, "changed_paths")) cmd.push("--changed-path", changedPath);
+      pushStringFlag(cmd, args, "run_id", "--run-id");
       return exec(cmd, strArg(args, "cwd"));
     },
   },
@@ -294,6 +336,7 @@ export const tools: ToolDef[] = [
         command: { type: "string" },
         status: { type: "string", enum: ["passed", "failed", "skipped"] },
         notes: { type: "string" },
+        run_id: { type: "string", description: "Explicit run id or prefix." },
       },
       required: ["command", "status"],
       additionalProperties: false,
@@ -305,6 +348,7 @@ export const tools: ToolDef[] = [
       const cmd = ["run", "verify", "--command", command, "--status", status];
       const notes = strArg(args, "notes");
       if (notes) cmd.push("--notes", notes);
+      pushStringFlag(cmd, args, "run_id", "--run-id");
       return exec(cmd, strArg(args, "cwd"));
     },
   },
@@ -353,6 +397,7 @@ export const tools: ToolDef[] = [
         cwd: { type: "string" },
         status: { type: "string", enum: ["completed", "blocked", "failed"] },
         force: { type: "boolean", description: "Bypass the uncommitted-changed_paths gate when status=completed." },
+        run_id: { type: "string", description: "Explicit run id or prefix." },
       },
       required: ["status"],
       additionalProperties: false,
@@ -362,6 +407,7 @@ export const tools: ToolDef[] = [
       if (!status) return error("status is required");
       const cmd = ["run", "finish", "--status", status];
       if (args.force === true) cmd.push("--force");
+      pushStringFlag(cmd, args, "run_id", "--run-id");
       return exec(cmd, strArg(args, "cwd"));
     },
   },
@@ -455,7 +501,9 @@ export const tools: ToolDef[] = [
         cwd: { type: "string" },
         validation_status: { type: "string", enum: ["passed", "failed", "skipped", "unknown"], default: "unknown" },
         validation_command: { type: "string" },
+        validation_notes: { type: "string" },
         decisions: { type: "array", items: { type: "string" } },
+        assumptions: { type: "array", items: { type: "string" } },
         open_threads: { type: "array", items: { type: "string" } },
         changed_paths: { type: "array", items: { type: "string" } },
       },
@@ -471,8 +519,11 @@ export const tools: ToolDef[] = [
       if (status) cmd.push("--validation-status", status);
       const valCmd = strArg(args, "validation_command");
       if (valCmd) cmd.push("--validation-command", valCmd);
+      const validationNotes = strArg(args, "validation_notes");
+      if (validationNotes) cmd.push("--validation-notes", validationNotes);
       const decisions = Array.isArray(args.decisions) ? (args.decisions as unknown[]).filter((v): v is string => typeof v === "string") : [];
       for (const d of decisions) cmd.push("--decision", d);
+      for (const assumption of strArrayArg(args, "assumptions")) cmd.push("--assumption", assumption);
       const openThreads = Array.isArray(args.open_threads) ? (args.open_threads as unknown[]).filter((v): v is string => typeof v === "string") : [];
       for (const t of openThreads) cmd.push("--open-thread", t);
       const changedPaths = Array.isArray(args.changed_paths) ? (args.changed_paths as unknown[]).filter((v): v is string => typeof v === "string") : [];
@@ -591,6 +642,8 @@ export const tools: ToolDef[] = [
       properties: {
         working_on: { type: "string", description: "Short description of what the agent is currently doing." },
         space_id: { type: "string", description: "Optional space id to scope this session to." },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
       },
       additionalProperties: false,
     },
@@ -600,6 +653,7 @@ export const tools: ToolDef[] = [
       const sid = strArg(args, "space_id");
       if (wo) cmd.push("--working-on", wo);
       if (sid) cmd.push("--space-id", sid);
+      pushClientFlags(cmd, args);
       return exec(cmd);
     },
   },
@@ -610,6 +664,8 @@ export const tools: ToolDef[] = [
       type: "object",
       properties: {
         working_on: { type: "string" },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
       },
       additionalProperties: false,
     },
@@ -617,6 +673,7 @@ export const tools: ToolDef[] = [
       const cmd = ["space", "heartbeat"];
       const wo = strArg(args, "working_on");
       if (wo) cmd.push("--working-on", wo);
+      pushClientFlags(cmd, args);
       return exec(cmd);
     },
   },
@@ -628,6 +685,9 @@ export const tools: ToolDef[] = [
       properties: {
         space_id: { type: "string" },
         ttl_ms: { type: "number" },
+        filter_passport: { type: "string", description: "Filter sessions by passport id." },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
       },
       additionalProperties: false,
     },
@@ -637,6 +697,8 @@ export const tools: ToolDef[] = [
       const ttl = typeof args.ttl_ms === "number" ? args.ttl_ms : undefined;
       if (sid) cmd.push("--space-id", sid);
       if (ttl !== undefined) cmd.push("--ttl", String(ttl));
+      pushStringFlag(cmd, args, "filter_passport", "--filter-passport");
+      pushClientFlags(cmd, args);
       return exec(cmd);
     },
   },
@@ -647,6 +709,8 @@ export const tools: ToolDef[] = [
       type: "object",
       properties: {
         space: { type: "string", description: "Space name (e.g. 'seedrop-team')." },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
       },
       required: ["space"],
       additionalProperties: false,
@@ -654,7 +718,9 @@ export const tools: ToolDef[] = [
     async handler(args) {
       const space = strArg(args, "space");
       if (!space) return error("space is required");
-      return exec(["space", "join", space]);
+      const cmd = ["space", "join", space];
+      pushClientFlags(cmd, args);
+      return exec(cmd);
     },
   },
   {
@@ -666,6 +732,8 @@ export const tools: ToolDef[] = [
         space: { type: "string" },
         content: { type: "string" },
         role: { type: "string", enum: ["agent", "human", "system"], default: "agent" },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
       },
       required: ["space", "content"],
       additionalProperties: false,
@@ -677,6 +745,7 @@ export const tools: ToolDef[] = [
       const cmd = ["space", "post", space, content];
       const role = strArg(args, "role");
       if (role && role !== "agent") cmd.push("--role", role);
+      pushClientFlags(cmd, args);
       return exec(cmd);
     },
   },
@@ -687,6 +756,8 @@ export const tools: ToolDef[] = [
       type: "object",
       properties: {
         space: { type: "string" },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
       },
       required: ["space"],
       additionalProperties: false,
@@ -694,7 +765,9 @@ export const tools: ToolDef[] = [
     async handler(args) {
       const space = strArg(args, "space");
       if (!space) return error("space is required");
-      return exec(["space", "messages", space]);
+      const cmd = ["space", "messages", space];
+      pushClientFlags(cmd, args);
+      return exec(cmd);
     },
   },
   {
@@ -708,6 +781,8 @@ export const tools: ToolDef[] = [
       properties: {
         all: { type: "boolean", description: "Include acked items too. Default false.", default: false },
         limit: { type: "number", description: "Max items (default 50).", default: 50 },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
       },
       additionalProperties: false,
     },
@@ -715,6 +790,7 @@ export const tools: ToolDef[] = [
       const cmd = ["space", "inbox"];
       if (args.all !== true) cmd.push("--unacked-only");
       if (typeof args.limit === "number") cmd.push("--limit", String(args.limit));
+      pushClientFlags(cmd, args);
       return exec(cmd);
     },
   },
@@ -735,6 +811,8 @@ export const tools: ToolDef[] = [
         },
         note: { type: "string", description: "Required for `ignored`; recommended for `deferred`." },
         deferred_until: { type: "string", description: "ISO-8601 timestamp; required when result=deferred." },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
       },
       required: ["item_id", "result"],
       additionalProperties: false,
@@ -748,7 +826,200 @@ export const tools: ToolDef[] = [
       const deferredUntil = strArg(args, "deferred_until");
       if (note) cmd.push("--note", note);
       if (deferredUntil) cmd.push("--deferred-until", deferredUntil);
+      pushClientFlags(cmd, args);
       return exec(cmd);
+    },
+  },
+  {
+    name: "seedrop_task_create",
+    description: desc("seed task create --title <title> [--dedup-key <key>]", "Create a repo-local task. Use dedup_key for idempotent cross-agent task creation."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        from_knowledge: { type: "string" },
+        blocked_by: { type: "array", items: { type: "string" } },
+        dedup_key: { type: "string", description: "Opaque idempotency key. Same key + same title returns the existing task." },
+      },
+      required: ["title"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const title = strArg(args, "title");
+      if (!title) return error("title is required");
+      const cmd = ["task", "create", "--title", title];
+      pushStringFlag(cmd, args, "description", "--description");
+      pushStringFlag(cmd, args, "from_knowledge", "--from-knowledge");
+      pushStringFlag(cmd, args, "dedup_key", "--dedup-key");
+      for (const blocker of strArrayArg(args, "blocked_by")) cmd.push("--blocked-by", blocker);
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_claim",
+    description: desc("seed task claim <id>", "Claim an open repo-local task for the active agent."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      if (!taskId) return error("task_id is required");
+      return exec(["task", "claim", taskId], strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_assign",
+    description: desc("seed task assign <id> <agent> [--note <text>]", "Assign a repo-local task to another agent."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" }, to: { type: "string" }, note: { type: "string" } },
+      required: ["task_id", "to"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      const to = strArg(args, "to");
+      if (!taskId || !to) return error("task_id and to are required");
+      const cmd = ["task", "assign", taskId, to];
+      pushStringFlag(cmd, args, "note", "--note");
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_accept",
+    description: desc("seed task accept <id>", "Accept a task assigned to the active agent."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      if (!taskId) return error("task_id is required");
+      return exec(["task", "accept", taskId], strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_decline",
+    description: desc("seed task decline <id> [--reason <text>]", "Decline a task assigned to the active agent and return it to open."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" }, reason: { type: "string" } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      if (!taskId) return error("task_id is required");
+      const cmd = ["task", "decline", taskId];
+      pushStringFlag(cmd, args, "reason", "--reason");
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_start",
+    description: desc("seed task start <id>", "Mark a claimed task as in_progress."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      if (!taskId) return error("task_id is required");
+      return exec(["task", "start", taskId], strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_pause",
+    description: desc("seed task pause <id> [--status blocked|open]", "Pause an in-progress task as blocked or reopen it."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" }, status: { type: "string", enum: ["blocked", "open"] } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      if (!taskId) return error("task_id is required");
+      const cmd = ["task", "pause", taskId];
+      pushStringFlag(cmd, args, "status", "--status");
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_done",
+    description: desc("seed task done <id>", "Mark a task done after its blockers and ownership checks pass."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      if (!taskId) return error("task_id is required");
+      return exec(["task", "done", taskId], strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_drop",
+    description: desc("seed task drop <id> [--reason <text>]", "Drop a task as consciously abandoned or superseded."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" }, reason: { type: "string" } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      if (!taskId) return error("task_id is required");
+      const cmd = ["task", "drop", taskId];
+      pushStringFlag(cmd, args, "reason", "--reason");
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_list",
+    description: desc("seed task list --json [--status <status>] [--owner <agent>]", "List repo-local tasks as JSON, with optional status/owner/knowledge filters."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        status: { type: "string", enum: ["open", "claimed", "in_progress", "blocked", "done", "dropped"] },
+        owner: { type: "string" },
+        from_knowledge: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["task", "list", "--json"];
+      pushStringFlag(cmd, args, "status", "--status");
+      pushStringFlag(cmd, args, "owner", "--owner");
+      pushStringFlag(cmd, args, "from_knowledge", "--from-knowledge");
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_task_show",
+    description: desc("seed task show <id>", "Read one repo-local task as JSON."),
+    inputSchema: {
+      type: "object",
+      properties: { cwd: { type: "string" }, task_id: { type: "string" } },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const taskId = strArg(args, "task_id");
+      if (!taskId) return error("task_id is required");
+      return exec(["task", "show", taskId], strArg(args, "cwd"));
     },
   },
   {
@@ -787,7 +1058,19 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
       { tool: "seedrop_run_thread", use_when: "Record an open thread on the active run journal.", example: { cwd: "/path/to/repo", thread: "Confirm CLI parity after daemon restart" } },
       { tool: "seedrop_run_finish", use_when: "Close the active run as completed, blocked, or failed.", example: { cwd: "/path/to/repo", status: "completed" } },
     ],
-    task: [],
+    task: [
+      { tool: "seedrop_task_create", use_when: "Create an idempotent repo-local task.", example: { cwd: "/path/to/repo", title: "Implement feature", dedup_key: "sprint-1:feature" } },
+      { tool: "seedrop_task_claim", use_when: "Claim an open task for the active agent.", example: { cwd: "/path/to/repo", task_id: "abcd1234" } },
+      { tool: "seedrop_task_assign", use_when: "Assign a task to another agent.", example: { cwd: "/path/to/repo", task_id: "abcd1234", to: "claude" } },
+      { tool: "seedrop_task_accept", use_when: "Accept a task assigned to the active agent.", example: { cwd: "/path/to/repo", task_id: "abcd1234" } },
+      { tool: "seedrop_task_decline", use_when: "Decline an assigned task and return it to open.", example: { cwd: "/path/to/repo", task_id: "abcd1234", reason: "not my area" } },
+      { tool: "seedrop_task_start", use_when: "Mark a claimed task in progress.", example: { cwd: "/path/to/repo", task_id: "abcd1234" } },
+      { tool: "seedrop_task_pause", use_when: "Pause or reopen a task.", example: { cwd: "/path/to/repo", task_id: "abcd1234", status: "blocked" } },
+      { tool: "seedrop_task_done", use_when: "Mark a task done.", example: { cwd: "/path/to/repo", task_id: "abcd1234" } },
+      { tool: "seedrop_task_drop", use_when: "Drop a task as superseded or abandoned.", example: { cwd: "/path/to/repo", task_id: "abcd1234", reason: "duplicate" } },
+      { tool: "seedrop_task_list", use_when: "List tasks with optional filters.", example: { cwd: "/path/to/repo", status: "open" } },
+      { tool: "seedrop_task_show", use_when: "Read a task by id or prefix.", example: { cwd: "/path/to/repo", task_id: "abcd1234" } },
+    ],
     signal: [
       { tool: "seedrop_signal_claim", use_when: "Create an advisory claim signal for a target.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts", intent: "edit MCP wrappers" } },
       { tool: "seedrop_signal_lock", use_when: "Create an advisory lock signal for exclusive target work.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts", intent: "avoid conflicting edits" } },

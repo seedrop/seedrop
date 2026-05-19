@@ -187,6 +187,25 @@ describe("WorkspaceView", () => {
     expect(existsSync(path.join(root, ".seedrop", "view", "audit.json"))).toBe(false);
   });
 
+  it("updates .seedrop/view/AGENTS.md when logging continuity", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+
+    await view("codex").log({
+      mission: "ship generated entrypoint",
+      summary: "Rendered ambient context for new agents.",
+      validation: { status: "passed", commands: ["npm test"] },
+      changedPaths: ["space/src/view.ts"],
+    });
+
+    const generated = await readFile(path.join(root, ".seedrop", "view", "AGENTS.md"), "utf8");
+    expect(generated).toContain("# Seedrop View");
+    expect(generated).toContain("## Latest Continuity");
+    expect(generated).toContain("agent: codex");
+    expect(generated).toContain("mission: ship generated entrypoint");
+    expect(generated).toContain("space/src/view.ts");
+  });
+
   it("claims, hides expired, audits, and releases signal leases", async () => {
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await view().sync();

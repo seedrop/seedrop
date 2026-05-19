@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SpaceHttpClient, SpaceHttpClientError, startSpaceServer, type StartedSpaceServer } from "../src/index.js";
 
 let root: string;
@@ -62,6 +62,26 @@ describe("SpaceHttpClient", () => {
     await expect(unknown.join("seedrop-team")).rejects.toMatchObject({
       status: 401,
     } satisfies Partial<SpaceHttpClientError>);
+  });
+
+  it("wraps fetch failures with daemon status recovery guidance", async () => {
+    const originalFetch = globalThis.fetch;
+    const cause = Object.assign(new Error("connect EPERM 127.0.0.1:18791"), { code: "EPERM" });
+    globalThis.fetch = vi.fn().mockRejectedValue(Object.assign(new TypeError("fetch failed"), { cause }));
+    try {
+      await expect(codex.inbox()).rejects.toMatchObject({
+        status: 0,
+        message: expect.stringContaining("seed daemon status"),
+        body: {
+          error: {
+            code: "seedrop.http.fetch_failed",
+            recovery: [expect.objectContaining({ command: "seed daemon status" })],
+          },
+        },
+      } satisfies Partial<SpaceHttpClientError>);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

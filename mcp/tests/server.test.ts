@@ -34,6 +34,17 @@ describe("tools registry", () => {
         "seedrop_space_post",
         "seedrop_space_presence",
         "seedrop_space_register",
+        "seedrop_task_accept",
+        "seedrop_task_assign",
+        "seedrop_task_claim",
+        "seedrop_task_create",
+        "seedrop_task_decline",
+        "seedrop_task_done",
+        "seedrop_task_drop",
+        "seedrop_task_list",
+        "seedrop_task_pause",
+        "seedrop_task_show",
+        "seedrop_task_start",
         "seedrop_view_audit",
         "seedrop_view_brief",
         "seedrop_view_context",
@@ -68,7 +79,8 @@ describe("tools registry", () => {
     expect(parsed.handoff.map((entry) => entry.tool)).toContain("seedrop_handoff_create");
     expect(parsed.space.map((entry) => entry.tool)).toContain("seedrop_space_post");
     expect(parsed.daemon.map((entry) => entry.tool)).toContain("seedrop_daemon_status");
-    expect(parsed.task).toEqual([]);
+    expect(parsed.task.map((entry) => entry.tool)).toContain("seedrop_task_create");
+    expect(parsed.task.map((entry) => entry.tool)).toContain("seedrop_task_done");
     const indexedTools = new Set(Object.values(parsed).flat().map((entry) => entry.tool));
     const exposedTools = new Set(tools.map((tool) => tool.name));
     for (const tool of indexedTools) {
@@ -97,6 +109,10 @@ describe("tools registry", () => {
     expect(signalLock?.inputSchema).toMatchObject({ required: ["target", "intent"] });
     const handoffRead = tools.find((t) => t.name === "seedrop_handoff_read");
     expect(handoffRead?.inputSchema).toMatchObject({ required: ["id"] });
+    const taskCreate = tools.find((t) => t.name === "seedrop_task_create");
+    expect(taskCreate?.inputSchema).toMatchObject({ required: ["title"] });
+    const taskShow = tools.find((t) => t.name === "seedrop_task_show");
+    expect(taskShow?.inputSchema).toMatchObject({ required: ["task_id"] });
   });
 });
 

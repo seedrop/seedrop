@@ -529,6 +529,7 @@ async function taskCommand(command: string | undefined, args: ParsedArgs, view: 
       await view.createTask({
         title: requireFlag(args, "title"),
         description: args.flags.get("description")?.[0],
+        dedupKey: args.flags.get("dedup-key")?.[0],
         fromKnowledge: args.flags.get("from-knowledge")?.[0],
         blockedBy: args.flags.get("blocked-by") ?? [],
       }),

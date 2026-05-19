@@ -131,6 +131,30 @@ describe("WorkspaceView tasks", () => {
     expect(reread.from_knowledge).toBe("knowledge/sprint-2026-05.md#auth");
   });
 
+  it("returns the existing task for the same dedup key and title", async () => {
+    const v = view();
+    const first = await v.createTask({ title: "stable task", dedupKey: "seedrop:test:stable" });
+    now = new Date("2026-05-18T11:00:00.000Z");
+    const second = await v.createTask({
+      title: "stable task",
+      description: "retry should not replace the original task",
+      dedupKey: "seedrop:test:stable",
+    });
+
+    expect(second.task_id).toBe(first.task_id);
+    expect(second.description).toBeUndefined();
+    expect(await v.listTasks()).toHaveLength(1);
+  });
+
+  it("allows a reused dedup key when the title is different", async () => {
+    const v = view();
+    const first = await v.createTask({ title: "first", dedupKey: "seedrop:test:shared" });
+    const second = await v.createTask({ title: "second", dedupKey: "seedrop:test:shared" });
+
+    expect(second.task_id).not.toBe(first.task_id);
+    expect(await v.listTasks()).toHaveLength(2);
+  });
+
   it("listTasks filters by status and owner", async () => {
     const v = view();
     const a = await v.createTask({ title: "A" });

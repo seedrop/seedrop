@@ -324,7 +324,7 @@ describe("continuity", () => {
     process.chdir(otherCwd);
     try {
       const io = createIo();
-      const code = await runCli(["continuity"], io, fakeRunner());
+      const code = await runCli(["continuity", "--full"], io, fakeRunner());
       expect(code).toBe(0);
       const out = io.stdoutText();
       expect(out).toContain("agent_id: claude");
@@ -335,6 +335,20 @@ describe("continuity", () => {
     } finally {
       process.chdir(prior);
     }
+  });
+
+  it("defaults continuity rendering to brief and exposes full explicitly", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "demo");
+
+    const briefIo = createIo();
+    await runCli(["continuity", "--cwd", scratch], briefIo, fakeRunner());
+    expect(briefIo.stdoutText()).toContain("## Focus");
+    expect(briefIo.stdoutText()).not.toContain("## Daemon");
+
+    const fullIo = createIo();
+    await runCli(["continuity", "--full", "--cwd", scratch], fullIo, fakeRunner());
+    expect(fullIo.stdoutText()).toContain("## Daemon");
   });
 
   it("supports --json", async () => {

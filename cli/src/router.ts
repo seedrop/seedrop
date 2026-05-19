@@ -415,7 +415,7 @@ export type CommandPlan = CommandDispatch | CommandDispatch[];
 const usage = `Usage:
   seed                          (alias for \`seed continuity\` — your boot block)
   seed init                     (guided one-shot local setup)
-  seed continuity [--json] [--messages N]
+  seed continuity [--brief|--medium|--full] [--json] [--messages N]
   seed doctor [--fix]           (diagnose local setup + exact next commands)
   seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]
   seed bootstrap --as <agent> --name <human-name> --purpose "<mission>"

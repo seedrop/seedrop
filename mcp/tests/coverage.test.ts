@@ -46,12 +46,12 @@ describe("MCP/CLI coverage policy", () => {
     }
   });
 
-  it("keeps task commands gated until schema migration lands", () => {
+  it("maps task commands to the MCP task surface", () => {
     const taskEntries = MCP_CLI_COVERAGE.filter((entry) => entry.command.startsWith("seed task "));
     expect(taskEntries.length).toBeGreaterThan(0);
     for (const entry of taskEntries) {
-      expect(entry.status, `${entry.command} should stay gated before schema migration`).toBe("todo");
-      expect(entry.reason).toMatch(/schema migration/i);
+      expect(entry.status, `${entry.command} should be exposed through MCP`).toBe("covered");
+      expect(entry.tools?.[0], `${entry.command} should map to a task tool`).toMatch(/^seedrop_task_/);
     }
   });
 });

@@ -21,6 +21,8 @@ export interface ContinuityOptions {
   peek?: boolean;
 }
 
+export type ContinuityRenderMode = "brief" | "medium" | "full";
+
 interface Passport {
   agent_id?: string;
   name?: string;
@@ -370,7 +372,103 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   return { ...report, orientation: buildOrientation(report, viewPreflightFailed) };
 }
 
-export function renderContinuity(report: ContinuityReport): string {
+export function renderContinuity(report: ContinuityReport, mode: ContinuityRenderMode = "brief"): string {
+  if (mode === "full") return renderContinuityFull(report);
+  const lines = renderContinuityBrief(report);
+  if (mode === "medium") {
+    appendMediumCoordination(lines, report);
+  }
+  return lines.join("\n");
+}
+
+function renderContinuityBrief(report: ContinuityReport): string[] {
+  const lines: string[] = [];
+  const p = report.passport;
+  const agent = p?.agent_id ?? p?.name ?? "(no passport yet)";
+  const workspaceFocus = (report.view.brief as { workspace?: { current_focus?: string } } | undefined)?.workspace?.current_focus;
+  const unacked = report.inbox.unacked;
+
+  lines.push(`# Continuity — ${agent}`);
+  if (report.since) {
+    lines.push(`_since last seen ${humanAge(report.since)}_`);
+  } else if (report.watermarkAdvanced) {
+    lines.push(`_first run on this agent_`);
+  }
+  lines.push("");
+
+  lines.push("## Identity");
+  if (p) {
+    lines.push(`  agent_id: ${p.agent_id}`);
+    if (p.name && p.name !== p.agent_id) lines.push(`  name: ${p.name}`);
+    if (p.purpose) lines.push(`  purpose: ${p.purpose}`);
+  } else {
+    lines.push(`  (none — run \`seed bootstrap --name <n> --purpose "<p>"\`)`);
+  }
+  lines.push("");
+
+  lines.push("## Where you are");
+  lines.push(`  cwd: ${report.cwd}`);
+  if (report.root !== report.cwd) lines.push(`  root: ${report.root} (${report.rootKind})`);
+  lines.push(`  view: ${report.view.present ? `present${report.view.manifest?.workspace_id ? ` (${report.view.manifest.workspace_id})` : ""}` : "absent"}`);
+  const gitStatus = report.view.brief?.git_status;
+  if (gitStatus?.is_dirty) lines.push(`  git: ${gitStatus.uncommitted_count} uncommitted`);
+  else if (gitStatus?.is_repo) lines.push("  git: clean");
+  lines.push("");
+
+  lines.push("## Focus");
+  lines.push(`  ${workspaceFocus ?? report.view.currentRun?.goal ?? report.view.latestPacket?.mission ?? "(no focus recorded)"}`);
+  lines.push("");
+
+  lines.push(`## Inbox — ${report.inbox.fetched ? `${unacked.length} unacked` : "unavailable"}`);
+  for (const mention of unacked.slice(0, 3)) {
+    const where = mention.space_name ? ` in #${mention.space_name}` : "";
+    lines.push(`  - [${mention.id.slice(0, 8)}] ${mention.sender_passport_id}${where}: ${truncate(mention.content, 100)}`);
+  }
+  if (unacked.length > 3) lines.push(`  ...and ${unacked.length - 3} more. \`seed inbox\` to read all.`);
+  lines.push("");
+
+  lines.push("## Next move");
+  lines.push(`  ${formatNextAction(report.orientation.next_action)}`);
+  if (report.warnings.length > 0) {
+    lines.push("");
+    lines.push("## Heads-up");
+    for (const warning of report.warnings.slice(0, 3)) lines.push(`  - ${warning}`);
+  }
+  lines.push("");
+  return lines;
+}
+
+function appendMediumCoordination(lines: string[], report: ContinuityReport): void {
+  lines.push("## Active coordination");
+  if (report.view.currentRun) {
+    lines.push(`  current run: ${report.view.currentRun.run_id}`);
+    lines.push(`    goal: ${report.view.currentRun.goal}`);
+  } else {
+    lines.push("  current run: none");
+  }
+  const myAgentId = report.passport?.agent_id;
+  const myTasks = myAgentId ? report.view.activeTasks.filter((task) => task.owner === myAgentId && task.status !== "open") : [];
+  lines.push(`  your tasks: ${myTasks.length}`);
+  for (const task of myTasks.slice(0, 5)) {
+    lines.push(`    - [${task.task_id.slice(0, 8)}] ${task.status}: ${truncate(task.title, 80)}`);
+  }
+  lines.push(`  pending handoffs: ${report.view.pendingHandoffs.length}`);
+  for (const handoff of report.view.pendingHandoffs.slice(0, 5)) {
+    lines.push(`    - [${handoff.handoff_id.slice(0, 8)}] from ${handoff.source_agent}: ${truncate(handoff.summary, 80)}`);
+  }
+  if (report.view.otherAgents.length > 0) {
+    lines.push("  other agents:");
+    for (const other of report.view.otherAgents) {
+      const active = other.active_runs[0];
+      const claim = other.claims[0];
+      if (active) lines.push(`    ${other.agent_id}: run "${truncate(active.goal, 70)}" (${active.run_id.slice(0, 8)})`);
+      if (claim) lines.push(`    ${other.agent_id}: claim on ${claim.target}`);
+    }
+  }
+  lines.push("");
+}
+
+function renderContinuityFull(report: ContinuityReport): string {
   const lines: string[] = [];
   const p = report.passport;
   const agent = p?.agent_id ?? p?.name ?? "(no passport yet)";
@@ -949,13 +1047,14 @@ export async function runContinuity(argv: readonly string[], io: RunCliIO, opts:
   const json = argv.includes("--json");
   const peek = argv.includes("--peek");
   const since = readFlag(argv, "since");
+  const mode: ContinuityRenderMode = argv.includes("--full") ? "full" : argv.includes("--medium") ? "medium" : "brief";
   const limit = Number(readFlag(argv, "messages") ?? "5");
 
   const report = await buildContinuity({ passportPath, spaceUrl, cwd, root: place.root, rootKind: place.kind, messageLimit: limit, json, peek, since });
   if (json) {
     io.stdout.write(JSON.stringify(report, null, 2) + "\n");
   } else {
-    io.stdout.write(renderContinuity(report));
+    io.stdout.write(renderContinuity(report, mode));
   }
   return 0;
 }

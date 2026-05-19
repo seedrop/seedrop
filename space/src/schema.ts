@@ -182,6 +182,7 @@ export const TaskSchema = z
     task_id: z.string().uuid(),
     title: z.string().min(1).max(120),
     description: z.string().max(2000).optional(),
+    dedup_key: z.string().min(1).max(200).optional(),
     status: TaskStatusSchema,
     owner: z.string().min(1).optional(),
     assigned_by: z.string().min(1).optional(),
