@@ -352,6 +352,35 @@ describe("continuity", () => {
     expect(parsed.orientation.next_action.command).toBe("seed bootstrap");
   });
 
+  it("suggests cd to an active project when continuity runs from HOME", async () => {
+    const projectRoot = join(process.env.HOME!, "Projects", "seedrop");
+    await mkdir(projectRoot, { recursive: true });
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(
+      passportPath,
+      JSON.stringify({
+        schema_version: "1.0",
+        agent_id: "codex",
+        name: "codex",
+        purpose: "test",
+        active_projects: [
+          {
+            id: "seedrop",
+            root: projectRoot,
+            last_seen_at: "2026-05-19T00:00:00.000Z",
+          },
+        ],
+      }),
+      "utf8",
+    );
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", process.env.HOME!], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.orientation.next_action.command).toBe(`cd ${projectRoot} && seed bootstrap`);
+    expect(parsed.orientation.next_action.reason).toContain("active project seedrop");
+  });
+
   it("orients against any folder root when no git root is present", async () => {
     await writePassport("x");
     const folder = join(scratch, "folder-root");
@@ -928,6 +957,41 @@ describe("runBootstrap", () => {
     try {
       await runCli(["bootstrap", "--no-link"], createIo(), fakeRunner());
       expect(existsSync(process.env.SEEDROP_SPACE_ROOT as string)).toBe(true);
+    } finally {
+      process.chdir(prior);
+    }
+  });
+
+  it("lists active projects when bootstrap skips linking from HOME", async () => {
+    const projectRoot = join(process.env.HOME!, "Projects", "seedrop");
+    await mkdir(projectRoot, { recursive: true });
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(
+      passportPath,
+      JSON.stringify({
+        schema_version: "1.0",
+        agent_id: "codex",
+        active_projects: [
+          {
+            id: "seedrop",
+            root: projectRoot,
+            last_seen_at: "2026-05-19T00:00:00.000Z",
+          },
+        ],
+      }),
+      "utf8",
+    );
+    const prior = process.cwd();
+    process.chdir(process.env.HOME!);
+    try {
+      const io = createIo();
+      const seen: CommandDispatch[] = [];
+      const code = await runCli(["bootstrap"], io, fakeRunner(0, seen));
+      expect(code).toBe(0);
+      expect(seen).toEqual([]);
+      expect(io.stdoutText()).toContain("cwd is $HOME; skipping repo link");
+      expect(io.stdoutText()).toContain(`seedrop @ ${projectRoot}`);
+      expect(io.stdoutText()).toContain(`try: cd ${projectRoot} && seed bootstrap`);
     } finally {
       process.chdir(prior);
     }

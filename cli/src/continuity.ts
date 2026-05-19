@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { WorkspaceView, type ContinuityPacket as SpaceContinuityPacket, type ViewBrief as SpaceViewBrief, type ViewCheck } from "@seedrop/space";
 import { readContinuityState, writeContinuityState } from "./continuity-state.js";
@@ -602,6 +603,17 @@ function selectNextAction(report: Omit<ContinuityReport, "orientation">): Orient
     };
   }
   if (!report.view.present) {
+    const project = nearestActiveProject(report.passport?.active_projects ?? [], report.cwd);
+    if (sameDirectory(report.cwd, homedir()) && project) {
+      return {
+        kind: "setup",
+        command: `cd ${project.root} && seed bootstrap`,
+        reason: `Home directory has no repo View. Use active project ${project.id} at ${project.root}.`,
+        source: "view",
+        risk: "low",
+        requires_human: false,
+      };
+    }
     return {
       kind: "setup",
       command: "seed bootstrap",
@@ -714,6 +726,28 @@ function selectNextAction(report: Omit<ContinuityReport, "orientation">): Orient
     risk: "low",
     requires_human: false,
   };
+}
+
+function sameDirectory(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return resolve(a) === resolve(b);
+  }
+}
+
+function nearestActiveProject(projects: NonNullable<Passport["active_projects"]>, cwd: string): NonNullable<Passport["active_projects"]>[number] | undefined {
+  return projects
+    .filter((project) => typeof project.root === "string" && project.root.length > 0)
+    .sort((a, b) => activeProjectRank(b, cwd) - activeProjectRank(a, cwd))[0];
+}
+
+function activeProjectRank(project: NonNullable<Passport["active_projects"]>[number], cwd: string): number {
+  const root = resolve(project.root);
+  const base = resolve(cwd);
+  const underCwd = root === base || root.startsWith(`${base}/`) ? 1_000_000 : 0;
+  const seen = project.last_seen_at ? new Date(project.last_seen_at).getTime() : 0;
+  return underCwd + (Number.isFinite(seen) ? seen / 1_000_000_000 : 0);
 }
 
 function buildOrientation(report: Omit<ContinuityReport, "orientation">, viewPreflightFailed: boolean): OrientationReport {

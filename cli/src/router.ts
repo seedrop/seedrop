@@ -346,6 +346,43 @@ async function safeReadPassport(path: string): Promise<{ agent_id?: string; issu
   }
 }
 
+interface ActiveProject {
+  id?: string;
+  root?: string;
+  last_seen_at?: string;
+}
+
+async function activeProjectSuggestions(passportPath: string, cwd: string): Promise<ActiveProject[]> {
+  try {
+    const raw = JSON.parse(await readFile(passportPath, "utf8")) as { active_projects?: ActiveProject[] };
+    const projects = Array.isArray(raw.active_projects)
+      ? raw.active_projects.filter((project): project is ActiveProject & { root: string } => typeof project.root === "string" && project.root.length > 0)
+      : [];
+    return projects.sort((a, b) => activeProjectRank(b, cwd) - activeProjectRank(a, cwd));
+  } catch {
+    return [];
+  }
+}
+
+function activeProjectRank(project: ActiveProject, cwd: string): number {
+  const root = project.root ? resolve(project.root) : "";
+  const base = resolve(cwd);
+  const underCwd = root === base || root.startsWith(`${base}/`) ? 1_000_000 : 0;
+  const seen = project.last_seen_at ? new Date(project.last_seen_at).getTime() : 0;
+  return underCwd + (Number.isFinite(seen) ? seen / 1_000_000_000 : 0);
+}
+
+function renderActiveProjectHint(projects: ActiveProject[]): string | null {
+  if (projects.length === 0) return null;
+  const lines = ["active projects:"];
+  for (const project of projects.slice(0, 5)) {
+    lines.push(`  - ${project.id ?? "(unnamed)"} @ ${project.root}`);
+  }
+  const first = projects[0];
+  if (first?.root) lines.push(`try: cd ${first.root} && seed bootstrap`);
+  return lines.join("\n");
+}
+
 async function readOperatorAgentId(io: RunCliIO): Promise<string | undefined> {
   const operatorPath = operatorPassportPath();
   if (!existsSync(operatorPath)) return undefined;
@@ -703,8 +740,10 @@ async function runBootstrap(argv: readonly string[], io: RunCliIO, runner: Comma
 
   if (!skipLink) {
     const cwd = process.cwd();
-    if (cwd === homedir()) {
+    if (sameDirectory(cwd, homedir())) {
       io.stdout.write(`cwd is $HOME; skipping repo link (pass a repo dir or --no-link to silence)\n`);
+      const hint = renderActiveProjectHint(await activeProjectSuggestions(passportPath, cwd));
+      if (hint) io.stdout.write(`${hint}\n`);
     } else {
       const viewArgs = ["view", "init", "--passport", passportPath, "--root", cwd];
       if (role) viewArgs.push("--role", role);

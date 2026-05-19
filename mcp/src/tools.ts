@@ -20,6 +20,10 @@ function error(message: string): ToolResult {
   return { content: [{ type: "text", text: message }], isError: true };
 }
 
+function desc(cliEquivalent: string, body: string): string {
+  return `CLI equivalent: ${cliEquivalent}\n${body}`;
+}
+
 async function exec(args: string[], cwd?: string): Promise<ToolResult> {
   const result = await runSeed(args, { cwd });
   if (result.exitCode !== 0) {
@@ -42,9 +46,26 @@ function strArrayArg(args: Record<string, unknown>, key: string): string[] {
 
 export const tools: ToolDef[] = [
   {
+    name: "seedrop_index",
+    description: desc(
+      "MCP-only: seedrop_index",
+      "Return the Seedrop MCP tool catalog grouped by intent. Call once per session, cache the result, then route tool choices from the returned groups instead of guessing from the flat tool list.",
+    ),
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    async handler() {
+      return text(JSON.stringify(buildSeedropIndex(), null, 2));
+    },
+  },
+  {
     name: "seedrop_manual",
-    description:
+    description: desc(
+      "seed manual [section]",
       "Return the agent-shaped Seedrop cheat sheet: 4 primitives, 5-layer model, common workflows (sprint → tasks, run lifecycle, handoffs), state queries, and anti-patterns. Call this ONCE at session start and cache the result — every subsequent 'how do I X in seedrop' question is answered offline from this content. Cheaper than discovering through trial and error. Pass section to retrieve a slice ('concepts' | 'workflows' | 'state' | 'anti-patterns' | 'all', defaults to 'all').",
+    ),
     inputSchema: {
       type: "object",
       properties: {
@@ -66,8 +87,10 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_continuity",
-    description:
+    description: desc(
+      "seed continuity [--json] [--messages N]",
       "Run Seedrop's boot block: identity, current repo View, daemon presence, recent Space messages, and a next-move suggestion. Call this whenever the user asks about Seedrop, mentions 'where was I', or works in a repo with `.seedrop/view/`. Returns Markdown by default; pass `json: true` for structured output.",
+    ),
     inputSchema: {
       type: "object",
       properties: {
@@ -87,8 +110,10 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_bootstrap",
-    description:
+    description: desc(
+      "seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]",
       "Idempotent setup. With no passport: creates `~/.seedrop/id/passport.json` (requires `name` + `purpose`). With a passport: re-links the current repo to the global passport via `.seedrop/view/`. Pass `no_link: true` to skip the repo-link step.",
+    ),
     inputSchema: {
       type: "object",
       properties: {
@@ -117,7 +142,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_view_context",
-    description: "Return the per-repo View state for `cwd` (manifest, active signals, open threads). JSON.",
+    description: desc("seed view context --json", "Return the per-repo View state for `cwd` (manifest, active signals, open threads). JSON."),
     inputSchema: {
       type: "object",
       properties: { cwd: { type: "string" } },
@@ -129,7 +154,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_view_brief",
-    description: "Return the stable per-repo View orientation packet for cwd as JSON.",
+    description: desc("seed view brief --json", "Return the stable per-repo View orientation packet for cwd as JSON."),
     inputSchema: {
       type: "object",
       properties: { cwd: { type: "string" } },
@@ -141,7 +166,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_view_preflight",
-    description: "Run repo View preflight checks and return JSON next actions for safe startup.",
+    description: desc("seed view preflight --json", "Run repo View preflight checks and return JSON next actions for safe startup."),
     inputSchema: {
       type: "object",
       properties: { cwd: { type: "string" } },
@@ -153,7 +178,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_run_start",
-    description: "Start a repo-local run journal for the current agent and goal. Returns JSON.",
+    description: desc("seed run start --goal <goal> [--new]", "Start a repo-local run journal for the current agent and goal. Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -174,7 +199,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_run_log",
-    description: "Append a progress step to the active repo-local run journal. Returns JSON.",
+    description: desc("seed run log --summary <summary>", "Append a progress step to the active repo-local run journal. Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -195,7 +220,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_run_verify",
-    description: "Record validation evidence on the active repo-local run journal. Returns JSON.",
+    description: desc("seed run verify --command <command> --status passed|failed|skipped", "Record validation evidence on the active repo-local run journal. Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -219,7 +244,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_run_finish",
-    description: "Finish the active repo-local run journal with a terminal status. Refuses status=completed when any of the run's changed_paths are uncommitted in git; pass force=true to override. Returns JSON.",
+    description: desc("seed run finish --status completed|blocked|failed [--force]", "Finish the active repo-local run journal with a terminal status. Refuses status=completed when any of the run's changed_paths are uncommitted in git; pass force=true to override. Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -240,7 +265,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_handoff_create",
-    description: "Create a structured repo-local handoff artifact for another agent or human. Returns JSON.",
+    description: desc("seed handoff create --to <agent> --summary <summary>", "Create a structured repo-local handoff artifact for another agent or human. Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -268,7 +293,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_handoff_list",
-    description: "List repo-local handoff artifacts as JSON.",
+    description: desc("seed handoff list --json", "List repo-local handoff artifacts as JSON."),
     inputSchema: {
       type: "object",
       properties: { cwd: { type: "string" } },
@@ -280,7 +305,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_handoff_read",
-    description: "Read one repo-local handoff artifact as JSON.",
+    description: desc("seed handoff read <id> --json", "Read one repo-local handoff artifact as JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -298,7 +323,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_handoff_accept",
-    description: "Mark one repo-local handoff artifact accepted without deleting it. Returns JSON.",
+    description: desc("seed handoff accept <id>", "Mark one repo-local handoff artifact accepted without deleting it. Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -316,8 +341,10 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_view_log",
-    description:
+    description: desc(
+      "seed view log --mission <mission> --summary <summary>",
       "Write a continuity packet into the current repo's View. Records mission + summary, optional decisions/assumptions/open_threads/changed_paths, and validation status.",
+    ),
     inputSchema: {
       type: "object",
       properties: {
@@ -353,7 +380,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_space_register",
-    description: "Register a live Space session. Caches the session id on disk so `seedrop_space_heartbeat` can keep it warm. Required before you'll appear in `seedrop_space_presence`.",
+    description: desc("seed space register [--working-on <text>]", "Register a live Space session. Caches the session id on disk so `seedrop_space_heartbeat` can keep it warm. Required before you'll appear in `seedrop_space_presence`."),
     inputSchema: {
       type: "object",
       properties: {
@@ -373,7 +400,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_space_heartbeat",
-    description: "Refresh the agent's live presence (uses the cached session id from the most recent register).",
+    description: desc("seed space heartbeat [--working-on <text>]", "Refresh the agent's live presence (uses the cached session id from the most recent register)."),
     inputSchema: {
       type: "object",
       properties: {
@@ -390,7 +417,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_space_presence",
-    description: "List currently-live Space sessions (filtered by TTL). Returns JSON.",
+    description: desc("seed space presence [--space-id <id>] [--ttl <ms>]", "List currently-live Space sessions (filtered by TTL). Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -410,7 +437,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_space_join",
-    description: "Open or join a coordination Space by name. Returns the Space metadata.",
+    description: desc("seed space join <space>", "Open or join a coordination Space by name. Returns the Space metadata."),
     inputSchema: {
       type: "object",
       properties: {
@@ -427,7 +454,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_space_post",
-    description: "Post a message to a Space. Use for handoffs, status updates, multi-agent coordination.",
+    description: desc("seed space post <space> <message>", "Post a message to a Space. Use for handoffs, status updates, multi-agent coordination."),
     inputSchema: {
       type: "object",
       properties: {
@@ -450,7 +477,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_space_messages",
-    description: "Read recent messages from a Space (durable; safe to call repeatedly).",
+    description: desc("seed space messages <space>", "Read recent messages from a Space (durable; safe to call repeatedly)."),
     inputSchema: {
       type: "object",
       properties: {
@@ -467,8 +494,10 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_inbox",
-    description:
+    description: desc(
+      "seed inbox [--unacked-only]",
       "List @-mentions addressed to this passport. By default returns only unacked items (the actionable inbox). Pass `all: true` for full history. Each item has id, sender, content, principal_chain, and ack state.",
+    ),
     inputSchema: {
       type: "object",
       properties: {
@@ -486,8 +515,10 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_inbox_ack",
-    description:
+    description: desc(
+      "seed inbox ack <id> [--result done|deferred|ignored]",
       "Close out a mention with an explicit result. Use `done` when handled, `deferred` with `deferred_until` when you'll revisit, and `ignored` with `note` when consciously skipping.",
+    ),
     inputSchema: {
       type: "object",
       properties: {
@@ -517,10 +548,54 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_daemon_status",
-    description: "Report whether the always-on Seedrop Space daemon is loaded and running.",
+    description: desc("seed daemon status", "Report whether the always-on Seedrop Space daemon is loaded and running."),
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     async handler() {
       return exec(["daemon", "status"]);
     },
   },
 ];
+
+function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: string; example: Record<string, unknown> }>> {
+  return {
+    orient: [
+      { tool: "seedrop_index", use_when: "Discover Seedrop MCP tools grouped by intent.", example: {} },
+      { tool: "seedrop_manual", use_when: "Load the Seedrop concepts and workflow guide once per session.", example: { section: "workflows" } },
+      { tool: "seedrop_continuity", use_when: "Start a Seedrop-aware session or answer 'where was I?'.", example: { cwd: "/path/to/repo", messages: 5 } },
+      { tool: "seedrop_bootstrap", use_when: "Create first passport or link the current repo View.", example: { cwd: "/path/to/repo" } },
+    ],
+    view: [
+      { tool: "seedrop_view_context", use_when: "Read full repo View state, active runs, tasks, signals, and open threads.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_view_brief", use_when: "Read the compact stable repo orientation packet.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_view_preflight", use_when: "Check whether it is safe to start or continue repo work.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_view_log", use_when: "Leave a durable continuity packet after meaningful work.", example: { cwd: "/path/to/repo", mission: "Ship fix", summary: "Changed X and validated Y" } },
+    ],
+    run: [
+      { tool: "seedrop_run_start", use_when: "Start or attach to a repo-local run journal for meaningful work.", example: { cwd: "/path/to/repo", goal: "Implement task" } },
+      { tool: "seedrop_run_log", use_when: "Record progress and changed paths on the active run.", example: { cwd: "/path/to/repo", summary: "Implemented parser", changed_paths: ["src/parser.ts"] } },
+      { tool: "seedrop_run_verify", use_when: "Record validation evidence for the active run.", example: { cwd: "/path/to/repo", command: "npm test", status: "passed" } },
+      { tool: "seedrop_run_finish", use_when: "Close the active run as completed, blocked, or failed.", example: { cwd: "/path/to/repo", status: "completed" } },
+    ],
+    task: [],
+    signal: [],
+    handoff: [
+      { tool: "seedrop_handoff_create", use_when: "Create a durable handoff for another agent or human.", example: { cwd: "/path/to/repo", to: "claude", summary: "Continue from X" } },
+      { tool: "seedrop_handoff_list", use_when: "List repo-local handoff artifacts.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_handoff_read", use_when: "Read one handoff artifact.", example: { cwd: "/path/to/repo", id: "handoff-id" } },
+      { tool: "seedrop_handoff_accept", use_when: "Mark a handoff accepted without deleting it.", example: { cwd: "/path/to/repo", id: "handoff-id" } },
+    ],
+    space: [
+      { tool: "seedrop_space_join", use_when: "Open or join a durable coordination Space.", example: { space: "seedrop-team" } },
+      { tool: "seedrop_space_post", use_when: "Post a coordination message to a Space.", example: { space: "seedrop-team", content: "status update" } },
+      { tool: "seedrop_space_messages", use_when: "Read recent durable messages from a Space.", example: { space: "seedrop-team" } },
+      { tool: "seedrop_space_register", use_when: "Register live presence for this agent session.", example: { working_on: "Implementing MCP tools" } },
+      { tool: "seedrop_space_heartbeat", use_when: "Refresh live presence after registering.", example: { working_on: "Still validating" } },
+      { tool: "seedrop_space_presence", use_when: "List currently live sessions.", example: {} },
+      { tool: "seedrop_inbox", use_when: "Read mentions addressed to this passport.", example: { limit: 10 } },
+      { tool: "seedrop_inbox_ack", use_when: "Close a mention with done, deferred, or ignored semantics.", example: { item_id: "mention-id", result: "done" } },
+    ],
+    daemon: [
+      { tool: "seedrop_daemon_status", use_when: "Check launchd daemon status when HTTP or continuity disagree.", example: {} },
+    ],
+  };
+}

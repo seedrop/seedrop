@@ -15,6 +15,7 @@ describe("tools registry", () => {
         "seedrop_handoff_read",
         "seedrop_inbox",
         "seedrop_inbox_ack",
+        "seedrop_index",
         "seedrop_manual",
         "seedrop_run_finish",
         "seedrop_run_log",
@@ -37,8 +38,23 @@ describe("tools registry", () => {
   it("every tool has a description and an object inputSchema", () => {
     for (const t of tools) {
       expect(t.description.length).toBeGreaterThan(20);
+      expect(t.description.split("\n")[0]).toMatch(/^CLI equivalent: /);
       expect(t.inputSchema).toMatchObject({ type: "object" });
     }
+  });
+
+  it("seedrop_index groups the exposed MCP tools by intent", async () => {
+    const index = tools.find((t) => t.name === "seedrop_index");
+    expect(index).toBeDefined();
+    const result = await index!.handler({});
+    const parsed = JSON.parse(result.content[0]!.text) as Record<string, Array<{ tool: string }>>;
+    expect(parsed.orient.map((entry) => entry.tool)).toContain("seedrop_continuity");
+    expect(parsed.run.map((entry) => entry.tool)).toContain("seedrop_run_start");
+    expect(parsed.handoff.map((entry) => entry.tool)).toContain("seedrop_handoff_create");
+    expect(parsed.space.map((entry) => entry.tool)).toContain("seedrop_space_post");
+    expect(parsed.daemon.map((entry) => entry.tool)).toContain("seedrop_daemon_status");
+    expect(parsed.task).toEqual([]);
+    expect(parsed.signal).toEqual([]);
   });
 
   it("required tools declare their required args", () => {
@@ -93,9 +109,10 @@ describe("handler dispatch invariant", () => {
     // anything else, this regex match length will diverge.
     const handlerStarts = source.match(/async handler\s*\(/g) ?? [];
     const execReturns = source.match(/return exec\s*\(/g) ?? [];
+    const inProcessHandlers = source.match(/return text\s*\(/g) ?? [];
 
     expect(handlerStarts.length).toBeGreaterThan(15);
-    expect(execReturns.length).toBeGreaterThanOrEqual(handlerStarts.length);
+    expect(execReturns.length + inProcessHandlers.length).toBeGreaterThanOrEqual(handlerStarts.length);
   });
 });
 
