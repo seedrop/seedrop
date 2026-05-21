@@ -1478,6 +1478,59 @@ export class WorkspaceView {
       checks.push({ id: "pending_handoffs", status: "pass", summary: `No pending handoffs for ${this.agent}.` });
     }
 
+    // Lint: a task that says "blocked by <id>" in prose but lacks the matching
+    // entry in `blocked_by` means the dependency can't be enforced. Surface a
+    // structured fix (seed task update --blocked-by) so the prose hint and the
+    // schema agree.
+    const proseLintTasks = await this.safeListTasks();
+    const proseLintIssues: Array<{ task_id: string; title: string; missing: string[] }> = [];
+    if (proseLintTasks.length > 0) {
+      for (const task of proseLintTasks) {
+        if (task.status === "done" || task.status === "dropped") continue;
+        const candidates = new Set([
+          ...findProseBlockerCandidates(task.description),
+          ...findProseBlockerCandidates(task.assigned_note),
+        ]);
+        if (candidates.size === 0) continue;
+        const declared = new Set(task.blocked_by ?? []);
+        const missing: string[] = [];
+        for (const candidate of candidates) {
+          const resolved = proseLintTasks.find((other) => other.task_id.startsWith(candidate));
+          if (!resolved) continue;
+          if (resolved.task_id === task.task_id) continue;
+          if (declared.has(resolved.task_id)) continue;
+          // Skip already-resolved blockers — encoding them adds noise without
+          // changing enforcement (assertNotBlocked already treats them as cleared).
+          if (resolved.status === "done" || resolved.status === "dropped") continue;
+          missing.push(resolved.task_id);
+        }
+        if (missing.length > 0) {
+          proseLintIssues.push({ task_id: task.task_id, title: task.title, missing });
+        }
+      }
+    }
+    if (proseLintIssues.length > 0) {
+      checks.push({
+        id: "task_prose_blockers",
+        status: "warn",
+        summary: `${proseLintIssues.length} task(s) reference a blocker in prose without encoding it in blocked_by.`,
+        details: { tasks: proseLintIssues },
+      });
+      issues.push({
+        severity: "warning",
+        code: "task_prose_blockers",
+        message: "Task descriptions or assignment notes name a blocker that is not encoded in blocked_by, so Seedrop cannot enforce the dependency.",
+      });
+      const first = proseLintIssues[0]!;
+      nextActions.push(commandAction(
+        `seed task update ${first.task_id.slice(0, 8)} --blocked-by ${first.missing[0]!.slice(0, 8)}`,
+        "low",
+        `Encode the prose dependency for "${first.title}", or rephrase the description so it doesn't imply a blocker.`,
+      ));
+    } else {
+      checks.push({ id: "task_prose_blockers", status: "pass", summary: "No prose-only task blockers detected." });
+    }
+
     const policyResult = await this.readPolicyResult();
     if (policyResult.value) {
       checks.push({ id: "policy", status: "pass", summary: "Policy parses.", path: "policy.json" });
@@ -2331,6 +2384,29 @@ function uniqueRecommendedReads(values: RecommendedRead[]): RecommendedRead[] {
     out.push(value);
   }
   return out;
+}
+
+// Phrases that signal a task dependency. Conservative: must be unambiguous
+// ("blocked by", "depends on") — vague terms like "after" alone are skipped to
+// keep false positives near zero.
+const PROSE_BLOCKER_PATTERN =
+  /\b(blocked\s+by|gated\s+on|depends?\s+on|dependent\s+on|waits?\s+for|waiting\s+on|coordinate\s+with|sequence\s+after)\b[^.]{0,80}?\b([0-9a-f]{8}(?:-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?)\b/gi;
+
+/**
+ * Scan `text` for prose phrases that name another task. Returns the candidate
+ * id strings (full uuid or 8+ char hex prefix) — caller resolves them against
+ * the known task set.
+ */
+export function findProseBlockerCandidates(text: string | undefined): string[] {
+  if (!text) return [];
+  const out = new Set<string>();
+  // Reset lastIndex because the regex is global.
+  PROSE_BLOCKER_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = PROSE_BLOCKER_PATTERN.exec(text)) !== null) {
+    out.add(match[2]!.toLowerCase());
+  }
+  return [...out];
 }
 
 function commandAction(command: string, risk: NextAction["risk"], reason: string): NextAction {

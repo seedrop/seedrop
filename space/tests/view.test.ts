@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkspaceRunDirtyTreeError, WorkspaceRunUnloggedChangesError, WorkspaceView, WorkspaceViewValidationError } from "../src/view.js";
+import { WorkspaceRunDirtyTreeError, WorkspaceRunUnloggedChangesError, WorkspaceView, WorkspaceViewValidationError, findProseBlockerCandidates } from "../src/view.js";
 
 function gitInit(dir: string): void {
   spawnSync("git", ["init", "-q", dir]);
@@ -366,6 +366,82 @@ describe("WorkspaceView", () => {
     const accepted = await view().acceptHandoff(handoff.handoff_id, "claude");
     expect(accepted.status).toBe("accepted");
     expect(accepted.accepted_by).toBe("claude");
+  });
+
+  it("preflight surfaces prose-only blockers with a seed task update recovery", async () => {
+    const blocker = await view().createTask({ title: "Add seed task update command" });
+    const blocked = await view().createTask({
+      title: "Lint prose-only blockers",
+      description: `Sequence after or coordinate with ${blocker.task_id.slice(0, 8)} so the recovery points at a real command.`,
+    });
+
+    const report = await view().preflight();
+    const check = report.checks.find((c) => c.id === "task_prose_blockers");
+    expect(check?.status).toBe("warn");
+    const details = (check?.details ?? {}) as { tasks?: Array<{ task_id: string; missing: string[] }> };
+    expect(details.tasks?.[0]?.task_id).toBe(blocked.task_id);
+    expect(details.tasks?.[0]?.missing).toEqual([blocker.task_id]);
+    expect(report.issues.map((i) => i.code)).toContain("task_prose_blockers");
+    const action = report.next_actions.find((a) => a.command?.startsWith("seed task update"));
+    expect(action?.command).toBe(`seed task update ${blocked.task_id.slice(0, 8)} --blocked-by ${blocker.task_id.slice(0, 8)}`);
+  });
+
+  it("preflight does not flag prose blockers once blocked_by is encoded", async () => {
+    const blocker = await view().createTask({ title: "Add seed task update command" });
+    await view().createTask({
+      title: "Lint prose-only blockers",
+      description: `Depends on ${blocker.task_id.slice(0, 8)}.`,
+      blockedBy: [blocker.task_id],
+    });
+    const report = await view().preflight();
+    const check = report.checks.find((c) => c.id === "task_prose_blockers");
+    expect(check?.status).toBe("pass");
+  });
+
+  it("preflight does not flag prose blockers that name an already-done blocker", async () => {
+    const blocker = await view().createTask({ title: "Already shipped" });
+    await view().claimTask(blocker.task_id);
+    await view().startTask(blocker.task_id);
+    await view().doneTask(blocker.task_id);
+    await view().createTask({
+      title: "References the done work",
+      description: `Depends on ${blocker.task_id.slice(0, 8)} (already shipped).`,
+    });
+    const report = await view().preflight();
+    expect(report.checks.find((c) => c.id === "task_prose_blockers")?.status).toBe("pass");
+  });
+
+  it("preflight ignores prose blockers in done or dropped tasks", async () => {
+    const blocker = await view().createTask({ title: "blocker" });
+    const t = await view().createTask({
+      title: "blocked",
+      description: `gated on ${blocker.task_id.slice(0, 8)}`,
+    });
+    await view().claimTask(t.task_id);
+    await view().dropTask({ taskId: t.task_id, reason: "no longer relevant" });
+    const report = await view().preflight();
+    expect(report.checks.find((c) => c.id === "task_prose_blockers")?.status).toBe("pass");
+  });
+
+  it("findProseBlockerCandidates extracts ids near dependency phrases and ignores noise", () => {
+    expect(findProseBlockerCandidates("Blocked by 8007f31c — must land first.")).toEqual(["8007f31c"]);
+    expect(findProseBlockerCandidates("Depends on 8007f31c-d4ee-4705-8b23-2719b158a132 (full uuid).")).toEqual([
+      "8007f31c-d4ee-4705-8b23-2719b158a132",
+    ]);
+    expect(findProseBlockerCandidates("Sequence after 8007f31c. Also gated on 1b8676dc.")).toEqual([
+      "8007f31c",
+      "1b8676dc",
+    ]);
+    // Vague phrases without an id near them shouldn't match.
+    expect(findProseBlockerCandidates("After the audit lands we should revisit this.")).toEqual([]);
+    // The id is too far from the phrase (>80 chars).
+    expect(
+      findProseBlockerCandidates(
+        "blocked by something abstract that goes on and on with lots of filler text padding way past eighty characters before 8007f31c shows up at the end",
+      ),
+    ).toEqual([]);
+    expect(findProseBlockerCandidates(undefined)).toEqual([]);
+    expect(findProseBlockerCandidates("")).toEqual([]);
   });
 
   it("preflight detects stale manifests, active runs, pending handoffs, and malformed policy", async () => {
