@@ -144,7 +144,7 @@ describe("resolveCommand", () => {
     // Isolate $HOME so dev-machine active-passport doesn't leak into the
     // precedence chain. Also cd to a scratch dir so resolveCommand's
     // cwd-view check doesn't find this repo's .seedrop/view.
-    // Precedence: active > env > operator.
+    // Precedence: env > active > operator.
     const prior = { passport: process.env.SEEDROP_PASSPORT, home: process.env.HOME, cwd: process.cwd() };
     const scratch = await mkdtemp(join(tmpdir(), "seed-bare-test-"));
     process.env.HOME = join(scratch, "home");
@@ -207,7 +207,7 @@ describe("resolveCommand", () => {
 describe("defaults", () => {
   it("honors SEEDROP_PASSPORT env when no active-passport state is set", async () => {
     // Isolate $HOME so any real active-passport.json on the dev machine
-    // doesn't leak in. Precedence is now active > env > operator.
+    // doesn't leak in. Precedence is now env > active > operator.
     const prior = { passport: process.env.SEEDROP_PASSPORT, home: process.env.HOME };
     const scratch = await mkdtemp(join(tmpdir(), "seed-defaults-test-"));
     process.env.HOME = join(scratch, "home");
@@ -247,8 +247,8 @@ describe("continuity", () => {
       spaceUrl: process.env.SEEDROP_SPACE_URL,
       home: process.env.HOME,
     };
-    // Isolate $HOME so the dev machine's active-passport doesn't outrank
-    // SEEDROP_PASSPORT (precedence is active > env > operator post-2026-05-19).
+    // Isolate $HOME so the dev machine's active-passport does not leak in.
+    // SEEDROP_PASSPORT has precedence over active login in this process.
     process.env.HOME = join(scratch, "home");
     await mkdir(process.env.HOME, { recursive: true });
     process.env.SEEDROP_PASSPORT = join(scratch, "passport.json");
@@ -460,6 +460,103 @@ describe("continuity", () => {
     expect(parsed.orientation.traces.pending_handoffs).toBe(1);
   });
 
+  async function writeTask(root: string, task: {
+    task_id: string;
+    title: string;
+    status: "open" | "claimed" | "in_progress" | "blocked" | "done" | "dropped";
+    owner?: string;
+    assigned_by?: string;
+    blocked_by?: string[];
+  }): Promise<void> {
+    await mkdir(join(root, ".seedrop", "view", "tasks"), { recursive: true });
+    await writeFile(
+      join(root, ".seedrop", "view", "tasks", `${task.task_id}.json`),
+      JSON.stringify({
+        schema_version: "1.0",
+        task_id: task.task_id,
+        title: task.title,
+        status: task.status,
+        ...(task.owner ? { owner: task.owner } : {}),
+        ...(task.assigned_by ? { assigned_by: task.assigned_by } : {}),
+        ...(task.blocked_by ? { blocked_by: task.blocked_by } : {}),
+        created_at: "2026-05-20T00:00:00.000Z",
+        updated_at: "2026-05-20T00:00:00.000Z",
+        related_runs: [],
+      }),
+      "utf8",
+    );
+  }
+
+  it("prefers an in-progress task with no run over the inbox", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "task-demo");
+    await writeTask(scratch, {
+      task_id: "33333333-3333-4333-8333-333333333333",
+      title: "Ship the blocker fix",
+      status: "in_progress",
+      owner: "codex",
+    });
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", scratch], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.orientation.next_action.kind).toBe("run");
+    expect(parsed.orientation.next_action.command).toContain("seed run start --task 33333333-3333-4333-8333-333333333333");
+    expect(parsed.orientation.next_action.reason).toContain("in-progress task");
+  });
+
+  it("surfaces a claimed task with `seed task start` when nothing else is queued", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "task-demo");
+    await writeTask(scratch, {
+      task_id: "44444444-4444-4444-8444-444444444444",
+      title: "Land the lint pass",
+      status: "claimed",
+      owner: "codex",
+      assigned_by: "claude",
+    });
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", scratch], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.orientation.next_action.kind).toBe("run");
+    expect(parsed.orientation.next_action.command).toBe("seed task start 44444444-4444-4444-8444-444444444444");
+    expect(parsed.orientation.next_action.reason).toContain("assigned by claude");
+  });
+
+  it("recommends resolving the blocker when a claimed task is blocked", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "task-demo");
+    const blockerId = "55555555-5555-4555-8555-555555555555";
+    const blockedId = "66666666-6666-4666-8666-666666666666";
+    await writeTask(scratch, {
+      task_id: blockerId,
+      title: "Add seed task update command",
+      status: "claimed",
+      owner: "codex",
+    });
+    await writeTask(scratch, {
+      task_id: blockedId,
+      title: "Lint prose-only blockers",
+      status: "claimed",
+      owner: "codex",
+      blocked_by: [blockerId],
+    });
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", scratch], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    // The blocker task itself is also claimed and comes first in created_at order,
+    // so the next_action should target it directly (start the blocker), not the blocked one.
+    // If the blocked task is surfaced instead, we expect the blocker-aware recovery.
+    const action = parsed.orientation.next_action;
+    expect(action.kind).toBe("run");
+    // Either: start the unblocked blocker task directly, OR surface blocker resolution.
+    const startsBlocker = action.command === `seed task start ${blockerId}`;
+    const surfacesBlockerResolution = action.command === `seed task show ${blockerId.slice(0, 8)}` && action.reason.includes("blocked by");
+    expect(startsBlocker || surfacesBlockerResolution).toBe(true);
+  });
+
   it("surfaces failed validation before continuing a run", async () => {
     await writePassport("codex");
     await writeManifest(scratch, "validation-demo");
@@ -596,14 +693,30 @@ describe("seed login / logout / whoami", () => {
     expect(defaultPassportPath()).toBe(path);
   });
 
-  it("active-passport beats env var (deliberate beats passive)", async () => {
-    // After the 2026-05-19 alignment, active-passport (set by `seed login`)
-    // outranks $SEEDROP_PASSPORT (set passively at MCP install). Lets users
-    // override the MCP-installed identity per session via login.
-    const path = await makeAgentPassport("codex");
+  it("env var beats active-passport so MCP identity is process-scoped", async () => {
+    await makeAgentPassport("codex");
     await runCli(["login", "codex"], createIo(), fakeRunner());
     process.env.SEEDROP_PASSPORT = "/explicit/override.json";
-    expect(defaultPassportPath()).toBe(path);
+    expect(defaultPassportPath()).toBe("/explicit/override.json");
+  });
+
+  it("whoami reports env identity when env and active-passport are both set", async () => {
+    await makeAgentPassport("claude");
+    await runCli(["login", "claude"], createIo(), fakeRunner());
+    const envPath = join(scratch, "codex-env-passport.json");
+    await writeFile(
+      envPath,
+      JSON.stringify({ schema_version: "1.0", agent_id: "codex", name: "codex", purpose: "test" }),
+      "utf8",
+    );
+    process.env.SEEDROP_PASSPORT = envPath;
+
+    const io = createIo();
+    const code = await runCli(["whoami"], io, fakeRunner());
+    expect(code).toBe(0);
+    expect(io.stdoutText()).toContain("agent: codex");
+    expect(io.stdoutText()).toContain("source: $SEEDROP_PASSPORT");
+    expect(io.stdoutText()).toContain(envPath);
   });
 
   it("logout removes the state", async () => {
@@ -894,8 +1007,8 @@ describe("runBootstrap", () => {
       spaceRoot: process.env.SEEDROP_SPACE_ROOT,
       home: process.env.HOME,
     };
-    // Isolate $HOME so dev-machine active-passport doesn't outrank env
-    // (precedence is active > env > operator).
+    // Isolate $HOME so dev-machine active-passport doesn't leak into the
+    // precedence chain.
     process.env.HOME = join(scratch, "home");
     await mkdir(process.env.HOME, { recursive: true });
     process.env.SEEDROP_PASSPORT = join(scratch, "passport.json");

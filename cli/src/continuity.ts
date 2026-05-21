@@ -75,6 +75,7 @@ interface ViewTask {
   owner?: string;
   assigned_by?: string;
   from_knowledge?: string;
+  blocked_by?: string[];
 }
 
 type ContinuityPacket = Partial<SpaceContinuityPacket> & {
@@ -730,6 +731,27 @@ function selectNextAction(report: Omit<ContinuityReport, "orientation">): Orient
     };
   }
 
+  const myAgentId = report.passport?.agent_id;
+
+  // In-progress task with no current run → start tracking it. Structured task
+  // state beats an inbox DM: committed work outranks new chatter.
+  if (myAgentId && !report.view.currentRun) {
+    const inProgress = report.view.activeTasks.find(
+      (t) => t.owner === myAgentId && t.status === "in_progress",
+    );
+    if (inProgress) {
+      const shortId = inProgress.task_id.slice(0, 8);
+      return {
+        kind: "run",
+        command: `seed run start --task ${inProgress.task_id} --goal "${inProgress.title}"`,
+        reason: `Continue in-progress task [${shortId}] "${truncate(inProgress.title, 80)}" — no run is tracking it yet.`,
+        source: "run",
+        risk: "medium",
+        requires_human: false,
+      };
+    }
+  }
+
   if (report.inbox.unacked.length > 0) {
     const oldest = report.inbox.unacked[0]!;
     return {
@@ -799,6 +821,41 @@ function selectNextAction(report: Omit<ContinuityReport, "orientation">): Orient
       risk: "medium",
       requires_human: false,
     };
+  }
+
+  // Claimed task ready to start. Surface the task's own state — including open
+  // blockers — instead of any DM that might have nudged the work.
+  if (myAgentId) {
+    const claimed = report.view.activeTasks.find(
+      (t) => t.owner === myAgentId && t.status === "claimed",
+    );
+    if (claimed) {
+      const shortId = claimed.task_id.slice(0, 8);
+      const openBlockers = (claimed.blocked_by ?? []).filter((blockerId) => {
+        const blocker = report.view.activeTasks.find((t) => t.task_id === blockerId);
+        // If the blocker isn't in activeTasks, assume it's open (we can't see its state).
+        return !blocker || (blocker.status !== "done" && blocker.status !== "dropped");
+      });
+      if (openBlockers.length > 0) {
+        return {
+          kind: "run",
+          command: `seed task show ${openBlockers[0]!.slice(0, 8)}`,
+          reason: `Task [${shortId}] "${truncate(claimed.title, 80)}" is blocked by ${openBlockers.length === 1 ? "" : `${openBlockers.length} tasks, starting with `}${openBlockers[0]!.slice(0, 8)}. Resolve blockers first.`,
+          source: "run",
+          risk: "medium",
+          requires_human: false,
+        };
+      }
+      const assignedFrom = claimed.assigned_by && claimed.assigned_by !== myAgentId ? ` (assigned by ${claimed.assigned_by})` : "";
+      return {
+        kind: "run",
+        command: `seed task start ${claimed.task_id}`,
+        reason: `Start claimed task [${shortId}] "${truncate(claimed.title, 80)}"${assignedFrom}.`,
+        source: "run",
+        risk: "medium",
+        requires_human: false,
+      };
+    }
   }
 
   const pkt = report.view.latestPacket;
