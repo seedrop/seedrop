@@ -7,6 +7,13 @@ import { fileURLToPath } from "node:url";
 export type ClientFormat = "json" | "toml";
 export type ClientVerificationStatus = "verified" | "community" | "unverified";
 export type ClientEntryShape = "standard" | "kilo";
+export type SkillLayout = "flat" | "folder";
+
+export interface ClientSkillDefinition {
+  dir: string;
+  filename: string;
+  layout: SkillLayout;
+}
 
 export interface ClientDefinition {
   label?: string;
@@ -28,6 +35,20 @@ export interface ClientDefinition {
     supports_create_config?: boolean;
     operator_passport_allowed?: boolean;
   };
+  /**
+   * Where the Seedrop skill ships for this client. Flat layout writes
+   * `<dir>/<filename>`; folder layout writes `<dir>/seedrop/<filename>`.
+   * Absent means this client has no skill loader and skill install is
+   * skipped.
+   */
+  skill?: ClientSkillDefinition;
+  /**
+   * Path to the client's agent-instructions file (e.g. CLAUDE.md,
+   * AGENTS.md). The boot reflex is appended inside a managed marker
+   * block. Absent means this client has no instructions-file convention
+   * and boot-reflex install is skipped.
+   */
+  instructions_path?: string;
 }
 
 export interface ResolvedClientDefinition extends ClientDefinition {
@@ -289,6 +310,17 @@ function validateClientDefinition(value: unknown): string | null {
   const status = (def.verified as { status?: unknown } | undefined)?.status;
   if (status !== undefined && status !== "verified" && status !== "community" && status !== "unverified") {
     return "verified.status must be verified, community, or unverified";
+  }
+  if (def.skill !== undefined) {
+    const skill = def.skill;
+    if (!skill || typeof skill !== "object" || Array.isArray(skill)) return "skill must be an object";
+    const s = skill as Record<string, unknown>;
+    if (typeof s.dir !== "string" || s.dir.length === 0) return "skill.dir must be a non-empty string";
+    if (typeof s.filename !== "string" || s.filename.length === 0) return "skill.filename must be a non-empty string";
+    if (s.layout !== "flat" && s.layout !== "folder") return "skill.layout must be flat or folder";
+  }
+  if (def.instructions_path !== undefined && (typeof def.instructions_path !== "string" || def.instructions_path.length === 0)) {
+    return "instructions_path must be a non-empty string";
   }
   return null;
 }

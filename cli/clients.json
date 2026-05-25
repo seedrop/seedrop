@@ -6,6 +6,12 @@
     "section": "mcpServers.seedrop",
     "default_agent": "claude",
     "restart": "Restart Claude Code to pick up the change.",
+    "skill": {
+      "dir": "~/.claude/skills",
+      "filename": "seedrop.md",
+      "layout": "flat"
+    },
+    "instructions_path": "~/.claude/CLAUDE.md",
     "verified": {
       "status": "community",
       "last_verified_at": "2026-05-16",
@@ -30,6 +36,11 @@
     "section": "mcpServers.seedrop",
     "default_agent": "claude-desktop",
     "restart": "Restart Claude Desktop to pick up the change.",
+    "skill": {
+      "dir": "~/.claude/skills",
+      "filename": "seedrop.md",
+      "layout": "flat"
+    },
     "verified": {
       "status": "community",
       "last_verified_at": "2026-05-16",
@@ -50,6 +61,12 @@
     "section": "mcp_servers.seedrop",
     "default_agent": "codex",
     "restart": "Restart Codex to pick up the change.",
+    "skill": {
+      "dir": "~/.codex/skills",
+      "filename": "SKILL.md",
+      "layout": "folder"
+    },
+    "instructions_path": "~/.codex/AGENTS.md",
     "verified": {
       "status": "verified",
       "last_verified_at": "2026-05-16",
