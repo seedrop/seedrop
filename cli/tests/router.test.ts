@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -902,6 +902,100 @@ describe("seed install registry", () => {
     const raw = await readFile(join(codexDir, "config.toml"), "utf8");
     expect(raw).toContain("[mcp_servers.seedrop]");
     expect(io.stdoutText()).toContain("wired Codex CLI");
+  });
+
+  it("writes the codex skill (folder layout) on install", async () => {
+    const config = join(scratch, "config.toml");
+    await writeFile(config, `model = "x"\n`, "utf8");
+    const io = createIo();
+    const code = await runCli(["install", "codex", "--to", "codex-cli", "--config", config], io, fakeRunner());
+    expect(code).toBe(0);
+    const skillPath = join(process.env.HOME!, ".codex", "skills", "seedrop", "SKILL.md");
+    expect(existsSync(skillPath)).toBe(true);
+    const skill = await readFile(skillPath, "utf8");
+    expect(skill).toContain("name: seedrop");
+    expect(skill).toContain("seedrop_continuity");
+  });
+
+  it("writes the boot reflex into ~/.codex/AGENTS.md inside managed markers", async () => {
+    const config = join(scratch, "config.toml");
+    await writeFile(config, `model = "x"\n`, "utf8");
+    const agentsPath = join(process.env.HOME!, ".codex", "AGENTS.md");
+    await mkdir(join(process.env.HOME!, ".codex"), { recursive: true });
+    await writeFile(agentsPath, "# Existing user content\n\nKeep me.\n", "utf8");
+    const io = createIo();
+    const code = await runCli(["install", "codex", "--to", "codex-cli", "--config", config], io, fakeRunner());
+    expect(code).toBe(0);
+    const content = await readFile(agentsPath, "utf8");
+    expect(content).toContain("Keep me.");
+    expect(content).toContain("<!-- seedrop:boot-reflex:start -->");
+    expect(content).toContain("<!-- seedrop:boot-reflex:end -->");
+    expect(content).toContain("Seedrop Boot Reflex");
+  });
+
+  it("creates a fresh AGENTS.md with the reflex when none exists", async () => {
+    const config = join(scratch, "config.toml");
+    await writeFile(config, `model = "x"\n`, "utf8");
+    const agentsPath = join(process.env.HOME!, ".codex", "AGENTS.md");
+    expect(existsSync(agentsPath)).toBe(false);
+    const io = createIo();
+    const code = await runCli(["install", "codex", "--to", "codex-cli", "--config", config], io, fakeRunner());
+    expect(code).toBe(0);
+    expect(existsSync(agentsPath)).toBe(true);
+    const content = await readFile(agentsPath, "utf8");
+    expect(content.startsWith("<!-- seedrop:boot-reflex:start -->")).toBe(true);
+  });
+
+  it("is idempotent — re-running install does not duplicate the marker block", async () => {
+    const config = join(scratch, "config.toml");
+    await writeFile(config, `model = "x"\n`, "utf8");
+    const io1 = createIo();
+    await runCli(["install", "codex", "--to", "codex-cli", "--config", config], io1, fakeRunner());
+    const io2 = createIo();
+    await runCli(["install", "codex", "--to", "codex-cli", "--config", config], io2, fakeRunner());
+    const agentsPath = join(process.env.HOME!, ".codex", "AGENTS.md");
+    const content = await readFile(agentsPath, "utf8");
+    const startCount = (content.match(/seedrop:boot-reflex:start/g) ?? []).length;
+    const endCount = (content.match(/seedrop:boot-reflex:end/g) ?? []).length;
+    expect(startCount).toBe(1);
+    expect(endCount).toBe(1);
+  });
+
+  it("backs up the prior AGENTS.md when hand-edits exist inside the markers", async () => {
+    const config = join(scratch, "config.toml");
+    await writeFile(config, `model = "x"\n`, "utf8");
+    const agentsPath = join(process.env.HOME!, ".codex", "AGENTS.md");
+    await mkdir(join(process.env.HOME!, ".codex"), { recursive: true });
+    await writeFile(
+      agentsPath,
+      "<!-- seedrop:boot-reflex:start -->\nhand-edited content the user wrote\n<!-- seedrop:boot-reflex:end -->\n",
+      "utf8",
+    );
+    const io = createIo();
+    await runCli(["install", "codex", "--to", "codex-cli", "--config", config], io, fakeRunner());
+    const codexDir = join(process.env.HOME!, ".codex");
+    const entries = await readdir(codexDir);
+    const backups = entries.filter((entry) => entry.startsWith("AGENTS.md.bak."));
+    expect(backups.length).toBe(1);
+    const backup = await readFile(join(codexDir, backups[0]!), "utf8");
+    expect(backup).toContain("hand-edited content the user wrote");
+  });
+
+  it("writes the claude skill (flat layout) and boot reflex on install", async () => {
+    await makeAgentPassport("claude");
+    const config = join(scratch, "claude.json");
+    await writeFile(config, JSON.stringify({}), "utf8");
+    const io = createIo();
+    const code = await runCli(["install", "claude", "--to", "claude-code", "--config", config], io, fakeRunner());
+    expect(code).toBe(0);
+    const skillPath = join(process.env.HOME!, ".claude", "skills", "seedrop.md");
+    expect(existsSync(skillPath)).toBe(true);
+    const skill = await readFile(skillPath, "utf8");
+    expect(skill).toContain("Working with Seedrop");
+    const claudemdPath = join(process.env.HOME!, ".claude", "CLAUDE.md");
+    expect(existsSync(claudemdPath)).toBe(true);
+    const claudemd = await readFile(claudemdPath, "utf8");
+    expect(claudemd).toContain("<!-- seedrop:boot-reflex:start -->");
   });
 });
 
