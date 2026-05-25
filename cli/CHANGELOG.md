@@ -13,7 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `seed bootstrap` orchestrates first-time-on-machine setup and per-repo linking; idempotent on re-run.
 - `seed daemon install|uninstall|status` writes a launchd plist at `~/Library/LaunchAgents/com.seedrop.daemon.plist` and manages the always-on Space server (macOS only for now).
 - New `smoke:install` script: packs all three workspaces and exercises the cli through `npm install`'d tarballs with no PATH shims, proving the published install path.
-- Tests for `runBootstrap` orchestration, `continuity` rendering (no passport, no daemon, no view), default path helpers, and bootstrap/daemon/continuity dispatch.
+- `seed install <agent> --to <client>` and `seed init` now drop the Seedrop skill *and* boot reflex per detected/wired client in one shot:
+  - Claude Code / Claude Desktop → `~/.claude/skills/seedrop.md` (flat layout)
+  - Codex CLI → `~/.codex/skills/seedrop/SKILL.md` (folder layout)
+  - Boot reflex appended to `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` inside a managed `<!-- seedrop:boot-reflex:start --> ... :end -->` marker block. Re-runs replace inside the markers; hand-edits are backed up to `<file>.bak.<ms>`.
+  - Per-client wiring is driven by `skill` and `instructions_path` fields in `clients.json` — other clients opt in by adding their own metadata.
+- Templates ship under `cli/templates/skills/<client>/` and `cli/templates/boot-reflex.md`; canonical skill content remains `seedrop_manual`.
+- Tests for `runBootstrap` orchestration, `continuity` rendering (no passport, no daemon, no view), default path helpers, bootstrap/daemon/continuity dispatch, and the new skill + boot-reflex install flow (flat/folder layouts, marker idempotency, hand-edit backup).
 
 ### Changed
 - `@seedrop/id` and `@seedrop/space` are now runtime `dependencies` (previously optional peers). The cli is fully self-sufficient after `npm install`.

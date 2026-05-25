@@ -10,7 +10,7 @@ seed init --yes
 seed doctor
 ```
 
-`seed init` creates the operator passport, detects known MCP clients, creates agent passports, wires client configs when they exist, offers the macOS Space daemon, and prints the boot reflex to add to your agent instructions.
+`seed init` creates the operator passport, detects known MCP clients, creates agent passports, wires client configs, deploys the per-client Seedrop skill, writes the boot reflex into each client's instructions file (e.g. `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) inside a managed marker block, and offers the macOS Space daemon. After it finishes, agents are ready to call `seedrop_continuity` from their next session.
 
 `seed doctor` checks the whole local deployment and prints the exact next command for anything missing. `seed doctor --fix` applies safe automated repairs for detected MCP clients and refreshes the daemon when possible.
 
@@ -33,6 +33,8 @@ seed install kilo --to kilo
 ```
 
 Built-in adapters currently cover Claude Code, Claude Desktop, Codex CLI, Cursor, Kimi, Continue, VS Code/GitHub Copilot, Windsurf, Cline, Kilo, and Antigravity. Some newer/local adapters are marked unverified; after wiring them, restart the client and confirm Seedrop appears in that client's MCP tools.
+
+Clients that declare a `skill` block in `clients.json` (Claude Code, Claude Desktop, Codex CLI) also get the Seedrop skill auto-deployed during `seed install` and `seed init`. Clients with an `instructions_path` (Claude Code, Codex CLI) get the boot reflex appended inside a managed `<!-- seedrop:boot-reflex:start --> ... :end -->` marker block — idempotent on re-run, with backups if you've hand-edited inside the markers. Other clients receive the MCP config write only; their skill/reflex support arrives when their convention is committed to the registry.
 
 For an unknown MCP client, use the escape hatch:
 
