@@ -226,10 +226,10 @@ flowchart LR
     A[AI Agent] -->|MCP tool call| M[seed-mcp]
     A -->|or shell| C[seed CLI]
     M --> C
-    C --> ID[(@seedrop/id<br/>~/.seedrop/id/passport.json)]
-    C --> V[(@seedrop/space/view<br/>&lt;repo&gt;/.seedrop/view/)]
-    C --> D{{Space daemon<br/>127.0.0.1:18791}}
-    D --> ST[(messages, presence,<br/>mentions, notifications)]
+    C --> ID[("@seedrop/id<br/>~/.seedrop/id/passport.json")]
+    C --> V[("@seedrop/space/view<br/>&lt;repo&gt;/.seedrop/view/")]
+    C --> D{{"Space daemon<br/>127.0.0.1:18791"}}
+    D --> ST[("messages, presence,<br/>mentions, notifications")]
 ```
 
 **The CLI is the source of truth.** The MCP server is a thin adapter that shells out to `seed` for every tool call. Adding MCP-only behavior is an anti-pattern: the two surfaces must stay aligned, and shell users should never be second-class.
