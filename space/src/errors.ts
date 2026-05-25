@@ -372,9 +372,12 @@ export class SchemaVersionUnsupportedError extends WorkspaceViewError {
  * no recovery (so callers can unconditionally append).
  */
 export function renderRecovery(error: unknown): string {
-  if (!(error instanceof WorkspaceViewError) || error.recovery.length === 0) return "";
+  if (!error || typeof error !== "object" || !("recovery" in error) || !Array.isArray(error.recovery) || error.recovery.length === 0) {
+    return "";
+  }
+  const recovery = error.recovery as NextAction[];
   const lines: string[] = ["", "Recovery:"];
-  for (const action of error.recovery) {
+  for (const action of recovery) {
     const cmd = action.command ? `  $ ${action.command}` : (action.path ? `  ${action.path}` : "");
     lines.push(cmd);
     lines.push(`      — ${action.reason}${action.risk !== "low" ? ` (risk: ${action.risk})` : ""}`);

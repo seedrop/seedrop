@@ -1,3 +1,5 @@
+import type { NextAction } from "./types.js";
+
 export interface SpaceHttpClientOptions {
   baseUrl: string;
   passportId: string;
@@ -48,12 +50,14 @@ export interface InboxAckRequest {
 export class SpaceHttpClientError extends Error {
   readonly status: number;
   readonly body: unknown;
+  readonly recovery: NextAction[];
 
   constructor(status: number, body: unknown) {
     super(spaceErrorMessage(status, body));
     this.name = "SpaceHttpClientError";
     this.status = status;
     this.body = body;
+    this.recovery = spaceErrorRecovery(body);
   }
 }
 
@@ -72,6 +76,28 @@ function spaceErrorMessage(status: number, body: unknown): string {
   return `Space HTTP request failed with status ${status}`;
 }
 
+function spaceErrorRecovery(body: unknown): NextAction[] {
+  const rawRecovery = body && typeof body === "object" && "error" in body
+    ? (body as { error?: { recovery?: unknown } }).error?.recovery
+    : undefined;
+  if (!Array.isArray(rawRecovery)) return [];
+  return rawRecovery.flatMap((entry): NextAction[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const command = "command" in entry && typeof entry.command === "string" ? entry.command : undefined;
+    const path = "path" in entry && typeof entry.path === "string" ? entry.path : undefined;
+    const reason = "reason" in entry && typeof entry.reason === "string" ? entry.reason : undefined;
+    if (!reason || (!command && !path)) return [];
+    const risk = "risk" in entry && (entry.risk === "medium" || entry.risk === "high") ? entry.risk : "low";
+    return [{ kind: command ? "command" : "read", command, path, reason, risk, requires_human: false }];
+  });
+}
+
+interface CauseInfo {
+  name?: string;
+  message?: string;
+  code?: unknown;
+}
+
 function causeDetails(error: unknown): Record<string, unknown> {
   if (!error || typeof error !== "object") return {};
   const details: Record<string, unknown> = {
@@ -88,6 +114,26 @@ function causeDetails(error: unknown): Record<string, unknown> {
   }
   if ("code" in error) details.code = (error as { code?: unknown }).code;
   return Object.fromEntries(Object.entries(details).filter(([, value]) => value !== undefined));
+}
+
+function fetchFailureMessage(input: {
+  method: string;
+  path: string;
+  baseUrl: string;
+  error: unknown;
+}): string {
+  const outer = input.error instanceof Error ? input.error.message : String(input.error);
+  const maybeCause = input.error && typeof input.error === "object"
+    ? (input.error as { cause?: CauseInfo }).cause
+    : undefined;
+  const nested: string[] = [];
+  if (outer && outer !== "[object Object]") nested.push(outer);
+  if (maybeCause?.message) {
+    const code = maybeCause.code ? ` [${String(maybeCause.code)}]` : "";
+    nested.push(`${maybeCause.message}${code}`);
+  }
+  const detail = nested.length > 0 ? `: ${nested.join("; cause: ")}` : "";
+  return `Space HTTP ${input.method} ${input.path} failed before a response was received at ${input.baseUrl}${detail}`;
 }
 
 export class SpaceHttpClient {
@@ -203,7 +249,7 @@ export class SpaceHttpClient {
       throw new SpaceHttpClientError(0, {
         error: {
           code: "seedrop.http.fetch_failed",
-          message: "Space HTTP request failed before a response was received. Check daemon health with `seed daemon status`.",
+          message: fetchFailureMessage({ method, path, baseUrl: this.baseUrl, error }),
           class: "io",
           retryable: true,
           details: {
@@ -214,9 +260,11 @@ export class SpaceHttpClient {
           },
           recovery: [
             {
+              kind: "command",
               command: "seed daemon status",
               reason: "Confirm whether the Seedrop daemon is running and reachable from this shell.",
               risk: "low",
+              requires_human: false,
             },
           ],
         },

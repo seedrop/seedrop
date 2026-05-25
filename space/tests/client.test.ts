@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderRecovery } from "../src/errors.js";
 import { SpaceHttpClient, SpaceHttpClientError, startSpaceServer, type StartedSpaceServer } from "../src/index.js";
 
 let root: string;
@@ -71,14 +72,34 @@ describe("SpaceHttpClient", () => {
     try {
       await expect(codex.inbox()).rejects.toMatchObject({
         status: 0,
-        message: expect.stringContaining("seed daemon status"),
+        message: expect.stringContaining("GET /inbox/codex"),
         body: {
           error: {
             code: "seedrop.http.fetch_failed",
+            message: expect.stringContaining("GET /inbox/codex"),
+            details: expect.objectContaining({
+              method: "GET",
+              path: "/inbox/codex",
+              base_url: started.url,
+              cause: expect.objectContaining({
+                message: "fetch failed",
+                cause: expect.objectContaining({
+                  message: "connect EPERM 127.0.0.1:18791",
+                  code: "EPERM",
+                }),
+              }),
+            }),
             recovery: [expect.objectContaining({ command: "seed daemon status" })],
           },
         },
       } satisfies Partial<SpaceHttpClientError>);
+      await codex.inbox().catch((error) => {
+        expect(error.message).toContain("GET /inbox/codex");
+        expect(error.message).toContain(started.url);
+        expect(error.message).toContain("connect EPERM 127.0.0.1:18791");
+        expect(error.message).toContain("EPERM");
+        expect(renderRecovery(error)).toContain("seed daemon status");
+      });
     } finally {
       globalThis.fetch = originalFetch;
     }
