@@ -189,9 +189,9 @@ Before handoff, make source state, view state, and space state agree.
 Package gates:
 
 ```bash
-cd /Users/mc/Projects/seedrop/id && npm run typecheck && npm test && npm run build
-cd /Users/mc/Projects/seedrop/space && npm run typecheck && npm test && npm run smoke && npm run smoke:http && npm run build
-cd /Users/mc/Projects/seedrop/cli && npm run typecheck && npm test && npm run smoke && npm run smoke:install && npm run build
+cd id    && npm run typecheck && npm test && npm run build
+cd space && npm run typecheck && npm test && npm run smoke && npm run smoke:http && npm run build
+cd cli   && npm run typecheck && npm test && npm run smoke && npm run smoke:install && npm run build
 ```
 
 Generated local state under `<repo>/.seedrop/view/` is the only Seed artifact that belongs in the repo. Everything else lives in `~/.seedrop/`.

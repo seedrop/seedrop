@@ -16,7 +16,7 @@ npm install -g @seedrop/mcp
 Verify:
 
 ```bash
-node /Users/mc/Projects/seedrop/mcp/dist/cli.js < /dev/null
+node ./dist/cli.js < /dev/null
 # (the server reads JSON-RPC from stdin and exits cleanly on EOF)
 ```
 
