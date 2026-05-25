@@ -191,7 +191,6 @@ Restart the client. The Seedrop tools appear in the client's tool list.
 | Cursor | `cursor` | unverified |
 | Kimi | `kimi` | unverified |
 | GitHub Copilot (VS Code) | `vscode-copilot` | unverified |
-| Continue | (detected) | unverified |
 | Windsurf | `windsurf` | unverified |
 | Cline | `cline` | unverified |
 | Kilo | `kilo` | unverified |
