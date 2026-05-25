@@ -14,16 +14,13 @@ const DEFAULT_SPACE_PORT = 18791;
 const DEFAULT_SPACE_URL = `http://127.0.0.1:${DEFAULT_SPACE_PORT}`;
 
 function defaultPassportPath(): string {
-  // Precedence: active-passport > env > operator.
-  // Active is set by `seed login <agent>` and is a deliberate action right
-  // now. Env (SEEDROP_PASSPORT) is set passively at MCP install time and
-  // never updated — letting it beat `seed login` made the login command a
-  // no-op inside any MCP-spawned process. We invert: deliberate beats
-  // passive. Operator passport is the last-resort fallback.
-  const active = readActivePassportFromState();
-  if (active) return active;
+  // Precedence: env > active-passport > operator. SEEDROP_PASSPORT is a
+  // process-scoped MCP identity and must not be overridden by another
+  // agent's global `seed login` state.
   const envPath = process.env.SEEDROP_PASSPORT?.trim();
   if (envPath) return envPath;
+  const active = readActivePassportFromState();
+  if (active) return active;
   return join(homedir(), ".seedrop", "id", "passport.json");
 }
 
@@ -915,7 +912,7 @@ Commands:
 Common options:
   --root PATH                  Workspace root, defaults to cwd
   --agent NAME                 Agent name, defaults to "agent"
-  --passport PATH              Passport file, defaults to $SEEDROP_PASSPORT or ~/.seedrop/id/passport.json
+  --passport PATH              Passport file, defaults to $SEEDROP_PASSPORT, seed login, or operator passport
   --port PORT                  Serve port, defaults to 18791; use 0 for ephemeral
   --url URL                    Coordination server URL, defaults to $SEEDROP_SPACE_URL or http://127.0.0.1:18791
 

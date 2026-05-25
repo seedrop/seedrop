@@ -264,22 +264,14 @@ async function runLogout(io: RunCliIO): Promise<number> {
 }
 
 async function runWhoami(io: RunCliIO): Promise<number> {
-  // Resolution order matches defaultPassportPath():
-  // active-passport > $SEEDROP_PASSPORT > operator default.
-  const envPath = process.env.SEEDROP_PASSPORT?.trim();
-  const active = await readActivePassport();
-  let source: string;
-  let path: string;
-  if (active) {
-    source = "seed login";
-    path = active.passport_path;
-  } else if (envPath) {
-    source = "$SEEDROP_PASSPORT";
-    path = envPath;
-  } else {
-    source = "operator default";
-    path = join(homedir(), ".seedrop", "id", "passport.json");
-  }
+  const resolution = defaultPassportResolution();
+  const source =
+    resolution.source === "env"
+      ? "$SEEDROP_PASSPORT"
+      : resolution.source === "active"
+        ? "seed login"
+        : "operator default";
+  const path = resolution.path;
   if (!existsSync(path)) {
     io.stdout.write(`no passport at ${path} (source: ${source})\n`);
     io.stdout.write(`run \`seed bootstrap --name <you> --purpose "<mission>"\` to create one.\n`);
@@ -447,7 +439,7 @@ Examples:
   seed space heartbeat --working-on "<update>"
 
 Defaults:
-  Passport     $SEEDROP_PASSPORT or ~/.seedrop/id/passport.json
+  Passport     $SEEDROP_PASSPORT, seed login, or ~/.seedrop/id/passport.json
   Space root   $SEEDROP_SPACE_ROOT or ~/.seedrop/space
   Space URL    $SEEDROP_SPACE_URL or http://127.0.0.1:18791
 `;
@@ -685,8 +677,8 @@ async function runBootstrap(argv: readonly string[], io: RunCliIO, runner: Comma
   const role = flagValue(argv, "role");
   const currentFocus = flagValue(argv, "current-focus");
 
-  // When `--as` is set, mint a per-agent passport under ~/.seedrop/id/agents/<agent>.json
-  // Otherwise use the operator passport at ~/.seedrop/id/passport.json (or $SEEDROP_PASSPORT).
+  // When `--as` is set, mint a per-agent passport under ~/.seedrop/id/agents/<agent>.json.
+  // Otherwise use the resolved default passport chain.
   let passportPath: string;
   let resolvedIssuedBy: string | undefined;
   let resolvedAgentId: string | undefined = agentIdFlag;

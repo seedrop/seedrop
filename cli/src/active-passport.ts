@@ -79,21 +79,22 @@ export interface PassportResolution {
  * Pure resolution of the three-tier passport chain. Inputs are the current
  * environment so this can be unit-tested without touching the disk.
  *
- * Precedence (matches space/src/cli.ts and the audit at
- * .seedrop/view/knowledge/mcp-cli-coverage-2026-05-19.md): active > env >
- * operator. Deliberate beats passive — `seed login <agent>` wins over an
- * MCP-installed SEEDROP_PASSPORT env.
+ * Precedence (matches space/src/cli.ts): env > active > operator.
+ * SEEDROP_PASSPORT is process-scoped identity, commonly installed into an
+ * MCP server config. It must not be overridden by another agent's global
+ * `seed login` state. Interactive shells without SEEDROP_PASSPORT still use
+ * the active login before falling back to the operator passport.
  */
 export function resolvePassportFrom(opts: {
   active: ActivePassportState | null;
   env: string | undefined;
   operator: string;
 }): PassportResolution {
+  const trimmed = opts.env?.trim();
+  if (trimmed) return { path: trimmed, source: "env" };
   if (opts.active) {
     return { path: opts.active.passport_path, source: "active", agent_id: opts.active.agent_id };
   }
-  const trimmed = opts.env?.trim();
-  if (trimmed) return { path: trimmed, source: "env" };
   return { path: opts.operator, source: "operator" };
 }
 

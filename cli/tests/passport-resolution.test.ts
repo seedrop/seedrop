@@ -10,10 +10,21 @@ const ACTIVE: ActivePassportState = {
 };
 
 describe("resolvePassportFrom — three-tier precedence (cdb810a7)", () => {
-  it("picks active when active is set, regardless of env or operator", () => {
+  it("picks env when both env and active are set", () => {
     const r = resolvePassportFrom({
       active: ACTIVE,
       env: "/whatever/env.json",
+      operator: "/home/mc/.seedrop/id/passport.json",
+    });
+    expect(r.path).toBe("/whatever/env.json");
+    expect(r.source).toBe("env");
+    expect(r.agent_id).toBeUndefined();
+  });
+
+  it("falls back to active when env is unset", () => {
+    const r = resolvePassportFrom({
+      active: ACTIVE,
+      env: undefined,
       operator: "/home/mc/.seedrop/id/passport.json",
     });
     expect(r.path).toBe(ACTIVE.passport_path);
@@ -21,20 +32,9 @@ describe("resolvePassportFrom — three-tier precedence (cdb810a7)", () => {
     expect(r.agent_id).toBe("claude");
   });
 
-  it("falls back to env when active is null", () => {
-    const r = resolvePassportFrom({
-      active: null,
-      env: "/from/env.json",
-      operator: "/home/mc/.seedrop/id/passport.json",
-    });
-    expect(r.path).toBe("/from/env.json");
-    expect(r.source).toBe("env");
-    expect(r.agent_id).toBeUndefined();
-  });
-
   it("trims whitespace on env input", () => {
     const r = resolvePassportFrom({
-      active: null,
+      active: ACTIVE,
       env: "  /trimmed.json  ",
       operator: "/op.json",
     });
@@ -43,10 +43,10 @@ describe("resolvePassportFrom — three-tier precedence (cdb810a7)", () => {
   });
 
   it("treats empty / whitespace-only env as unset", () => {
-    const r1 = resolvePassportFrom({ active: null, env: "", operator: "/op.json" });
-    expect(r1.source).toBe("operator");
-    const r2 = resolvePassportFrom({ active: null, env: "   ", operator: "/op.json" });
-    expect(r2.source).toBe("operator");
+    const r1 = resolvePassportFrom({ active: ACTIVE, env: "", operator: "/op.json" });
+    expect(r1.source).toBe("active");
+    const r2 = resolvePassportFrom({ active: ACTIVE, env: "   ", operator: "/op.json" });
+    expect(r2.source).toBe("active");
   });
 
   it("falls back to operator when neither active nor env is set", () => {
