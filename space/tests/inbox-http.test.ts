@@ -193,6 +193,24 @@ describe("inbox HTTP", () => {
     expect(all.mentions[0]?.acked_at).toBeDefined();
   });
 
+  it("ack accepts a unique short mention prefix", async () => {
+    started = await startSpaceServer({
+      root,
+      passportPaths: [mcPath, claudePath, codexPath],
+      port: 0,
+    });
+    await joinAs(started.url, "mc", "team");
+    await postAs(started.url, "mc", "team", "@claude review");
+    const before = await inbox(started.url, "claude");
+    const id = before.mentions[0]!.id;
+
+    const ackResp = await ack(started.url, "claude", id.slice(0, 8), { result: "done" });
+    expect(ackResp.status).toBe(200);
+    const payload = await ackResp.json() as { mention: { id: string; acked_at?: string } };
+    expect(payload.mention.id).toBe(id);
+    expect(payload.mention.acked_at).toBeDefined();
+  });
+
   it("rejects ack from a non-recipient passport", async () => {
     started = await startSpaceServer({
       root,

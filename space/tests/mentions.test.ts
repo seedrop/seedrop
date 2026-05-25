@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Mentions } from "../src/mentions.js";
+import { LiveStore } from "../src/live.js";
 
 let root: string;
 
@@ -89,6 +90,49 @@ describe("Mentions storage", () => {
     expect(acked.ack_note).toBe("tomorrow");
     expect(acked.deferred_until).toBe("2026-05-16T09:00:00.000Z");
     expect(acked.acked_at).toBeDefined();
+  });
+
+  it("ack accepts a unique mention id prefix", async () => {
+    const inserted = await Mentions.insertMany(
+      [{ ...baseInsert, recipientPassportId: "claude" }],
+      { root },
+    );
+    const acked = await Mentions.ack({
+      root,
+      id: inserted[0]!.id.slice(0, 8),
+      recipientPassportId: "claude",
+      result: "done",
+    });
+    expect(acked.id).toBe(inserted[0]!.id);
+    expect(acked.ack_result).toBe("done");
+  });
+
+  it("ack rejects an ambiguous mention id prefix", async () => {
+    const inserted = await Mentions.insertMany(
+      [
+        { ...baseInsert, messageId: "msg-a", recipientPassportId: "claude" },
+        { ...baseInsert, messageId: "msg-b", recipientPassportId: "claude" },
+      ],
+      { root },
+    );
+    const live = LiveStore.open({ root });
+    try {
+      const db = await live.connection();
+      db.prepare("UPDATE mentions SET id = ? WHERE id = ?").run(
+        "ffffffff-1111-4111-8111-000000000001",
+        inserted[0]!.id,
+      );
+      db.prepare("UPDATE mentions SET id = ? WHERE id = ?").run(
+        "ffffffff-2222-4222-8222-000000000002",
+        inserted[1]!.id,
+      );
+    } finally {
+      live.close();
+    }
+
+    await expect(
+      Mentions.ack({ root, id: "ffffffff", recipientPassportId: "claude", result: "done" }),
+    ).rejects.toThrow(/ambiguous/);
   });
 
   it("rejects invalid ack result", async () => {

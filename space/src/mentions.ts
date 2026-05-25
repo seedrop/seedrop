@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Database as DatabaseType } from "better-sqlite3";
 import { SpaceValidationError, SpaceNotFoundError } from "./errors.js";
 import { LiveStore, type LiveStoreOptions } from "./live.js";
 
@@ -179,6 +180,7 @@ export class Mentions {
     const live = LiveStore.open(input);
     try {
       const db = await live.connection();
+      const mentionId = resolveMentionId(db, input.id, input.recipientPassportId);
       const row = db
         .prepare(
           `UPDATE mentions
@@ -191,12 +193,12 @@ export class Mentions {
                   sender_passport_id, sender_principal_chain, content, created_at,
                   delivered_at, acked_at, ack_result, ack_note, deferred_until`,
         )
-        .get(now, input.result, input.note ?? null, input.deferredUntil ?? null, input.id, input.recipientPassportId) as
+        .get(now, input.result, input.note ?? null, input.deferredUntil ?? null, mentionId, input.recipientPassportId) as
         | MentionRow
         | undefined;
 
       if (!row) {
-        throw new SpaceNotFoundError(input.id);
+        throw new SpaceNotFoundError(mentionId);
       }
       return rowToRecord(row);
     } finally {
@@ -219,6 +221,38 @@ export class Mentions {
       live.close();
     }
   }
+}
+
+function resolveMentionId(db: DatabaseType, prefixOrFullId: string, recipientPassportId: string): string {
+  const trimmed = prefixOrFullId.trim();
+  if (trimmed.length === 0) throw new SpaceNotFoundError("(empty)");
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+    return trimmed;
+  }
+  if (trimmed.length < 4) {
+    throw new SpaceValidationError(
+      [{ code: "custom", path: ["id"], message: "mention id prefix too short; need at least 4 characters" }],
+      "MentionAckInput",
+    );
+  }
+  const rows = db
+    .prepare(
+      `SELECT id
+         FROM mentions
+        WHERE recipient_passport_id = ?
+          AND id LIKE ?
+     ORDER BY created_at ASC`,
+    )
+    .all(recipientPassportId, `${trimmed}%`) as Array<{ id: string }>;
+  if (rows.length === 0) throw new SpaceNotFoundError(prefixOrFullId);
+  if (rows.length > 1) {
+    const sample = rows.slice(0, 3).map((row) => row.id.slice(0, 12)).join(", ");
+    throw new SpaceValidationError(
+      [{ code: "custom", path: ["id"], message: `mention id prefix is ambiguous; matches ${rows.length}: ${sample}` }],
+      "MentionAckInput",
+    );
+  }
+  return rows[0]!.id;
 }
 
 function rowToRecord(row: MentionRow): MentionRecord {
