@@ -12,6 +12,7 @@ import {
   clientHasSeedConfig,
   configuredPassport,
   detectClients,
+  expandPath,
   installClientConfig,
   loadClientRegistry,
   loadClientRegistryWithDiagnostics,
@@ -548,7 +549,7 @@ export async function runCli(
       return await runDoctor(argv.slice(1), io, runner);
     }
     if (dispatch === "boot-protocol") {
-      io.stdout.write(renderBootProtocol());
+      io.stdout.write(await loadBootReflexTemplate());
       return 0;
     }
     if (dispatch === "daemon") {
@@ -885,16 +886,28 @@ async function runInstall(argv: readonly string[], io: RunCliIO, runner: Command
   io.stdout.write(`✓ wrote ${resolved.label} MCP config: ${resolved.configPath}\n`);
   io.stdout.write(`  ${resolved.section}.env.SEEDROP_PASSPORT = ${passportPath}\n`);
 
-  // For Claude clients (Code + Desktop), also deploy the Seedrop skill so
-  // the agent auto-loads orientation guidance without an explicit tool
-  // call. Generated from the template that ships with the seedrop
-  // release — canonical content lives in seedrop_manual.
-  if (resolved.id === "claude-code" || resolved.id === "claude-desktop") {
-    const skillResult = await writeClaudeSkill(io);
+  // Deploy the Seedrop skill if the client supports one (skill loader
+  // declared in clients.json). The agent auto-loads orientation guidance
+  // without an explicit tool call.
+  if (resolved.skill) {
+    const skillResult = await writeClientSkill(resolved, io);
     if (skillResult.wrote) {
       io.stdout.write(`✓ wrote Seedrop skill: ${skillResult.path}\n`);
     } else if (skillResult.reason) {
       io.stdout.write(`(skipped skill: ${skillResult.reason})\n`);
+    }
+  }
+
+  // Append the boot reflex to the client's agent-instructions file if
+  // one is configured (e.g. ~/.claude/CLAUDE.md, ~/.codex/AGENTS.md).
+  // The content lives inside a managed marker block so re-runs are
+  // idempotent and the rest of the user's instructions are preserved.
+  if (resolved.instructions_path) {
+    const reflexResult = await writeBootReflex(resolved, io);
+    if (reflexResult.wrote) {
+      io.stdout.write(`✓ wrote Seedrop boot reflex: ${reflexResult.path}\n`);
+    } else if (reflexResult.reason && reflexResult.reason !== "no change") {
+      io.stdout.write(`(skipped boot reflex: ${reflexResult.reason})\n`);
     }
   }
 
@@ -936,6 +949,14 @@ async function installDetectedClients(
     try {
       await installClientConfig(client, buildMcpServerEntry(passportPath, command), { create: opts.createConfig });
       io.stdout.write(`✓ wired ${client.label} → ${agent}\n`);
+      if (client.skill) {
+        const skillResult = await writeClientSkill(client, io);
+        if (skillResult.wrote) io.stdout.write(`  ✓ skill: ${skillResult.path}\n`);
+      }
+      if (client.instructions_path) {
+        const reflexResult = await writeBootReflex(client, io);
+        if (reflexResult.wrote) io.stdout.write(`  ✓ boot reflex: ${reflexResult.path}\n`);
+      }
       if (client.restart) io.stdout.write(`  ${client.restart}\n`);
     } catch (error) {
       failures += 1;
@@ -1047,21 +1068,25 @@ async function runInit(argv: readonly string[], io: RunCliIO, runner: CommandRun
       code = await runSetupStep(journal, "client_configs", resume, async () => {
         const command = resolveMcpServerCommand();
         for (const wire of wireDetected) {
-        const clientDef = registry[wire.clientId];
-        const client = clientDef ? resolveClientDefinition(wire.clientId, clientDef) : null;
-        if (!client || !existsSync(client.configPath)) {
-          io.stdout.write(`  - skipped ${wire.clientId}: config not found; run \`seed install ${wire.agent} --manual\`\n`);
-          continue;
+          const clientDef = registry[wire.clientId];
+          const client = clientDef ? resolveClientDefinition(wire.clientId, clientDef) : null;
+          if (!client || !existsSync(client.configPath)) {
+            io.stdout.write(`  - skipped ${wire.clientId}: config not found; run \`seed install ${wire.agent} --manual\`\n`);
+            continue;
+          }
+          const passportPath = agentPassportPath(wire.agent);
+          try {
+            await installClientConfig(client, buildMcpServerEntry(passportPath, command));
+            io.stdout.write(`  ✓ wired ${client.label} → ${wire.agent}\n`);
+            if (client.skill) {
+              const skillResult = await writeClientSkill(client, io);
+              if (skillResult.wrote) io.stdout.write(`    ✓ skill: ${skillResult.path}\n`);
+            }
+          } catch (error) {
+            io.stdout.write(`  ✗ ${client.label}: ${(error as Error).message}\n`);
+            io.stdout.write(`    → run: seed install ${wire.agent} --to ${wire.clientId} --manual\n`);
+          }
         }
-        const passportPath = agentPassportPath(wire.agent);
-        try {
-          await installClientConfig(client, buildMcpServerEntry(passportPath, command));
-          io.stdout.write(`  ✓ wired ${client.label} → ${wire.agent}\n`);
-        } catch (error) {
-          io.stdout.write(`  ✗ ${client.label}: ${(error as Error).message}\n`);
-          io.stdout.write(`    → run: seed install ${wire.agent} --to ${wire.clientId} --manual\n`);
-        }
-      }
         return 0;
       });
       if (code !== 0) return code;
@@ -1082,8 +1107,27 @@ async function runInit(argv: readonly string[], io: RunCliIO, runner: CommandRun
     }
 
     code = await runSetupStep(journal, "boot_protocol", resume, async () => {
-      io.stdout.write(`\nBoot reflex:\n`);
-      io.stdout.write(renderBootProtocol());
+      // Write the boot reflex into each wired client's instructions file
+      // (if the client declares an instructions_path in clients.json).
+      let anyWritten = false;
+      for (const wire of wireDetected) {
+        const clientDef = registry[wire.clientId];
+        const client = clientDef ? resolveClientDefinition(wire.clientId, clientDef) : null;
+        if (!client || !client.instructions_path) continue;
+        const reflexResult = await writeBootReflex(client, io);
+        if (reflexResult.wrote) {
+          io.stdout.write(`✓ wrote boot reflex to ${client.label}: ${reflexResult.path}\n`);
+          anyWritten = true;
+        } else if (reflexResult.reason && reflexResult.reason !== "no change") {
+          io.stdout.write(`(skipped boot reflex for ${client.label}: ${reflexResult.reason})\n`);
+        }
+      }
+      // If no client took a managed write, print the reflex so the user
+      // can paste it into whichever instructions file their agent reads.
+      if (!anyWritten) {
+        io.stdout.write(`\nBoot reflex (copy into your agent instructions if no client was auto-configured):\n\n`);
+        io.stdout.write(await loadBootReflexTemplate());
+      }
       return 0;
     });
     if (code !== 0) return code;
@@ -1439,23 +1483,17 @@ async function printClientList(registry: Record<string, { label?: string; config
   }
 }
 
-function renderBootProtocol(): string {
+async function loadBootReflexTemplate(): Promise<string> {
+  const templatePath = join(templatesRoot(), "boot-reflex.md");
+  if (existsSync(templatePath)) {
+    return (await readFile(templatePath, "utf8")).trim() + "\n";
+  }
+  // Defensive fallback if the template is missing from a packaged install.
   return [
-    "## Seedrop Boot Reflex",
+    "# Seedrop Boot Reflex",
     "",
-    "At the start of every session, run:",
-    "",
-    "```bash",
-    "seed",
-    "```",
-    "",
-    "This loads persistent identity, checks the current repo View, verifies Space daemon reachability, and shows the next move.",
-    "",
-    "For a new repo, run:",
-    "",
-    "```bash",
-    "seed bootstrap",
-    "```",
+    "At the start of every session, run `seed` to load identity, repo View, and next move.",
+    "In a new repo, run `seed bootstrap` to link it (idempotent).",
     "",
   ].join("\n");
 }
@@ -1562,38 +1600,99 @@ async function installClaudeCode(
   io.stdout.write(`\nRestart Claude Code to pick up the change.\n`);
   // Note: this legacy installClaudeCode path is reached only via the
   // older flag shape. The modern generic installer above (around line
-  // 795) also writes the Seedrop skill via writeClaudeSkill().
+  // 795) also writes the Seedrop skill + boot reflex via
+  // writeClientSkill() and writeBootReflex().
   return 0;
 }
 
-async function writeClaudeSkill(io: RunCliIO): Promise<{ wrote: boolean; path?: string; reason?: string }> {
-  const skillsDir = join(homedir(), ".claude", "skills");
-  const skillPath = join(skillsDir, "seedrop.md");
+const BOOT_REFLEX_MARKER_START = "<!-- seedrop:boot-reflex:start -->";
+const BOOT_REFLEX_MARKER_END = "<!-- seedrop:boot-reflex:end -->";
 
-  // Locate the template relative to this module. Works both when running
+function templatesRoot(): string {
+  // Locate templates relative to this module. Works both when running
   // source-first (cli/src/router.ts → ../templates/...) and from dist
   // (cli/dist/router.js → ../templates/...).
   const routerPath = fileURLToPath(import.meta.url);
   const workspaceRoot = dirname(dirname(routerPath));
-  const templatePath = join(workspaceRoot, "templates", "skills", "claude-code", "seedrop.md");
+  return join(workspaceRoot, "templates");
+}
+
+/**
+ * Deploy the Seedrop skill for a client that declares `skill` metadata.
+ * Flat layout writes `<dir>/<filename>`; folder layout writes
+ * `<dir>/seedrop/<filename>` (the convention codex uses).
+ */
+async function writeClientSkill(
+  client: ResolvedClientDefinition,
+  io: RunCliIO,
+): Promise<{ wrote: boolean; path?: string; reason?: string }> {
+  if (!client.skill) {
+    return { wrote: false, reason: `${client.label} has no skill loader configured` };
+  }
+  const templatePath = join(templatesRoot(), "skills", client.id, client.skill.filename);
   if (!existsSync(templatePath)) {
     return { wrote: false, reason: `template missing at ${templatePath}` };
   }
-
+  const expandedDir = expandPath(client.skill.dir);
+  const targetDir = client.skill.layout === "folder" ? join(expandedDir, "seedrop") : expandedDir;
+  const targetPath = join(targetDir, client.skill.filename);
   try {
     const template = await readFile(templatePath, "utf8");
-    await mkdir(skillsDir, { recursive: true });
+    await mkdir(targetDir, { recursive: true });
     // Backup any prior version so user customizations aren't silently lost.
-    if (existsSync(skillPath)) {
-      const prior = await readFile(skillPath, "utf8");
+    if (existsSync(targetPath)) {
+      const prior = await readFile(targetPath, "utf8");
       if (prior !== template) {
-        await writeFile(`${skillPath}.bak.${Date.now()}`, prior, "utf8");
+        await writeFile(`${targetPath}.bak.${Date.now()}`, prior, "utf8");
       }
     }
-    await writeFile(skillPath, template, "utf8");
-    return { wrote: true, path: skillPath };
+    await writeFile(targetPath, template, "utf8");
+    return { wrote: true, path: targetPath };
   } catch (error) {
-    io.stderr.write(`(skill write failed: ${(error as Error).message})\n`);
+    io.stderr.write(`(skill write failed for ${client.id}: ${(error as Error).message})\n`);
+    return { wrote: false, reason: (error as Error).message };
+  }
+}
+
+/**
+ * Append or replace the Seedrop boot reflex inside a managed marker
+ * block in the client's instructions file (e.g. ~/.claude/CLAUDE.md,
+ * ~/.codex/AGENTS.md). Idempotent across re-runs.
+ */
+async function writeBootReflex(
+  client: ResolvedClientDefinition,
+  io: RunCliIO,
+): Promise<{ wrote: boolean; path?: string; reason?: string }> {
+  if (!client.instructions_path) {
+    return { wrote: false, reason: `${client.label} has no instructions file configured` };
+  }
+  const targetPath = expandPath(client.instructions_path);
+  try {
+    const template = (await loadBootReflexTemplate()).trim();
+    const block = `${BOOT_REFLEX_MARKER_START}\n${template}\n${BOOT_REFLEX_MARKER_END}`;
+    await mkdir(dirname(targetPath), { recursive: true });
+    const existing = existsSync(targetPath) ? await readFile(targetPath, "utf8") : "";
+    const startIdx = existing.indexOf(BOOT_REFLEX_MARKER_START);
+    const endIdx = existing.indexOf(BOOT_REFLEX_MARKER_END);
+    let next: string;
+    if (startIdx >= 0 && endIdx > startIdx) {
+      // Block already exists — replace inside markers.
+      const priorBlock = existing.slice(startIdx, endIdx + BOOT_REFLEX_MARKER_END.length);
+      if (priorBlock !== block) {
+        // Back up if the content inside the markers was hand-edited.
+        await writeFile(`${targetPath}.bak.${Date.now()}`, existing, "utf8");
+      }
+      next = existing.slice(0, startIdx) + block + existing.slice(endIdx + BOOT_REFLEX_MARKER_END.length);
+    } else {
+      // No managed block — append with a blank-line separator.
+      const trimmed = existing.trimEnd();
+      next = (trimmed.length > 0 ? trimmed + "\n\n" : "") + block + "\n";
+    }
+    if (next === existing) return { wrote: false, reason: "no change" };
+    await writeFile(targetPath, next, "utf8");
+    return { wrote: true, path: targetPath };
+  } catch (error) {
+    io.stderr.write(`(boot reflex write failed for ${client.id}: ${(error as Error).message})\n`);
     return { wrote: false, reason: (error as Error).message };
   }
 }
