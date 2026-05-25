@@ -10,7 +10,7 @@ import type { RunCliIO } from "./router.js";
 
 export interface ContinuityOptions {
   passportPath: string;
-  /** How `passportPath` was resolved: deliberate login (active) > env > operator fallback. */
+  /** How `passportPath` was resolved: env > active login > operator fallback. */
   passportSource?: PassportSource;
   spaceUrl: string;
   cwd: string;
@@ -213,6 +213,7 @@ export interface ContinuityReport {
     latestRun?: ViewRun;
     pendingHandoffs: ViewHandoff[];
     activeTasks: ViewTask[];
+    blockerTasks: ViewTask[];
     openTasksCount: number;
     otherAgents: Array<{
       agent_id: string;
@@ -266,6 +267,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   const latestRun = viewContext.latest_run as ViewRun | undefined;
   const pendingHandoffs = (viewContext.pending_handoffs ?? []) as ViewHandoff[];
   const activeTasks = (viewContext.active_tasks ?? []) as ViewTask[];
+  const blockerTasks = await loadReferencedBlockerTasks(root, activeTasks);
   const openTasksCount = typeof viewContext.open_tasks_count === "number" ? viewContext.open_tasks_count : 0;
   const otherAgents = (viewContext.other_agents ?? []) as ContinuityReport["view"]["otherAgents"];
   if (!viewPresent) {
@@ -353,14 +355,15 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     watermarkAdvanced,
     view: {
       present: viewPresent,
-    manifest,
-    brief: viewBrief,
-    signals,
+      manifest,
+      brief: viewBrief,
+      signals,
       latestPacket,
       currentRun,
       latestRun,
       pendingHandoffs,
       activeTasks,
+      blockerTasks,
       openTasksCount,
       otherAgents,
     },
@@ -377,6 +380,25 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     warnings,
   };
   return { ...report, orientation: buildOrientation(report, viewPreflightFailed) };
+}
+
+async function loadReferencedBlockerTasks(root: string, activeTasks: ViewTask[]): Promise<ViewTask[]> {
+  const activeIds = new Set(activeTasks.map((task) => task.task_id));
+  const blockerIds = new Set(
+    activeTasks
+      .flatMap((task) => task.blocked_by ?? [])
+      .filter((taskId) => !activeIds.has(taskId)),
+  );
+  const tasks: ViewTask[] = [];
+  for (const taskId of blockerIds) {
+    try {
+      const raw = await readFile(join(root, ".seedrop", "view", "tasks", `${taskId}.json`), "utf8");
+      tasks.push(JSON.parse(raw) as ViewTask);
+    } catch {
+      // Missing/invalid blocker files are handled conservatively by selectNextAction.
+    }
+  }
+  return tasks;
 }
 
 export function renderContinuity(report: ContinuityReport, mode: ContinuityRenderMode = "brief"): string {
@@ -831,9 +853,10 @@ function selectNextAction(report: Omit<ContinuityReport, "orientation">): Orient
     );
     if (claimed) {
       const shortId = claimed.task_id.slice(0, 8);
+      const taskLookup = [...report.view.activeTasks, ...report.view.blockerTasks];
       const openBlockers = (claimed.blocked_by ?? []).filter((blockerId) => {
-        const blocker = report.view.activeTasks.find((t) => t.task_id === blockerId);
-        // If the blocker isn't in activeTasks, assume it's open (we can't see its state).
+        const blocker = taskLookup.find((t) => t.task_id === blockerId);
+        // If the blocker can't be read, assume it's open (we can't see its state).
         return !blocker || (blocker.status !== "done" && blocker.status !== "dropped");
       });
       if (openBlockers.length > 0) {

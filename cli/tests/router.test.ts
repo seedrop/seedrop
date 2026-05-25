@@ -557,6 +557,34 @@ describe("continuity", () => {
     expect(startsBlocker || surfacesBlockerResolution).toBe(true);
   });
 
+  it("does not keep a claimed task blocked when its blocker is already done", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "task-demo");
+    const blockerId = "77777777-7777-4777-8777-777777777777";
+    const blockedId = "88888888-8888-4888-8888-888888888888";
+    await writeTask(scratch, {
+      task_id: blockerId,
+      title: "Add seed task update command",
+      status: "done",
+      owner: "codex",
+    });
+    await writeTask(scratch, {
+      task_id: blockedId,
+      title: "Lint prose-only blockers",
+      status: "claimed",
+      owner: "codex",
+      blocked_by: [blockerId],
+    });
+
+    const io = createIo();
+    const code = await runCli(["continuity", "--json", "--cwd", scratch], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.orientation.next_action.kind).toBe("run");
+    expect(parsed.orientation.next_action.command).toBe(`seed task start ${blockedId}`);
+    expect(parsed.orientation.next_action.reason).not.toContain("blocked by");
+  });
+
   it("surfaces failed validation before continuing a run", async () => {
     await writePassport("codex");
     await writeManifest(scratch, "validation-demo");
