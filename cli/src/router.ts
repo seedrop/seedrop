@@ -1571,11 +1571,11 @@ async function writeClaudeSkill(io: RunCliIO): Promise<{ wrote: boolean; path?: 
   const skillPath = join(skillsDir, "seedrop.md");
 
   // Locate the template relative to this module. Works both when running
-  // source-first (cli/src/router.ts → ../templates/seedrop-skill.md) and
-  // from dist (cli/dist/router.js → ../templates/seedrop-skill.md).
+  // source-first (cli/src/router.ts → ../templates/...) and from dist
+  // (cli/dist/router.js → ../templates/...).
   const routerPath = fileURLToPath(import.meta.url);
   const workspaceRoot = dirname(dirname(routerPath));
-  const templatePath = join(workspaceRoot, "templates", "seedrop-skill.md");
+  const templatePath = join(workspaceRoot, "templates", "skills", "claude-code", "seedrop.md");
   if (!existsSync(templatePath)) {
     return { wrote: false, reason: `template missing at ${templatePath}` };
   }

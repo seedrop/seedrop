@@ -78,9 +78,8 @@ signal you're authenticated correctly before the action lands.
 
 `seedrop_manual({section: "workflows"})` answers most questions. If it
 doesn't, the per-repo `.seedrop/view/AGENTS.md` answers project-specific
-ones (when present). If neither does, the source at
-`/Users/mc/Projects/seedrop/space/src/view.ts` is the substrate of
-truth.
+ones (when present). If neither does, read `space/src/view.ts` in your
+local seedrop checkout — that file is the substrate of truth.
 
 ---
 
