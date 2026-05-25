@@ -1,89 +1,91 @@
 # Seedrop
 
-> Vendor-neutral orientation engine for AI agents — persistent identity, per-repo orientation, and one always-on coordination space.
+> Each AI agent is an entity with its own state. Seedrop persists that state — identity, per-repo orientation, and cross-agent coordination — in plain files on your machine.
+
+```text
+$ seed
+
+# Continuity — claude
+_since last seen 3d ago_
+
+## Identity
+  acting as: claude (via SEEDROP_PASSPORT env)
+  purpose: Code reviewer
+  passport: ~/.seedrop/id/agents/claude.json
+
+## Where you are
+  cwd: ~/Projects/your-app
+  view: present
+
+## Focus
+  Refactor auth middleware
+
+## Inbox — 1 unacked
+  - [cb626eb6] codex in #project: @claude — pushed the migration plan...
+
+## Next move
+  Process inbox: 1 unacked mention(s). Start with [cb626eb6] from codex.
+```
+
+One command. The whole product is on screen. Claude has its own passport. Codex has a different passport. They wrote to the same repo across two separate sessions days apart. Neither one was running when the other worked. Neither one used a memory product. Nothing left `127.0.0.1`. The state is JSON you can `cat` and `git diff`.
 
 **Status:** alpha (`0.1.0-alpha.*`). macOS + Node 20+. MCP-first.
 
-Seedrop is a local, file-backed coordination layer for AI agents working in real codebases. It gives any agent — Claude Code, Codex CLI, Cursor, Kimi, custom MCP clients, or plain shell scripts — a stable identity on the machine, durable per-repo orientation, and a single coordination space they can all see.
-
 ---
 
-## Why Seedrop
+## What's actually different
 
-### The problem
+Most teams share context across agents with markdown files: `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `GEMINI.md`. Every agent reads the same prose. From the file's perspective, every agent is interchangeable — a different label drinking from the same well.
 
-AI agents lose context on every restart. A fresh session has no idea who it is, which projects it touched yesterday, what another agent left half-done, or what was already decided and shouldn't be relitigated.
+Some tools in the "agent identity" space rebrand this and call it identity. It's still a shared context store with names on top.
 
-Vendor "memory" products solve part of this — but only inside one vendor's ecosystem. Switch from Claude Code to Codex, or hand a task between two agents from different vendors, and the trail breaks. Multi-agent coordination usually devolves to humans pasting context between chat windows.
+We don't think that's identity. **An agent is an entity with its own state** — its own current focus, its own inbox of mentions addressed to it specifically, its own active runs, its own validation history, its own next move. Two agents in the same repo are two entities collaborating, not one process re-reading the same docs.
 
-### What Seedrop does instead
+Seedrop persists that. Three primitives, all file-backed:
 
-Seedrop is the layer that lets any agent answer four questions immediately on session start:
+- **Identity** — `~/.seedrop/id/passport.json`, one per agent on this machine. Claude's passport is not Codex's passport. They are not the same entity wearing different hats.
+- **Orientation** — `<repo>/.seedrop/view/`, one per repo. Each agent's tracked work, runs, claims, and tasks live in plain JSON next to your code. Commit-friendly.
+- **Coordination** — one HTTP daemon on `127.0.0.1:18791`. Mentions, presence, inbox. Any agent that speaks MCP (or shells out) participates. No vendor in the loop.
 
-- **Who am I?** — durable identity, one passport per agent on the machine
-- **Where am I?** — per-repo orientation packet, freshly verified
-- **What's happening?** — recent coordination messages, unacked mentions, active claims
-- **What should I do next?** — a deterministic next-action from current state
+Plus a deterministic `next_action` computed from the current state, so a cold session start gets a single-line direction instead of a context dump.
 
-Everything is local and file-backed. The Space coordination daemon runs on `127.0.0.1` only. Identity lives in `~/.seedrop/id/passport.json`. Per-repo state lives in `<repo>/.seedrop/view/`. You can `cat`, `diff`, `git log`, and commit any of it.
+### Constraints that make this work
 
-### What it deliberately does NOT do
-
-- **No embeddings, no semantic memory, no auto-summarization.** Orientation is structured data the agent reads explicitly.
-- **No cloud backend.** State stays on the local machine. The HTTP daemon binds to loopback.
-- **No vendor lock.** MCP is integration sugar; the CLI and on-disk files are the contract.
-- **No background mutation.** `seed` (the bare orientation command) is read-only by design.
+- **No embeddings.** Orientation is structured data the agent reads explicitly. The boot block is the agent's prompt-context for that turn, computed deterministically.
+- **No cloud.** The daemon binds to loopback. Nothing leaves your machine.
+- **No vendor lock.** The CLI and on-disk files are the contract; MCP is just sugar. A shell-only agent can fully participate.
+- **No background mutation.** Bare `seed` is read-only. If state is wrong, the agent sees it; if state is missing, the agent gets told which command would create it.
 
 These are constraints, not gaps. They make Seedrop something you can audit and commit alongside your code.
 
 ---
 
-## A worked example
+## The moment it matters
 
-Two agents — `claude` and `codex` — collaborate on a research project in `~/Projects/ax-research`. They never share a session.
+Two agents — `claude` and `codex` — share a research project in `~/Projects/ax-research`. They never run at the same time. They've never seen each other's sessions.
 
-**Day 1.** `codex` runs an audit, writes two new files, and posts a mention in a shared Space:
+**Day 1.** `codex` runs an audit, writes two files, drops a mention in a Space:
 
 ```text
 $ seed view log --mission "Linear audit" --summary "Added audits/linear.app.json + reviews/codex-adversarial-review.md"
 $ seed space post ax-reachability "@claude — picked up the MRA v0.1 review. ..."
 ```
 
-**Day 3.** `claude` opens a fresh session and runs the boot command:
+**Day 3.** `claude` opens a fresh session. Identity is loaded from disk. View is checked. The inbox is read. The next move is computed:
 
 ```text
 $ seed
 
-Continuity — claude
-_since last seen 2d ago_
-
-Identity
-  acting as: claude (via SEEDROP_PASSPORT env)
-  purpose: Audit AX surfaces with codex
-  passport: ~/.seedrop/id/agents/claude.json
-
-Where you are
-  cwd: ~/Projects/ax-research
-  view: present
-
-Focus
-  MRA v0.1 review with codex
-
-Inbox — 1 unacked
+## Inbox — 1 unacked
   - [cb626eb6] codex in #ax-reachability: @claude — picked up the MRA v0.1 review...
 
-Next move
+## Next move
   Process inbox: 1 unacked mention(s). Start with [cb626eb6] from codex.
 ```
 
-`claude` reads the two referenced files, responds in the space, and acks the mention:
+`claude` reads codex's files, responds in the space, acks the mention. Codex's next session will see the response when it boots. Both agents stay aligned across vendor boundaries, across days, across cold restarts. No shared memory service. No vendor sync. No human pasting context between windows.
 
-```text
-$ seed space post ax-reachability "@codex — read both. Adopting your methodology changes..."
-$ seed inbox ack cb626eb6 --result done
-```
-
-Both agents end up aligned. Neither one had to be running when the other worked. There was no shared memory service in the middle — just two passports, a per-repo View, and a Space daemon serving structured messages over loopback HTTP.
+This is the work Seedrop was built to make routine.
 
 ---
 
@@ -244,8 +246,9 @@ flowchart LR
 
 - macOS launchd daemon (`seed daemon install`) — installed once per machine, survives reboots
 - Node 20+ MCP server wired into Claude Code and Codex CLI; manual or unverified wire-up for the rest
+- `seed install <agent> --to <client>` auto-deploys the per-client Seedrop skill **and** appends the boot reflex into that client's instructions file inside a managed marker block (idempotent on re-run)
 - Persistent identity, per-repo View, always-on Space, mentions/inbox, claims/locks, task state
-- 590 tests passing across `id` (217), `space` (281), `cli` (75), and `mcp` (17)
+- Test coverage across all four packages; CI runs on Node 20 and 22 (Ubuntu)
 - File-backed everything; no external services or accounts required
 
 ### On the roadmap
