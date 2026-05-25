@@ -131,6 +131,62 @@ describe("WorkspaceView tasks", () => {
     expect(reread.from_knowledge).toBe("knowledge/sprint-2026-05.md#auth");
   });
 
+  it("updates task metadata and appends blocked_by ids", async () => {
+    const v = view("codex");
+    const firstBlocker = await v.createTask({ title: "first blocker" });
+    const secondBlocker = await v.createTask({ title: "second blocker" });
+    const task = await v.createTask({ title: "dependent", blockedBy: [firstBlocker.task_id] });
+    await v.claimTask(task.task_id);
+
+    const updated = await v.updateTask({
+      taskId: task.task_id,
+      description: "Needs the blocker repair command.",
+      assignedNote: "Coordinate with Claude's lint task.",
+      fromKnowledge: "knowledge/dependency-process.md#lint",
+      blockedBy: [secondBlocker.task_id, firstBlocker.task_id],
+    });
+
+    expect(updated.description).toBe("Needs the blocker repair command.");
+    expect(updated.assigned_note).toBe("Coordinate with Claude's lint task.");
+    expect(updated.from_knowledge).toBe("knowledge/dependency-process.md#lint");
+    expect(updated.blocked_by).toEqual([firstBlocker.task_id, secondBlocker.task_id]);
+  });
+
+  it("replaces or clears blocked_by ids", async () => {
+    const v = view("codex");
+    const firstBlocker = await v.createTask({ title: "first blocker" });
+    const secondBlocker = await v.createTask({ title: "second blocker" });
+    const task = await v.createTask({ title: "dependent", blockedBy: [firstBlocker.task_id] });
+    await v.claimTask(task.task_id);
+
+    const replaced = await v.updateTask({
+      taskId: task.task_id,
+      blockedBy: [secondBlocker.task_id],
+      replaceBlockedBy: true,
+    });
+    expect(replaced.blocked_by).toEqual([secondBlocker.task_id]);
+
+    const cleared = await v.updateTask({
+      taskId: task.task_id,
+      replaceBlockedBy: true,
+    });
+    expect(cleared.blocked_by).toBeUndefined();
+  });
+
+  it("rejects metadata updates from non-owners and terminal tasks", async () => {
+    const task = await view("claude").createTask({ title: "owned" });
+    await view("claude").claimTask(task.task_id);
+    await expect(
+      view("codex").updateTask({ taskId: task.task_id, description: "nope" }),
+    ).rejects.toThrow(TaskConflictError);
+
+    await view("claude").startTask(task.task_id);
+    await view("claude").doneTask(task.task_id);
+    await expect(
+      view("claude").updateTask({ taskId: task.task_id, description: "too late" }),
+    ).rejects.toThrow(TaskConflictError);
+  });
+
   it("returns the existing task for the same dedup key and title", async () => {
     const v = view();
     const first = await v.createTask({ title: "stable task", dedupKey: "seedrop:test:stable" });
@@ -174,6 +230,18 @@ describe("WorkspaceView tasks", () => {
     const task = await v.createTask({ title: "linked" });
     await v.claimTask(task.task_id);
     const { run } = await v.startRun({ goal: "implement linked task", taskId: task.task_id });
+    const reread = await v.getTask(task.task_id);
+    expect(reread.related_runs).toContain(run.run_id);
+  });
+
+  it("seed run start --task accepts a unique task id prefix", async () => {
+    const v = view();
+    const task = await v.createTask({ title: "prefix-linked" });
+    await v.claimTask(task.task_id);
+    const { run } = await v.startRun({
+      goal: "implement prefix-linked task",
+      taskId: task.task_id.slice(0, 8),
+    });
     const reread = await v.getTask(task.task_id);
     expect(reread.related_runs).toContain(run.run_id);
   });

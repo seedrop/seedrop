@@ -553,6 +553,21 @@ async function taskCommand(command: string | undefined, args: ParsedArgs, view: 
     );
     return;
   }
+  if (command === "update") {
+    const taskId = await resolveId();
+    const blockedBy = await Promise.all((args.flags.get("blocked-by") ?? []).map((id) => view.resolveTaskId(id)));
+    printJson(
+      await view.updateTask({
+        taskId,
+        description: args.flags.get("description")?.[0],
+        assignedNote: args.flags.get("assigned-note")?.[0],
+        fromKnowledge: args.flags.get("from-knowledge")?.[0],
+        blockedBy,
+        replaceBlockedBy: args.flags.has("replace-blocked-by"),
+      }),
+    );
+    return;
+  }
   if (command === "start") {
     printJson(await view.startTask(await resolveId()));
     return;
@@ -904,6 +919,7 @@ Commands:
   run finish --status completed|blocked|failed [--force]
   handoff create --to A --summary S
   handoff list|read|accept
+  task update <id> [--description TEXT] [--assigned-note TEXT] [--from-knowledge REF] [--blocked-by ID] [--replace-blocked-by]
   claim <target> <intent>      Create a claim signal lease
   lock <target> <intent>       Create a lock signal lease
   signals                      List active signal leases

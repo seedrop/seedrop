@@ -226,6 +226,16 @@ export interface TaskDeclineInput {
   agent?: string;
 }
 
+export interface TaskUpdateInput {
+  taskId: string;
+  description?: string;
+  assignedNote?: string;
+  fromKnowledge?: string;
+  blockedBy?: string[];
+  replaceBlockedBy?: boolean;
+  agent?: string;
+}
+
 export interface TaskPauseInput {
   taskId: string;
   status?: "blocked" | "open";
@@ -566,9 +576,11 @@ export class WorkspaceView {
       };
     }
 
+    const resolvedTaskId = input.taskId ? await this.resolveTaskId(input.taskId) : undefined;
+
     if (!input.force) {
-      if (input.taskId) {
-        const task = await this.getTask(input.taskId);
+      if (resolvedTaskId) {
+        const task = await this.getTask(resolvedTaskId);
         if (task.owner && task.owner !== agentId && task.status !== "done" && task.status !== "dropped") {
           throw new WorkspaceRunTaskConflictError(task.task_id, task.owner, task.status);
         }
@@ -612,8 +624,8 @@ export class WorkspaceView {
       next_actions: [],
     };
     await this.writeRun(run);
-    if (input.taskId) {
-      await this.linkTaskRun(input.taskId, run.run_id);
+    if (resolvedTaskId) {
+      await this.linkTaskRun(resolvedTaskId, run.run_id);
     }
     if (input.claim && input.claim.length > 0) {
       for (const target of input.claim) {
@@ -960,6 +972,39 @@ export class WorkspaceView {
     delete task.assigned_note;
     task.status = "open";
     if (input.reason) task.decline_reason = input.reason;
+    task.updated_at = this.nowIso();
+    await this.writeJson(this.taskPath(task.task_id), task);
+    return task;
+  }
+
+  async updateTask(input: TaskUpdateInput): Promise<Task> {
+    const who = input.agent ?? this.agent;
+    const task = await this.getTask(input.taskId);
+    if (task.status === "done" || task.status === "dropped") {
+      throw new TaskConflictError(
+        `Task ${input.taskId} cannot be updated (status: ${task.status}).`,
+        { taskId: input.taskId, owner: task.owner, status: task.status, actor: who },
+      );
+    }
+    if (task.owner && task.owner !== who && task.assigned_by !== who) {
+      throw new TaskConflictError(
+        `Task ${input.taskId} is owned by ${task.owner}; only the owner or assigner can update metadata.`,
+        { taskId: input.taskId, owner: task.owner, status: task.status, actor: who },
+      );
+    }
+
+    if (input.description !== undefined) task.description = input.description;
+    if (input.assignedNote !== undefined) task.assigned_note = input.assignedNote;
+    if (input.fromKnowledge !== undefined) task.from_knowledge = input.fromKnowledge;
+    if (input.blockedBy !== undefined || input.replaceBlockedBy) {
+      const next = input.replaceBlockedBy
+        ? (input.blockedBy ?? [])
+        : [...(task.blocked_by ?? []), ...(input.blockedBy ?? [])];
+      const unique = Array.from(new Set(next));
+      if (unique.length > 0) task.blocked_by = unique;
+      else delete task.blocked_by;
+    }
+
     task.updated_at = this.nowIso();
     await this.writeJson(this.taskPath(task.task_id), task);
     return task;
