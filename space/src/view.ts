@@ -278,6 +278,7 @@ export interface ViewAuditOptions {
 
 const DEFAULT_DATA_DIR = ".seedrop/view";
 const DEFAULT_IGNORE = new Set([".git", "node_modules", "dist", "coverage", ".seedrop", ".DS_Store"]);
+const MAX_HASHED_FILE_BYTES = 50 * 1024 * 1024;
 const SUCCESS_LEVELS = ["L0", "L1", "L2", "L3", "L4"] as const;
 type ViewSuccessLevel = (typeof SUCCESS_LEVELS)[number];
 type ManifestFreshness = NonNullable<ViewBrief["manifest"]>["freshness"];
@@ -375,7 +376,28 @@ export class WorkspaceView {
 
     for (const filePath of files) {
       const absolutePath = path.join(this.root, filePath);
-      const [fileStat, buffer] = await Promise.all([stat(absolutePath), readFile(absolutePath)]);
+      let fileStat;
+      try {
+        fileStat = await stat(absolutePath);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        // File raced (deleted between scan and hash) or became unreadable. Skip.
+        if (code === "ENOENT" || code === "EPERM" || code === "EACCES") continue;
+        throw error;
+      }
+      // Huge files (>50MB) are almost never useful for orientation and
+      // crash readFile when they cross Node's 2 GiB buffer cap. Drop them
+      // from the manifest. Hit in $HOME-as-workspace setups (VM disk
+      // images, video libraries) — see #21.
+      if (fileStat.size > MAX_HASHED_FILE_BYTES) continue;
+      let buffer;
+      try {
+        buffer = await readFile(absolutePath);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === "ENOENT" || code === "EPERM" || code === "EACCES") continue;
+        throw error;
+      }
       const previousFile = previousByPath.get(filePath);
       const annotation = policyPurposes.get(filePath);
       const purpose = annotation?.purpose ?? previousFile?.purpose;
@@ -1914,7 +1936,17 @@ export class WorkspaceView {
     const out: string[] = [];
 
     const walk = async (dir: string): Promise<void> => {
-      const entries = await readdir(dir, { withFileTypes: true });
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        // Skip unreadable directories instead of aborting the whole scan.
+        // Hit in $HOME-as-workspace setups where macOS guards .Trash (EPERM),
+        // and on cross-mount or permission-stripped subtrees in general.
+        if (code === "EPERM" || code === "EACCES" || code === "ENOENT") return;
+        throw error;
+      }
       for (const entry of entries) {
         const absolutePath = path.join(dir, entry.name);
         const relativePath = normalizeRelativePath(path.relative(this.root, absolutePath));
