@@ -1453,6 +1453,19 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
     existsSync(activePath) ? null : "seed login <agent>",
   );
 
+  const seedOnPath = spawnSync("which", ["seed"], { encoding: "utf8" });
+  if (seedOnPath.status === 0 && seedOnPath.stdout.trim().length > 0) {
+    add("seed_on_path", "pass", `seed reachable on $PATH`, { resolved: seedOnPath.stdout.trim() });
+  } else {
+    add(
+      "seed_on_path",
+      "warn",
+      `seed is not on $PATH — interactive shells must invoke it by absolute path`,
+      { path_env: process.env.PATH ?? "" },
+      `npm install -g @seedrop/cli (after publish) or add ${join(dirname(fileURLToPath(import.meta.url)), "..", "bin")} to $PATH`,
+    );
+  }
+
   const command = resolveMcpServerCommand();
   const localScript = command.command === process.execPath ? command.args[0] : undefined;
   const commandOk = localScript ? existsSync(localScript) : command.command.length > 0;

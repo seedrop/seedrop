@@ -1130,6 +1130,18 @@ describe("seed init / doctor", () => {
     expect(JSON.stringify(clientConfigs.details)).toContain("operator_passport");
   });
 
+  it("doctor includes a seed_on_path check", async () => {
+    const io = createIo();
+    await runCli(["doctor", "--json"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+    const check = parsed.checks.find((c: { id: string }) => c.id === "seed_on_path");
+    expect(check).toBeDefined();
+    expect(["pass", "warn"]).toContain(check.status);
+    if (check.status === "warn") {
+      expect(check.next_command).toMatch(/PATH|@seedrop\/cli/);
+    }
+  });
+
   it("doctor reports invalid user client registry entries", async () => {
     await mkdir(join(process.env.HOME!, ".seedrop"), { recursive: true });
     await writeFile(
