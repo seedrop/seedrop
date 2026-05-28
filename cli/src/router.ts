@@ -195,6 +195,44 @@ async function runLogin(argv: readonly string[], io: RunCliIO): Promise<number> 
     return 1;
   }
 
+  // Guard against MCP-pinned agents silently mutating shared shell state.
+  // SEEDROP_PASSPORT is process-scoped (e.g. set in Codex CLI's MCP config),
+  // so writing active-passport.json from such a process only affects OTHER
+  // shells. A same-target login is almost always an accidental no-op; a
+  // cross-target login is legitimate but should not be silent.
+  const envPassport = process.env.SEEDROP_PASSPORT?.trim();
+  const force = argv.includes("--force");
+  if (envPassport && !force) {
+    if (samePassport(envPassport, target)) {
+      if (json) {
+        io.stdout.write(
+          JSON.stringify(
+            {
+              ok: true,
+              no_op: true,
+              reason: "process already authenticates via SEEDROP_PASSPORT (same target)",
+              agent_id: passport.agent_id,
+              passport: target,
+            },
+            null,
+            2,
+          ) + "\n",
+        );
+      } else {
+        io.stdout.write(
+          `already authenticated as ${passport.agent_id} via $SEEDROP_PASSPORT (process-scoped).\n` +
+            `not writing global active-passport state — that would silently change identity for other shells.\n` +
+            `re-run with --force if you intended to set the global default too.\n`,
+        );
+      }
+      return 0;
+    }
+    io.stdout.write(
+      `⚠ this process is pinned to ${envPassport} via $SEEDROP_PASSPORT and will not change.\n` +
+        `  writing active-passport will only affect other shells (those without SEEDROP_PASSPORT set).\n\n`,
+    );
+  }
+
   // Before switching identity, warn if the OUTGOING identity has
   // in_progress runs in this repo. Switching mid-flight orphans them —
   // subsequent `seed run log`/`finish` calls resolve under the new
@@ -247,6 +285,14 @@ function formatRepoViewStatus(cwd: string): string {
 }
 
 function sameDirectory(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return resolve(a) === resolve(b);
+  }
+}
+
+function samePassport(a: string, b: string): boolean {
   try {
     return realpathSync(a) === realpathSync(b);
   } catch {
@@ -404,7 +450,7 @@ const usage = `Usage:
   seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]
   seed bootstrap --as <agent> --name <human-name> --purpose "<mission>"
   seed bootstrap --as <bot>   --autonomous --name <name> --purpose "..."
-  seed login <agent>            (switch this shell's identity)
+  seed login <agent> [--force]  (switch this shell's identity; --force overrides env-pinned no-op)
   seed logout                   (back to operator default)
   seed whoami                   (show active passport + source)
   seed clients scan [--json]    (inventory supported MCP clients)

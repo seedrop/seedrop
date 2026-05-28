@@ -786,6 +786,57 @@ describe("seed login / logout / whoami", () => {
       process.chdir(prior);
     }
   });
+
+  it("login is a no-op when SEEDROP_PASSPORT already points at the same passport", async () => {
+    const path = await makeAgentPassport("codex");
+    process.env.SEEDROP_PASSPORT = path;
+    const io = createIo();
+    const code = await runCli(["login", "codex"], io, fakeRunner());
+    expect(code).toBe(0);
+    expect(io.stdoutText()).toContain("already authenticated as codex");
+    expect(io.stdoutText()).toContain("--force");
+    expect(io.stdoutText()).not.toContain("identity ready");
+    // active-passport.json must NOT have been written
+    const statePath = join(process.env.HOME!, ".seedrop", "state", "active-passport.json");
+    expect(existsSync(statePath)).toBe(false);
+  });
+
+  it("login with --force writes active-passport even when env points at the same target", async () => {
+    const path = await makeAgentPassport("codex");
+    process.env.SEEDROP_PASSPORT = path;
+    const io = createIo();
+    const code = await runCli(["login", "codex", "--force"], io, fakeRunner());
+    expect(code).toBe(0);
+    expect(io.stdoutText()).toContain("identity ready: codex");
+    const statePath = join(process.env.HOME!, ".seedrop", "state", "active-passport.json");
+    expect(existsSync(statePath)).toBe(true);
+  });
+
+  it("login warns when SEEDROP_PASSPORT pins a different passport, then proceeds", async () => {
+    await makeAgentPassport("claude");
+    const envPath = await makeAgentPassport("codex");
+    process.env.SEEDROP_PASSPORT = envPath;
+    const io = createIo();
+    const code = await runCli(["login", "claude"], io, fakeRunner());
+    expect(code).toBe(0);
+    expect(io.stdoutText()).toContain("pinned to");
+    expect(io.stdoutText()).toContain("SEEDROP_PASSPORT");
+    expect(io.stdoutText()).toContain("identity ready: claude");
+    const statePath = join(process.env.HOME!, ".seedrop", "state", "active-passport.json");
+    expect(existsSync(statePath)).toBe(true);
+  });
+
+  it("login --json no-op returns structured payload when env matches", async () => {
+    const path = await makeAgentPassport("codex");
+    process.env.SEEDROP_PASSPORT = path;
+    const io = createIo();
+    const code = await runCli(["login", "codex", "--json"], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.ok).toBe(true);
+    expect(parsed.no_op).toBe(true);
+    expect(parsed.agent_id).toBe("codex");
+  });
 });
 
 describe("seed install registry", () => {
