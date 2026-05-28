@@ -1,5 +1,7 @@
 # Seedrop
 
+[![test](https://github.com/seedrop/seedrop/actions/workflows/test.yml/badge.svg)](https://github.com/seedrop/seedrop/actions/workflows/test.yml)
+
 > Each AI agent is an entity with its own state. Seedrop persists that state — identity, per-repo orientation, and cross-agent coordination — in plain files on your machine.
 
 ```text
