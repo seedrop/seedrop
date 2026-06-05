@@ -278,6 +278,39 @@ describe("WorkspaceView", () => {
     expect(await view().listSignals({ includeExpired: true })).toEqual([]);
   });
 
+  it("supports dry-run and expired-only signal release while guarding broad active cleanup", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+
+    const active = await view().claimSignal({
+      target: "src/active.ts",
+      intent: "Active work",
+      ttlMs: 10_000,
+    });
+    const expired = await view().claimSignal({
+      target: "src/expired.ts",
+      intent: "Expired work",
+      ttlMs: 1_000,
+    });
+
+    now = new Date("2026-05-14T10:00:02.000Z");
+
+    const preview = await view().releaseSignal({ owner: "codex", expiredOnly: true, dryRun: true });
+    expect(preview).toEqual([expired]);
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(2);
+
+    const releasedExpired = await view().releaseSignal({ owner: "codex", expiredOnly: true });
+    expect(releasedExpired).toEqual([expired]);
+    expect(await view().listSignals({ includeExpired: true })).toEqual([active]);
+
+    await expect(view().releaseSignal({ owner: "codex" })).rejects.toThrow(/Refusing to release active signals/);
+    expect(await view().listSignals({ includeExpired: true })).toEqual([active]);
+
+    const releasedActive = await view().releaseSignal({ owner: "codex", force: true });
+    expect(releasedActive).toEqual([active]);
+    expect(await view().listSignals({ includeExpired: true })).toEqual([]);
+  });
+
   it("reports manifest drift without failing the whole audit for warnings", async () => {
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await view().sync();
@@ -303,6 +336,47 @@ describe("WorkspaceView", () => {
         },
       ]),
     );
+  });
+
+  it("audit warns when knowledge markdown is marked superseded", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await writeFile(
+      path.join(root, ".seedrop", "view", "knowledge", "mcp-cli-coverage.md"),
+      [
+        "---",
+        "status: superseded",
+        "updated_at: 2026-05-19T00:00:00.000Z",
+        "superseded_by: mcp/src/coverage.ts",
+        "validated_by: npm test --workspace @seedrop/mcp -- coverage.test.ts",
+        "---",
+        "# MCP CLI coverage",
+        "Old coverage notes.",
+        "",
+      ].join("\n"),
+    );
+
+    const audit = await view().audit();
+
+    expect(audit.ok).toBe(true);
+    expect(audit.issues).toContainEqual({
+      severity: "warning",
+      code: "knowledge_superseded",
+      message: "Knowledge file is marked superseded and should not drive current decisions.",
+      path: "knowledge/mcp-cli-coverage.md",
+    });
+    expect(audit.checks?.find((check) => check.id === "knowledge_freshness")).toMatchObject({
+      status: "warn",
+      details: {
+        files: [
+          {
+            path: "knowledge/mcp-cli-coverage.md",
+            status: "superseded",
+            superseded_by: "mcp/src/coverage.ts",
+          },
+        ],
+      },
+    });
   });
 
   it("reports a missing manifest as an audit error", async () => {

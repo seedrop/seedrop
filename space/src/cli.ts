@@ -287,6 +287,9 @@ async function run(args: ParsedArgs): Promise<void> {
         target: args.flags.get("target")?.[0] ?? args.values[0],
         owner: args.flags.get("owner")?.[0],
         type: signalType(args.flags.get("type")?.[0]),
+        expiredOnly: args.flags.has("expired"),
+        dryRun: args.flags.has("dry-run"),
+        force: args.flags.has("force"),
       }),
     );
     return;

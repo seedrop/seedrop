@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "task_id": "33333333-3333-4333-8333-333333333333",
+  "title": "Keep committed View fixture current",
+  "description": "Update the example when View schemas add required fields or handoff semantics change.",
+  "dedup_key": "docs/examples/view/current",
+  "status": "done",
+  "owner": "codex",
+  "assigned_by": "codex",
+  "from_knowledge": "knowledge/committed-view.md",
+  "created_at": "2026-06-04T09:00:00.000Z",
+  "updated_at": "2026-06-04T09:20:00.000Z",
+  "related_runs": [
+    "11111111-1111-4111-8111-111111111111"
+  ],
+  "related_handoffs": [
+    "22222222-2222-4222-8222-222222222222"
+  ]
+}

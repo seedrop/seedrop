@@ -152,6 +152,9 @@ export interface ReleaseSignalInput {
   type?: Signal["type"];
   target?: string;
   owner?: string;
+  expiredOnly?: boolean;
+  dryRun?: boolean;
+  force?: boolean;
 }
 
 export interface RunStartInput {
@@ -563,17 +566,28 @@ export class WorkspaceView {
 
   async releaseSignal(input: ReleaseSignalInput): Promise<Signal[]> {
     const signals = await this.listSignals({ includeExpired: true });
-    const released: Signal[] = [];
     // Relativize target at the input boundary so the comparison in
     // matchesSignal is apples-to-apples with the stored signal.target.
     const normalized: ReleaseSignalInput = input.target
       ? { ...input, target: this.toWorkspaceRelative(input.target) }
       : input;
+    const nowMs = this.now().getTime();
+    const matched = signals.filter((signal) => {
+      if (!matchesSignal(signal, normalized)) return false;
+      return !normalized.expiredOnly || Date.parse(signal.expires_at) <= nowMs;
+    });
+    if (normalized.dryRun) {
+      return matched;
+    }
+    const broadActiveRelease = !normalized.id && !normalized.target && matched.some((signal) => Date.parse(signal.expires_at) > nowMs);
+    if (broadActiveRelease && !normalized.force) {
+      throw new Error(
+        "Refusing to release active signals from a broad match. Use --expired to clean only expired signals, --target/--id to narrow the match, or --force to release active matches.",
+      );
+    }
 
-    for (const signal of signals) {
-      if (!matchesSignal(signal, normalized)) {
-        continue;
-      }
+    const released: Signal[] = [];
+    for (const signal of matched) {
       const filename = await this.findSignalFilename(signal.id);
       if (filename) {
         await unlink(path.join(this.signalsDir, filename));
@@ -1758,6 +1772,7 @@ export class WorkspaceView {
       }
     }
 
+    await this.collectKnowledgeFreshness(issues, checks, nextActions);
     await this.collectMalformedArtifacts("runs", this.runsDir, RunJournalSchema, issues, checks);
     await this.collectMalformedArtifacts("handoffs", this.handoffsDir, HandoffSchema, issues, checks);
     if (policyResult.errorMessage) {
@@ -2318,6 +2333,62 @@ export class WorkspaceView {
     });
   }
 
+  private async collectKnowledgeFreshness(
+    issues: AuditReport["issues"],
+    checks: ViewCheck[],
+    nextActions: NextAction[],
+  ): Promise<void> {
+    const files = await listMarkdownFiles(this.knowledgeDir);
+    if (files.length === 0) {
+      checks.push({ id: "knowledge_freshness", status: "skipped", summary: "No knowledge markdown files found.", path: "knowledge/" });
+      return;
+    }
+
+    const staleFiles: Array<Record<string, unknown>> = [];
+    let annotated = 0;
+    for (const file of files) {
+      const relativePath = normalizeRelativePath(path.relative(this.dataDir, file));
+      const metadata = parseKnowledgeFrontmatter(await readFile(file, "utf8"));
+      if (Object.keys(metadata).length > 0) annotated += 1;
+      if (metadata.status !== "stale" && metadata.status !== "superseded") continue;
+
+      staleFiles.push({
+        path: relativePath,
+        status: metadata.status,
+        superseded_by: metadata.superseded_by ?? null,
+        updated_at: metadata.updated_at ?? null,
+        validated_by: metadata.validated_by ?? null,
+      });
+      issues.push({
+        severity: "warning",
+        code: metadata.status === "superseded" ? "knowledge_superseded" : "knowledge_stale",
+        message: metadata.status === "superseded"
+          ? "Knowledge file is marked superseded and should not drive current decisions."
+          : "Knowledge file is marked stale and should be refreshed before use.",
+        path: relativePath,
+      });
+    }
+
+    if (staleFiles.length > 0) {
+      checks.push({
+        id: "knowledge_freshness",
+        status: "warn",
+        summary: `${staleFiles.length} knowledge file(s) are stale or superseded.`,
+        path: "knowledge/",
+        details: { files: staleFiles },
+      });
+      nextActions.push(commandAction("seed view audit --json", "low", "Review stale/superseded knowledge metadata and update or replace those files."));
+      return;
+    }
+
+    checks.push({
+      id: "knowledge_freshness",
+      status: "pass",
+      summary: `${files.length} knowledge file(s) checked; ${annotated} include freshness metadata.`,
+      path: "knowledge/",
+    });
+  }
+
   private async findSignalFilename(id: string): Promise<string | undefined> {
     const entries = await readdir(this.signalsDir, { withFileTypes: true });
     for (const entry of entries) {
@@ -2422,6 +2493,57 @@ function matchesSignal(signal: Signal, input: ReleaseSignalInput): boolean {
     return false;
   }
   return Boolean(input.id || input.type || input.target || input.owner);
+}
+
+async function listMarkdownFiles(dir: string): Promise<string[]> {
+  if (!existsSync(dir)) return [];
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await listMarkdownFiles(entryPath)));
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
+      files.push(entryPath);
+    }
+  }
+  return files.sort(comparePaths);
+}
+
+interface KnowledgeFrontmatter {
+  status?: string;
+  superseded_by?: string;
+  updated_at?: string;
+  validated_by?: string;
+}
+
+function parseKnowledgeFrontmatter(markdown: string): KnowledgeFrontmatter {
+  const lines = markdown.split(/\r?\n/);
+  if (lines[0] !== "---") return {};
+  const metadata: KnowledgeFrontmatter = {};
+  for (let index = 1; index < lines.length; index += 1) {
+    const line = lines[index]!;
+    if (line === "---") break;
+    const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+    if (!match) continue;
+    const key = match[1]!.replace(/-/g, "_");
+    const value = stripFrontmatterQuotes(match[2]!.trim());
+    if (key === "status") metadata.status = value;
+    else if (key === "superseded_by") metadata.superseded_by = value;
+    else if (key === "updated_at") metadata.updated_at = value;
+    else if (key === "validated_by") metadata.validated_by = value;
+  }
+  return metadata;
+}
+
+function stripFrontmatterQuotes(value: string): string {
+  if (
+    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
 
 function normalizeRelativePath(filePath: string): string {
