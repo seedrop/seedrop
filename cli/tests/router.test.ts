@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
@@ -162,7 +162,7 @@ describe("resolveCommand", () => {
     }
   });
 
-  it("bare `seed` resolves continuity when repo View exists even without a passport", async () => {
+  it("bare `seed` resolves boot when repo View exists even without a passport", async () => {
     const priorPassport = process.env.SEEDROP_PASSPORT;
     const priorCwd = process.cwd();
     const scratch = await mkdtemp(join(tmpdir(), "seed-view-router-test-"));
@@ -170,7 +170,7 @@ describe("resolveCommand", () => {
     await mkdir(join(scratch, ".seedrop", "view"), { recursive: true });
     process.chdir(scratch);
     try {
-      expect(resolveCommand([])).toBe("continuity");
+      expect(resolveCommand([])).toBe("boot");
     } finally {
       process.chdir(priorCwd);
       if (priorPassport === undefined) delete process.env.SEEDROP_PASSPORT;
@@ -364,6 +364,41 @@ describe("continuity", () => {
     expect(parsed.orientation.place.view_present).toBe(false);
     expect(parsed.orientation.next_action.kind).toBe("setup");
     expect(parsed.orientation.next_action.command).toBe("seed bootstrap");
+  });
+
+  it("boot --json returns the stateless-agent cold-start contract", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "demo");
+    const io = createIo();
+    const code = await runCli(["boot", "--json", "--cwd", scratch, "--peek"], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+
+    expect(parsed.schema_version).toBe("1.0");
+    expect(parsed.identity).toMatchObject({ present: true, agent_id: "codex" });
+    expect(parsed.place).toMatchObject({ view_present: true, workspace_id: "demo" });
+    expect(parsed).toHaveProperty("mission");
+    expect(parsed).toHaveProperty("freshness");
+    expect(parsed).toHaveProperty("coordination");
+    expect(parsed).toHaveProperty("safety");
+    expect(parsed.trust.map((entry: { label: string }) => entry.label)).toContain("live_local");
+    expect(parsed.next_action).toMatchObject({ kind: "focus", command: "seed run start --goal \"...\"" });
+  });
+
+  it("bare seed renders the boot report when orientation state exists", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "demo");
+    const prior = process.cwd();
+    process.chdir(scratch);
+    try {
+      const io = createIo();
+      const code = await runCli([], io, fakeRunner());
+      expect(code).toBe(0);
+      expect(io.stdoutText()).toContain("Seedrop Boot");
+      expect(io.stdoutText()).toContain("Next action:");
+    } finally {
+      process.chdir(prior);
+    }
   });
 
   it("suggests cd to an active project when continuity runs from HOME", async () => {
@@ -1069,6 +1104,7 @@ describe("seed init / doctor", () => {
     if (envSnapshot.home !== undefined) process.env.HOME = envSnapshot.home;
     if (envSnapshot.spaceUrl === undefined) delete process.env.SEEDROP_SPACE_URL;
     else process.env.SEEDROP_SPACE_URL = envSnapshot.spaceUrl;
+    vi.unstubAllGlobals();
     await rm(scratch, { recursive: true, force: true });
   });
 
@@ -1108,6 +1144,29 @@ describe("seed init / doctor", () => {
     expect(parsed.ok).toBe(false);
     expect(parsed.checks.map((check: { id: string }) => check.id)).toContain("operator_passport");
     expect(parsed.checks.find((check: { id: string }) => check.id === "daemon_health").status).toBe("fail");
+  });
+
+  it("doctor reports sandbox-denied daemon checks as warnings", async () => {
+    const cause = Object.assign(new Error("connect EPERM 127.0.0.1:18791"), {
+      code: "EPERM",
+      address: "127.0.0.1",
+      port: 18791,
+    });
+    const error = new TypeError("fetch failed");
+    Object.defineProperty(error, "cause", { value: cause });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+
+    const io = createIo();
+    const code = await runCli(["doctor", "--json"], io, fakeRunner());
+    expect(code).toBe(1);
+    const parsed = JSON.parse(io.stdoutText());
+    const reachable = parsed.checks.find((check: { id: string }) => check.id === "daemon_reachable");
+    const health = parsed.checks.find((check: { id: string }) => check.id === "daemon_health");
+    expect(reachable.status).toBe("warn");
+    expect(reachable.summary).toContain("runtime sandbox");
+    expect(reachable.details.error_kind).toBe("sandbox_denied");
+    expect(reachable.next_command).not.toBe("seed daemon install");
+    expect(health.status).toBe("warn");
   });
 
   it("doctor --json warns when a client is wired to the operator passport", async () => {

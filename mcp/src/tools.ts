@@ -131,6 +131,37 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "seedrop_boot",
+    description: desc(
+      "seed boot [--json] [--messages N]",
+      "Return the stateless-agent boot report: identity, place, mission, freshness, coordination, safety, trust labels, and one deterministic next action. Prefer this at session start when the agent needs one reliable answer for what to do now.",
+    ),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string", description: "Project directory to orient against. Defaults to the server's cwd." },
+        json: { type: "boolean", description: "Return structured JSON instead of human-readable Markdown.", default: true },
+        messages: { type: "number", description: "Max recent messages per joined space (default 5).", default: 5 },
+        passport: { type: "string", description: "Explicit passport path." },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        peek: { type: "boolean", description: "Do not advance the continuity watermark.", default: false },
+        since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cwd = strArg(args, "cwd");
+      const cmd = ["boot"];
+      if (args.json !== false) cmd.push("--json");
+      if (typeof args.messages === "number") cmd.push("--messages", String(args.messages));
+      pushStringFlag(cmd, args, "passport", "--passport");
+      pushStringFlag(cmd, args, "url", "--url");
+      if (args.peek === true) cmd.push("--peek");
+      pushStringFlag(cmd, args, "since", "--since");
+      return exec(cmd, cwd);
+    },
+  },
+  {
     name: "seedrop_bootstrap",
     description: desc(
       "seed bootstrap [--name <name>] [--purpose <purpose>] [--as <agent>] [--autonomous] [--no-link]",
@@ -1037,6 +1068,7 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
     orient: [
       { tool: "seedrop_index", use_when: "Discover Seedrop MCP tools grouped by intent.", example: {} },
       { tool: "seedrop_manual", use_when: "Load the Seedrop concepts and workflow guide once per session.", example: { section: "workflows" } },
+      { tool: "seedrop_boot", use_when: "Start a stateless-agent session and get the single safest next action.", example: { cwd: "/path/to/repo", json: true, peek: true } },
       { tool: "seedrop_continuity", use_when: "Start a Seedrop-aware session or answer 'where was I?'.", example: { cwd: "/path/to/repo", messages: 5 } },
       { tool: "seedrop_bootstrap", use_when: "Create first passport or link the current repo View.", example: { cwd: "/path/to/repo" } },
     ],

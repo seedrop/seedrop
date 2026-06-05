@@ -90,6 +90,7 @@ interface ViewRun {
   status: "in_progress" | "completed" | "blocked" | "failed";
   started_at?: string;
   updated_at?: string;
+  changed_paths?: string[];
   open_threads?: string[];
   validation?: Array<{ command: string; status: string; recorded_at: string }>;
   next_actions?: Array<{ command?: string; reason: string; kind: string }>;
@@ -191,6 +192,14 @@ interface JoinedSpaceSummary {
   unreachable?: boolean;
 }
 
+type FetchErrorKind = "sandbox_denied" | "timeout" | "http_error" | "fetch_failed";
+
+interface FetchJsonResult<T> {
+  value: T | null;
+  errorKind?: FetchErrorKind;
+  errorMessage?: string;
+}
+
 export interface ContinuityReport {
   passportPath: string;
   /** How the passport path was resolved (omitted only for older callers). */
@@ -284,10 +293,15 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     warnings.push(`View preflight has ${n} warning${n === 1 ? "" : "s"}. Run \`seed view preflight --json\` for details.`);
   }
 
-  const presence = await fetchJson<{ presence: PresenceRecord[] }>(`${opts.spaceUrl}/presence`);
+  const presenceResult = await fetchJsonResult<{ presence: PresenceRecord[] }>(`${opts.spaceUrl}/presence`);
+  const presence = presenceResult.value;
   const daemonReachable = presence !== null;
   if (!daemonReachable) {
-    warnings.push(`Space daemon at ${opts.spaceUrl} is not reachable. Try \`seed daemon status\`.`);
+    if (presenceResult.errorKind === "sandbox_denied") {
+      warnings.push(`Space daemon at ${opts.spaceUrl} could not be reached from this runtime sandbox. Try Seedrop MCP tools or run \`seed continuity\` outside the sandbox.`);
+    } else {
+      warnings.push(`Space daemon at ${opts.spaceUrl} is not reachable. Try \`seed daemon status\`.`);
+    }
   }
 
   // Auto-register a presence session if this passport has none yet. Combined
@@ -1111,19 +1125,54 @@ async function readViewHandoffs(dir: string): Promise<ViewHandoff[]> {
 }
 
 async function fetchJson<T>(url: string, passportId?: string): Promise<T | null> {
+  return (await fetchJsonResult<T>(url, passportId)).value;
+}
+
+async function fetchJsonResult<T>(url: string, passportId?: string): Promise<FetchJsonResult<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1500);
+    timer = setTimeout(() => controller.abort(), 1500);
     const response = await fetch(url, {
       signal: controller.signal,
       headers: passportId ? { "x-seedrop-passport": passportId } : {},
     });
-    clearTimeout(timer);
-    if (!response.ok) return null;
-    return (await response.json()) as T;
-  } catch {
-    return null;
+    if (!response.ok) {
+      return { value: null, errorKind: "http_error", errorMessage: `HTTP ${response.status}` };
+    }
+    return { value: (await response.json()) as T };
+  } catch (error) {
+    return {
+      value: null,
+      errorKind: classifyFetchError(error),
+      errorMessage: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
+}
+
+function classifyFetchError(error: unknown): FetchErrorKind {
+  if (isAbortError(error)) return "timeout";
+  if (errorChain(error).some((record) => record.code === "EPERM" || record.errno === "EPERM")) {
+    return "sandbox_denied";
+  }
+  return "fetch_failed";
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "name" in error && (error as { name?: unknown }).name === "AbortError";
+}
+
+function errorChain(error: unknown): Array<Record<string, unknown>> {
+  const records: Array<Record<string, unknown>> = [];
+  let current: unknown = error;
+  while (typeof current === "object" && current !== null) {
+    const record = current as Record<string, unknown>;
+    records.push(record);
+    current = record.cause;
+  }
+  return records;
 }
 
 async function postJson(url: string, body: unknown, passportId: string): Promise<void> {

@@ -27,6 +27,7 @@ import {
   upsertTomlServer,
 } from "./clients.js";
 import { runContinuity } from "./continuity.js";
+import { runBoot } from "./boot.js";
 import { seedError, renderCliError } from "./errors.js";
 import { runMigrateAcorn, failClosedIfUnmigrated } from "./migrate-acorn.js";
 
@@ -78,6 +79,15 @@ interface DoctorCheck {
   details: Record<string, unknown>;
   next_command: string | null;
   docs_url: string | null;
+}
+
+type DaemonErrorKind = "sandbox_denied" | "timeout" | "http_error" | "bad_health" | "fetch_failed";
+
+interface DaemonCheckResult {
+  ok: boolean;
+  health?: SpaceHealthResponse;
+  errorKind?: DaemonErrorKind;
+  errorMessage?: string;
 }
 
 interface ClientScanRow {
@@ -443,7 +453,8 @@ export interface CommandRunner {
 export type CommandPlan = CommandDispatch | CommandDispatch[];
 
 const usage = `Usage:
-  seed                          (alias for \`seed continuity\` — your boot block)
+  seed                          (agent boot: who am I, where am I, what is next)
+  seed boot [--json] [--messages N]
   seed init                     (guided one-shot local setup)
   seed continuity [--brief|--medium|--full] [--json] [--messages N]
   seed doctor [--fix]           (diagnose local setup + exact next commands)
@@ -471,6 +482,7 @@ const usage = `Usage:
 
 Examples:
   seed                          # who am I, where am I, what's next
+  seed boot --json              # structured stateless-agent boot report
   seed init                     # guided setup for this machine
   seed bootstrap --name mc --purpose "Operate seedrop"     # one-time, root principal
   seed bootstrap --as claude --name claude --purpose "..."  # add an agent under mc
@@ -491,12 +503,12 @@ Defaults:
   Space URL    $SEEDROP_SPACE_URL or http://127.0.0.1:18791
 `;
 
-export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "continuity" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
+export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "boot" | "continuity" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
   const [domain, ...rest] = argv;
 
   if (!domain) {
-    // Bare `seed` is the boot block when identity or repo View context is available.
-    return existsSync(defaultPassportPath()) || existsSync(join(process.cwd(), ".seedrop", "view")) ? "continuity" : "help";
+    // Bare `seed` is the stateless-agent boot block when identity or repo View context is available.
+    return existsSync(defaultPassportPath()) || existsSync(join(process.cwd(), ".seedrop", "view")) ? "boot" : "help";
   }
 
   if (domain === "help" || domain === "--help" || domain === "-h") {
@@ -515,6 +527,10 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
   if (domain === "init") return "init";
   if (domain === "doctor") return "doctor";
   if (domain === "print-boot-protocol") return "boot-protocol";
+
+  if (domain === "boot") {
+    return "boot";
+  }
 
   if (domain === "continuity") {
     return "continuity";
@@ -600,6 +616,14 @@ export async function runCli(
     }
     if (dispatch === "daemon") {
       return await runDaemon(argv.slice(1), io);
+    }
+    if (dispatch === "boot") {
+      const resolution = defaultPassportResolution();
+      return await runBoot(argv[0] === "boot" ? argv.slice(1) : argv, io, {
+        defaultPassport: resolution.path,
+        defaultPassportSource: resolution.source,
+        defaultUrl: defaultSpaceUrl(),
+      });
     }
     if (dispatch === "continuity") {
       const resolution = defaultPassportResolution();
@@ -1407,10 +1431,21 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
   if (daemon.ok) {
     add("daemon_reachable", "pass", `Space daemon reachable`, { url: defaultSpaceUrl() });
     add("daemon_health", "pass", `Space daemon health ok`, { health: daemon.health });
+  } else if (daemon.errorKind === "sandbox_denied") {
+    const details = { url: defaultSpaceUrl(), error_kind: daemon.errorKind, error: daemon.errorMessage ?? null };
+    add(
+      "daemon_reachable",
+      "warn",
+      `Space daemon reachability blocked by runtime sandbox`,
+      details,
+      "run seed doctor outside the sandbox or use Seedrop MCP tools",
+    );
+    add("daemon_health", "warn", `Space daemon health unavailable from this sandbox`, details, null);
   } else {
     const next = platform() === "darwin" ? "seed daemon install" : "seed space serve";
-    add("daemon_reachable", "fail", `Space daemon not reachable`, { url: defaultSpaceUrl() }, next);
-    add("daemon_health", "fail", `Space daemon health unavailable`, { url: defaultSpaceUrl() }, next);
+    const details = { url: defaultSpaceUrl(), error_kind: daemon.errorKind ?? "fetch_failed", error: daemon.errorMessage ?? null };
+    add("daemon_reachable", "fail", `Space daemon not reachable`, details, next);
+    add("daemon_health", "fail", `Space daemon health unavailable`, details, next);
   }
 
   const expectedPassports = [{ agent: "operator", path: operatorPath }, ...agentPassports].filter((passport) => existsSync(passport.path));
@@ -1596,18 +1631,52 @@ async function listAgentPassports(agentsDir: string): Promise<Array<{ agent: str
   return agents;
 }
 
-async function checkDaemon(url: string): Promise<{ ok: boolean; health?: SpaceHealthResponse }> {
+async function checkDaemon(url: string): Promise<DaemonCheckResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 800);
+    timer = setTimeout(() => controller.abort(), 800);
     const response = await fetch(`${url}/health`, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!response.ok) return { ok: false };
+    if (!response.ok) {
+      return { ok: false, errorKind: "http_error", errorMessage: `HTTP ${response.status}` };
+    }
     const health = await response.json() as SpaceHealthResponse;
-    return { ok: health.ok === true, health };
-  } catch {
-    return { ok: false };
+    return health.ok === true
+      ? { ok: true, health }
+      : { ok: false, health, errorKind: "bad_health", errorMessage: "health response ok=false" };
+  } catch (error) {
+    return {
+      ok: false,
+      errorKind: classifyDaemonFetchError(error),
+      errorMessage: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
+}
+
+function classifyDaemonFetchError(error: unknown): DaemonErrorKind {
+  if (isAbortError(error)) return "timeout";
+  const records = errorChain(error);
+  if (records.some((record) => record.code === "EPERM" || record.errno === "EPERM")) {
+    return "sandbox_denied";
+  }
+  return "fetch_failed";
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "name" in error && (error as { name?: unknown }).name === "AbortError";
+}
+
+function errorChain(error: unknown): Array<Record<string, unknown>> {
+  const records: Array<Record<string, unknown>> = [];
+  let current: unknown = error;
+  while (typeof current === "object" && current !== null) {
+    const record = current as Record<string, unknown>;
+    records.push(record);
+    current = record.cause;
+  }
+  return records;
 }
 
 function sameFilePath(a: string, b: string): boolean {
