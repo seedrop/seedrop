@@ -26,7 +26,7 @@ import {
   type ResolvedClientDefinition,
   upsertTomlServer,
 } from "./clients.js";
-import { runContinuity } from "./continuity.js";
+import { runContinuity, runFocus } from "./continuity.js";
 import { runBoot } from "./boot.js";
 import { seedError, renderCliError } from "./errors.js";
 import { runMigrateAcorn, failClosedIfUnmigrated } from "./migrate-acorn.js";
@@ -475,6 +475,7 @@ const usage = `Usage:
   seed boot [--json] [--messages N]
   seed init                     (guided one-shot local setup)
   seed continuity [--brief|--medium|--full] [--json] [--messages N]
+  seed focus [--json]           (~400-token mission-scoped pre-flight; does not advance the watermark)
   seed doctor [--fix]           (diagnose local setup + exact next commands)
   seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]
   seed bootstrap --as <agent> --name <human-name> --purpose "<mission>"
@@ -521,7 +522,7 @@ Defaults:
   Space URL    $SEEDROP_SPACE_URL or http://127.0.0.1:18791
 `;
 
-export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "boot" | "continuity" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
+export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "boot" | "continuity" | "focus" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
   const [domain, ...rest] = argv;
 
   if (!domain) {
@@ -552,6 +553,10 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
 
   if (domain === "continuity") {
     return "continuity";
+  }
+
+  if (domain === "focus") {
+    return "focus";
   }
 
   if (domain === "login") return "login";
@@ -646,6 +651,14 @@ export async function runCli(
     if (dispatch === "continuity") {
       const resolution = defaultPassportResolution();
       return await runContinuity(argv.slice(1), io, {
+        defaultPassport: resolution.path,
+        defaultPassportSource: resolution.source,
+        defaultUrl: defaultSpaceUrl(),
+      });
+    }
+    if (dispatch === "focus") {
+      const resolution = defaultPassportResolution();
+      return await runFocus(argv.slice(1), io, {
         defaultPassport: resolution.path,
         defaultPassportSource: resolution.source,
         defaultUrl: defaultSpaceUrl(),

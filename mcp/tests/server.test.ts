@@ -11,6 +11,7 @@ describe("tools registry", () => {
         "seedrop_continuity",
         "seedrop_daemon_status",
         "seedrop_diff",
+        "seedrop_focus",
         "seedrop_handoff_accept",
         "seedrop_handoff_create",
         "seedrop_handoff_list",

@@ -131,6 +131,30 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "seedrop_focus",
+    description: desc(
+      "seed focus [--json]",
+      "Compact ~400-token mission-scoped pre-flight: identity, current focus, the single next action, only the collision signals touching that focus, the top recommended reads, and an inbox flag. A cheap first read before deciding whether full `seed continuity` is needed. Never advances the continuity watermark. Returns Markdown by default; pass `json: true` for the structured subset.",
+    ),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string", description: "Project directory to orient against. Defaults to the server's cwd." },
+        json: { type: "boolean", description: "Return the structured focus subset instead of Markdown.", default: false },
+        passport: { type: "string", description: "Explicit passport path." },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["focus"];
+      if (args.json === true) cmd.push("--json");
+      pushStringFlag(cmd, args, "passport", "--passport");
+      pushStringFlag(cmd, args, "url", "--url");
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
     name: "seedrop_boot",
     description: desc(
       "seed boot [--json] [--messages N]",

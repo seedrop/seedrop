@@ -12,6 +12,7 @@ import {
   type CommandDispatch,
   type CommandRunner,
 } from "../src/index.js";
+import { WorkspaceView } from "@seedrop/space";
 
 describe("resolveCommand", () => {
   it("routes id commands to seed-id", () => {
@@ -186,6 +187,7 @@ describe("resolveCommand", () => {
     expect(resolveCommand(["bootstrap", "--name", "x"])).toBe("bootstrap");
     expect(resolveCommand(["daemon", "status"])).toBe("daemon");
     expect(resolveCommand(["continuity"])).toBe("continuity");
+    expect(resolveCommand(["focus"])).toBe("focus");
     expect(resolveCommand(["print-boot-protocol"])).toBe("boot-protocol");
     expect(resolveCommand(["id", "list"])).toBe("id-list");
     expect(resolveCommand(["clients", "scan"])).toBe("clients");
@@ -1485,6 +1487,88 @@ describe("whoami identity divergence (60733578)", () => {
     const io = createIo();
     await runCli(["whoami"], io, fakeRunner());
     expect(io.stdoutText()).not.toContain("identity divergence");
+  });
+});
+
+describe("focus (token-economy 1 — 0102baf4)", () => {
+  let scratch: string;
+  let envSnapshot: { passport?: string; spaceUrl?: string; home?: string };
+
+  beforeEach(async () => {
+    scratch = await mkdtemp(join(tmpdir(), "seed-focus-test-"));
+    envSnapshot = {
+      passport: process.env.SEEDROP_PASSPORT,
+      spaceUrl: process.env.SEEDROP_SPACE_URL,
+      home: process.env.HOME,
+    };
+    process.env.HOME = join(scratch, "home");
+    await mkdir(process.env.HOME, { recursive: true });
+    process.env.SEEDROP_PASSPORT = join(scratch, "passport.json");
+    process.env.SEEDROP_SPACE_URL = "http://127.0.0.1:1"; // unreachable: daemon calls fail fast
+    await writeFile(
+      process.env.SEEDROP_PASSPORT,
+      JSON.stringify({ schema_version: "1.0", agent_id: "claude", name: "claude", purpose: "t", active_projects: [] }),
+      "utf8",
+    );
+  });
+
+  afterEach(async () => {
+    if (envSnapshot.passport === undefined) delete process.env.SEEDROP_PASSPORT;
+    else process.env.SEEDROP_PASSPORT = envSnapshot.passport;
+    if (envSnapshot.spaceUrl === undefined) delete process.env.SEEDROP_SPACE_URL;
+    else process.env.SEEDROP_SPACE_URL = envSnapshot.spaceUrl;
+    if (envSnapshot.home !== undefined) process.env.HOME = envSnapshot.home;
+    await rm(scratch, { recursive: true, force: true });
+  });
+
+  // Build a View with a claude-owned in_progress run touching README.md, plus
+  // codex signals: one on the touched path, one unrelated, one lock. Uses the
+  // real clock so signals don't read as expired when the CLI re-opens the View.
+  async function seedView(): Promise<void> {
+    await writeFile(join(scratch, "README.md"), "# Demo\n");
+    const claude = WorkspaceView.open({ root: scratch, agent: "claude" });
+    await claude.sync();
+    await claude.startRun({ goal: "ship focus" });
+    await claude.logRun({ summary: "edit", changedPaths: ["README.md"] });
+    const codex = WorkspaceView.open({ root: scratch, agent: "codex" });
+    await codex.claimSignal({ target: "README.md", intent: "codex editing readme" });
+    await codex.claimSignal({ target: "docs/guide.md", intent: "codex docs" });
+    await codex.claimSignal({ type: "lock", target: "infra/deploy.ts", intent: "codex deploy lock" });
+  }
+
+  it("renders a compact packet: identity, focus, and a single next line", async () => {
+    await seedView();
+    const io = createIo();
+    const code = await runCli(["focus", "--cwd", scratch], io, fakeRunner());
+    expect(code).toBe(0);
+    const out = io.stdoutText();
+    expect(out).toContain("# Focus — claude");
+    expect(out).toContain("acting as: claude");
+    expect(out).toContain("focus: ship focus");
+    expect((out.match(/\n {2}next: {2}/g) ?? []).length).toBe(1);
+  });
+
+  it("scopes collisions to the current run's paths plus locks, tallying the rest", async () => {
+    await seedView();
+    const io = createIo();
+    await runCli(["focus", "--cwd", scratch, "--json"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+    const targets = parsed.collisions.map((c: { target: string }) => c.target);
+    expect(targets).toContain("README.md"); // touches the run's changed path
+    expect(targets).toContain("infra/deploy.ts"); // lock always surfaces
+    expect(targets).not.toContain("docs/guide.md"); // unrelated → not listed
+    expect(parsed.collisions_elsewhere).toBe(1); // the unrelated claim
+  });
+
+  it("does not advance the continuity watermark (peek pre-flight)", async () => {
+    await seedView();
+    const statePath = join(process.env.HOME as string, ".seedrop", "state", "continuity-claude.json");
+    expect(existsSync(statePath)).toBe(false);
+    const io = createIo();
+    await runCli(["focus", "--cwd", scratch, "--json"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.watermark_advanced).toBe(false);
+    expect(existsSync(statePath)).toBe(false); // peek never writes the watermark file
   });
 });
 

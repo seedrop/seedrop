@@ -512,6 +512,149 @@ function appendMediumCoordination(lines: string[], report: ContinuityReport): vo
   lines.push("");
 }
 
+interface FocusSignal {
+  target: string;
+  type: "claim" | "lock";
+  owner?: string;
+  intent?: string;
+}
+
+interface ScopedSignals {
+  /** True when the current run gives us paths to scope collisions against. */
+  hasFocusTargets: boolean;
+  /** Signals worth surfacing for the current focus. */
+  relevant: FocusSignal[];
+  /** Count of other-agent signals not relevant to the focus (shown as a tally). */
+  elsewhere: number;
+}
+
+/** Directory-aware path overlap, matching on "/" boundaries in both directions. */
+function pathsOverlap(a: string, b: string): boolean {
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
+/**
+ * Reduce the active signal set to the collisions that matter for the current
+ * focus: other agents' signals that either touch a path the current run is
+ * changing, or are locks (always high-risk). Everything else is counted but
+ * not listed — it stays fully visible in `seed continuity`. This is
+ * mission-scoping, not suppression of state.
+ */
+function scopeSignalsToFocus(report: ContinuityReport): ScopedSignals {
+  const me = report.passport?.agent_id;
+  const focusTargets = report.view.currentRun?.changed_paths ?? [];
+  const others = report.view.signals.filter((s) => s.owner !== me);
+  if (focusTargets.length === 0) {
+    // No current run → no focus paths to scope against; tally only.
+    return { hasFocusTargets: false, relevant: [], elsewhere: others.length };
+  }
+  const relevant = others.filter(
+    (s) => s.type === "lock" || focusTargets.some((ft) => pathsOverlap(ft, s.target)),
+  );
+  return {
+    hasFocusTargets: true,
+    relevant: relevant.map((s) => ({ target: s.target, type: s.type, owner: s.owner, intent: s.intent })),
+    elsewhere: others.length - relevant.length,
+  };
+}
+
+interface FocusProjection {
+  focus: string | null;
+  nextAction: OrientationNextAction;
+  scoped: ScopedSignals;
+  reads: Array<{ path: string; reason: string; priority: number }>;
+  inboxUnacked: number;
+  viewPresent: boolean;
+  passport: Passport | null;
+  passportSource?: PassportSource;
+  watermarkAdvanced: boolean;
+}
+
+/**
+ * Shared projection behind both the text and --json focus output, so the two
+ * never drift. Pure read over an already-built ContinuityReport.
+ */
+function focusProjection(report: ContinuityReport): FocusProjection {
+  const me = report.passport?.agent_id;
+  const workspaceFocus = (report.view.brief as { workspace?: { current_focus?: string } } | undefined)?.workspace?.current_focus;
+  const inProgressTask = me
+    ? report.view.activeTasks.find((t) => t.owner === me && t.status === "in_progress")
+    : undefined;
+  const reads = (
+    (report.view.brief as { manifest?: { recommended_reads?: Array<{ path: string; reason: string; priority: number }> } } | undefined)
+      ?.manifest?.recommended_reads ?? []
+  )
+    .slice()
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, 3);
+  return {
+    focus:
+      workspaceFocus ??
+      report.view.currentRun?.goal ??
+      inProgressTask?.title ??
+      report.view.latestPacket?.mission ??
+      null,
+    nextAction: report.orientation.next_action,
+    scoped: scopeSignalsToFocus(report),
+    reads,
+    inboxUnacked: report.inbox.unacked.length,
+    viewPresent: report.view.present,
+    passport: report.passport,
+    passportSource: report.passportSource,
+    watermarkAdvanced: report.watermarkAdvanced,
+  };
+}
+
+/**
+ * Render the compact, mission-scoped pre-flight packet (~400 tokens): identity,
+ * focus, the single next action, only the collisions touching that focus, the
+ * top recommended reads, and an inbox flag. A cheap first read before the agent
+ * decides whether it needs full `seed continuity`.
+ */
+export function renderFocus(report: ContinuityReport): string {
+  const fp = focusProjection(report);
+  const p = fp.passport;
+  const agent = p?.agent_id ?? p?.name ?? "(no passport yet)";
+  const lines: string[] = [];
+
+  lines.push(`# Focus — ${agent}`);
+  if (p) lines.push(`  acting as: ${p.agent_id}${formatPassportSourceTag(fp.passportSource)}`);
+  lines.push(`  focus: ${fp.focus ?? "(no focus recorded)"}`);
+  lines.push(`  next:  ${formatNextAction(fp.nextAction)}`);
+
+  if (fp.viewPresent) {
+    const s = fp.scoped;
+    if (!s.hasFocusTargets) {
+      lines.push(
+        `  collisions: ${s.elsewhere === 0 ? "none" : `${s.elsewhere} active signal(s) — no current run to scope against (\`seed continuity\`)`}`,
+      );
+    } else if (s.relevant.length === 0) {
+      lines.push(`  collisions: none touching your focus${s.elsewhere > 0 ? ` (${s.elsewhere} elsewhere)` : ""}`);
+    } else {
+      lines.push("  collisions:");
+      for (const sig of s.relevant.slice(0, 5)) {
+        const lock = sig.type === "lock" ? "🔒 " : "";
+        const owner = sig.owner ? ` (${sig.owner})` : "";
+        const intent = sig.intent ? ` — ${truncate(sig.intent, 50)}` : "";
+        lines.push(`    - ${lock}${sig.target}${owner}${intent}`);
+      }
+      if (s.elsewhere > 0) lines.push(`    (+${s.elsewhere} elsewhere — \`seed continuity\`)`);
+    }
+  }
+
+  if (fp.viewPresent && fp.reads.length > 0) {
+    lines.push("  reads:");
+    for (const r of fp.reads) lines.push(`    - ${r.path} — ${truncate(r.reason, 70)}`);
+  }
+
+  if (fp.inboxUnacked > 0) {
+    lines.push(`  inbox: ⚠ ${fp.inboxUnacked} unacked mention(s) — \`seed inbox\``);
+  }
+
+  lines.push("");
+  return lines.join("\n");
+}
+
 function renderContinuityFull(report: ContinuityReport): string {
   const lines: string[] = [];
   const p = report.passport;
@@ -1216,6 +1359,47 @@ export async function runContinuity(
     io.stdout.write(JSON.stringify(report, null, 2) + "\n");
   } else {
     io.stdout.write(renderContinuity(report, mode));
+  }
+  return 0;
+}
+
+export async function runFocus(
+  argv: readonly string[],
+  io: RunCliIO,
+  opts: { defaultPassport: string; defaultPassportSource?: PassportSource; defaultUrl: string },
+): Promise<number> {
+  // Mirrors runContinuity's resolution, but focus is a cheap pre-flight: it
+  // NEVER advances the continuity watermark (peek: true), so calling it does
+  // not consume "what's new since I last looked".
+  const explicit = readFlag(argv, "passport");
+  const passportPath = explicit ?? opts.defaultPassport;
+  const passportSource: PassportSource = explicit ? "env" : (opts.defaultPassportSource ?? "operator");
+  const spaceUrl = readFlag(argv, "url") ?? opts.defaultUrl;
+  const cwd = resolve(readFlag(argv, "cwd") ?? process.cwd());
+  const place = resolveOrientationRoot(cwd);
+  const json = argv.includes("--json");
+
+  const report = await buildContinuity({ passportPath, passportSource, spaceUrl, cwd, root: place.root, rootKind: place.kind, peek: true });
+  if (json) {
+    const fp = focusProjection(report);
+    io.stdout.write(
+      JSON.stringify(
+        {
+          agent: report.passport?.agent_id ?? null,
+          focus: fp.focus,
+          next_action: fp.nextAction,
+          collisions: fp.scoped.relevant,
+          collisions_elsewhere: fp.scoped.elsewhere,
+          reads: fp.reads,
+          inbox_unacked: fp.inboxUnacked,
+          watermark_advanced: fp.watermarkAdvanced,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  } else {
+    io.stdout.write(renderFocus(report));
   }
   return 0;
 }
