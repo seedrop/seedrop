@@ -9,6 +9,7 @@ export interface CliCommandCoverage {
 
 export const CLI_COMMAND_SURFACE = [
   "seed",
+  "seed boot",
   "seed bootstrap",
   "seed clients scan",
   "seed continuity",
@@ -81,7 +82,8 @@ export const MCP_ONLY_COMMANDS = ["MCP-only: seedrop_index"] as const;
 
 export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "MCP-only: seedrop_index", status: "mcp_only", tools: ["seedrop_index"], reason: "Local MCP catalog for routing tool choice; no CLI equivalent by design." },
-  { command: "seed", status: "covered", tools: ["seedrop_continuity"], reason: "Bare seed aliases continuity, and MCP exposes continuity detail/url/passport options." },
+  { command: "seed", status: "covered", tools: ["seedrop_boot"], reason: "Bare seed now renders the Situation brief, and MCP exposes the same Situation packet directly." },
+  { command: "seed boot", status: "covered", tools: ["seedrop_boot"], reason: "Boot is wrapped with Situation JSON, messages, passport/url, peek, and since options." },
   { command: "seed bootstrap", status: "covered", tools: ["seedrop_bootstrap"], reason: "Setup/link flow is wrapped with agent, autonomous, passport, identity, and space-root flags." },
   { command: "seed clients scan", status: "cli_only", reason: "Local client inventory is an operator/admin workflow." },
   { command: "seed continuity", status: "covered", tools: ["seedrop_continuity"], reason: "Continuity is wrapped with json/messages, detail mode, passport/url, peek, and since options." },

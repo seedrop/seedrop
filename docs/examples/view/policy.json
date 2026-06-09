@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Demonstrate a commit-friendly Seedrop View packet for handoff-ready orientation.",
+  "current_focus": "Keep repo-local orientation reviewable in git.",
+  "required_success_level": "L4",
+  "freshness_ttl_hours": 168,
+  "path_purposes": {
+    "README.md": {
+      "purpose": "Project overview and operating contract.",
+      "owner": "docs",
+      "confidence": 0.95,
+      "recommended_read_reason": "Start with the public contract",
+      "recommended_read_priority": 1
+    },
+    "space/src/view.ts": {
+      "purpose": "Workspace View implementation.",
+      "owner": "space",
+      "confidence": 0.9,
+      "recommended_read_reason": "Inspect View behavior",
+      "recommended_read_priority": 2
+    }
+  },
+  "preferred_verification_commands": [
+    "npm test --workspace @seedrop/space -- view.test.ts"
+  ],
+  "handoff_policy": "Include changed paths, validation evidence, blockers, risks, and next actions.",
+  "claim_policy": "Claim precise files before meaningful edits and release expired claims with --expired."
+}

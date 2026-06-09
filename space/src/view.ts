@@ -10,6 +10,7 @@ import {
   TaskNotFoundError,
   WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
+  WorkspaceRunOwnershipError,
   WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
   WorkspaceViewParseError,
@@ -103,6 +104,7 @@ export {
   TaskNotFoundError,
   WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
+  WorkspaceRunOwnershipError,
   WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
   WorkspaceViewError,
@@ -152,6 +154,9 @@ export interface ReleaseSignalInput {
   type?: Signal["type"];
   target?: string;
   owner?: string;
+  expiredOnly?: boolean;
+  dryRun?: boolean;
+  force?: boolean;
 }
 
 export interface RunStartInput {
@@ -278,6 +283,7 @@ export interface ViewAuditOptions {
 
 const DEFAULT_DATA_DIR = ".seedrop/view";
 const DEFAULT_IGNORE = new Set([".git", "node_modules", "dist", "coverage", ".seedrop", ".DS_Store"]);
+const MAX_HASHED_FILE_BYTES = 50 * 1024 * 1024;
 const SUCCESS_LEVELS = ["L0", "L1", "L2", "L3", "L4"] as const;
 type ViewSuccessLevel = (typeof SUCCESS_LEVELS)[number];
 type ManifestFreshness = NonNullable<ViewBrief["manifest"]>["freshness"];
@@ -375,7 +381,28 @@ export class WorkspaceView {
 
     for (const filePath of files) {
       const absolutePath = path.join(this.root, filePath);
-      const [fileStat, buffer] = await Promise.all([stat(absolutePath), readFile(absolutePath)]);
+      let fileStat;
+      try {
+        fileStat = await stat(absolutePath);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        // File raced (deleted between scan and hash) or became unreadable. Skip.
+        if (code === "ENOENT" || code === "EPERM" || code === "EACCES") continue;
+        throw error;
+      }
+      // Huge files (>50MB) are almost never useful for orientation and
+      // crash readFile when they cross Node's 2 GiB buffer cap. Drop them
+      // from the manifest. Hit in $HOME-as-workspace setups (VM disk
+      // images, video libraries) — see #21.
+      if (fileStat.size > MAX_HASHED_FILE_BYTES) continue;
+      let buffer;
+      try {
+        buffer = await readFile(absolutePath);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === "ENOENT" || code === "EPERM" || code === "EACCES") continue;
+        throw error;
+      }
       const previousFile = previousByPath.get(filePath);
       const annotation = policyPurposes.get(filePath);
       const purpose = annotation?.purpose ?? previousFile?.purpose;
@@ -541,17 +568,28 @@ export class WorkspaceView {
 
   async releaseSignal(input: ReleaseSignalInput): Promise<Signal[]> {
     const signals = await this.listSignals({ includeExpired: true });
-    const released: Signal[] = [];
     // Relativize target at the input boundary so the comparison in
     // matchesSignal is apples-to-apples with the stored signal.target.
     const normalized: ReleaseSignalInput = input.target
       ? { ...input, target: this.toWorkspaceRelative(input.target) }
       : input;
+    const nowMs = this.now().getTime();
+    const matched = signals.filter((signal) => {
+      if (!matchesSignal(signal, normalized)) return false;
+      return !normalized.expiredOnly || Date.parse(signal.expires_at) <= nowMs;
+    });
+    if (normalized.dryRun) {
+      return matched;
+    }
+    const broadActiveRelease = !normalized.id && !normalized.target && matched.some((signal) => Date.parse(signal.expires_at) > nowMs);
+    if (broadActiveRelease && !normalized.force) {
+      throw new Error(
+        "Refusing to release active signals from a broad match. Use --expired to clean only expired signals, --target/--id to narrow the match, or --force to release active matches.",
+      );
+    }
 
-    for (const signal of signals) {
-      if (!matchesSignal(signal, normalized)) {
-        continue;
-      }
+    const released: Signal[] = [];
+    for (const signal of matched) {
       const filename = await this.findSignalFilename(signal.id);
       if (filename) {
         await unlink(path.join(this.signalsDir, filename));
@@ -649,6 +687,15 @@ export class WorkspaceView {
       const fullId = await this.resolveRunId(input.runId);
       const run = (await this.listRuns()).find((r) => r.run_id === fullId);
       if (!run) throw new Error(`Run ${fullId} not found.`);
+      // Guard against silent cross-owner takeover: targeting a run by id must
+      // not let one identity mutate (log/verify/finish) another agent's run
+      // and misattribute the work. The resolving identity is `input.agent ??
+      // this.agent`, so the documented `seed run finish --agent <owner>`
+      // recovery path still resolves cleanly to the owner.
+      const resolvedAgent = input.agent ?? this.agent;
+      if (run.agent_id !== resolvedAgent) {
+        throw new WorkspaceRunOwnershipError(run.run_id, run.agent_id, resolvedAgent);
+      }
       return run;
     }
     return this.requireActiveRun(input.agent);
@@ -1736,6 +1783,7 @@ export class WorkspaceView {
       }
     }
 
+    await this.collectKnowledgeFreshness(issues, checks, nextActions);
     await this.collectMalformedArtifacts("runs", this.runsDir, RunJournalSchema, issues, checks);
     await this.collectMalformedArtifacts("handoffs", this.handoffsDir, HandoffSchema, issues, checks);
     if (policyResult.errorMessage) {
@@ -1914,7 +1962,17 @@ export class WorkspaceView {
     const out: string[] = [];
 
     const walk = async (dir: string): Promise<void> => {
-      const entries = await readdir(dir, { withFileTypes: true });
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        // Skip unreadable directories instead of aborting the whole scan.
+        // Hit in $HOME-as-workspace setups where macOS guards .Trash (EPERM),
+        // and on cross-mount or permission-stripped subtrees in general.
+        if (code === "EPERM" || code === "EACCES" || code === "ENOENT") return;
+        throw error;
+      }
       for (const entry of entries) {
         const absolutePath = path.join(dir, entry.name);
         const relativePath = normalizeRelativePath(path.relative(this.root, absolutePath));
@@ -2286,6 +2344,62 @@ export class WorkspaceView {
     });
   }
 
+  private async collectKnowledgeFreshness(
+    issues: AuditReport["issues"],
+    checks: ViewCheck[],
+    nextActions: NextAction[],
+  ): Promise<void> {
+    const files = await listMarkdownFiles(this.knowledgeDir);
+    if (files.length === 0) {
+      checks.push({ id: "knowledge_freshness", status: "skipped", summary: "No knowledge markdown files found.", path: "knowledge/" });
+      return;
+    }
+
+    const staleFiles: Array<Record<string, unknown>> = [];
+    let annotated = 0;
+    for (const file of files) {
+      const relativePath = normalizeRelativePath(path.relative(this.dataDir, file));
+      const metadata = parseKnowledgeFrontmatter(await readFile(file, "utf8"));
+      if (Object.keys(metadata).length > 0) annotated += 1;
+      if (metadata.status !== "stale" && metadata.status !== "superseded") continue;
+
+      staleFiles.push({
+        path: relativePath,
+        status: metadata.status,
+        superseded_by: metadata.superseded_by ?? null,
+        updated_at: metadata.updated_at ?? null,
+        validated_by: metadata.validated_by ?? null,
+      });
+      issues.push({
+        severity: "warning",
+        code: metadata.status === "superseded" ? "knowledge_superseded" : "knowledge_stale",
+        message: metadata.status === "superseded"
+          ? "Knowledge file is marked superseded and should not drive current decisions."
+          : "Knowledge file is marked stale and should be refreshed before use.",
+        path: relativePath,
+      });
+    }
+
+    if (staleFiles.length > 0) {
+      checks.push({
+        id: "knowledge_freshness",
+        status: "warn",
+        summary: `${staleFiles.length} knowledge file(s) are stale or superseded.`,
+        path: "knowledge/",
+        details: { files: staleFiles },
+      });
+      nextActions.push(commandAction("seed view audit --json", "low", "Review stale/superseded knowledge metadata and update or replace those files."));
+      return;
+    }
+
+    checks.push({
+      id: "knowledge_freshness",
+      status: "pass",
+      summary: `${files.length} knowledge file(s) checked; ${annotated} include freshness metadata.`,
+      path: "knowledge/",
+    });
+  }
+
   private async findSignalFilename(id: string): Promise<string | undefined> {
     const entries = await readdir(this.signalsDir, { withFileTypes: true });
     for (const entry of entries) {
@@ -2390,6 +2504,57 @@ function matchesSignal(signal: Signal, input: ReleaseSignalInput): boolean {
     return false;
   }
   return Boolean(input.id || input.type || input.target || input.owner);
+}
+
+async function listMarkdownFiles(dir: string): Promise<string[]> {
+  if (!existsSync(dir)) return [];
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await listMarkdownFiles(entryPath)));
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
+      files.push(entryPath);
+    }
+  }
+  return files.sort(comparePaths);
+}
+
+interface KnowledgeFrontmatter {
+  status?: string;
+  superseded_by?: string;
+  updated_at?: string;
+  validated_by?: string;
+}
+
+function parseKnowledgeFrontmatter(markdown: string): KnowledgeFrontmatter {
+  const lines = markdown.split(/\r?\n/);
+  if (lines[0] !== "---") return {};
+  const metadata: KnowledgeFrontmatter = {};
+  for (let index = 1; index < lines.length; index += 1) {
+    const line = lines[index]!;
+    if (line === "---") break;
+    const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+    if (!match) continue;
+    const key = match[1]!.replace(/-/g, "_");
+    const value = stripFrontmatterQuotes(match[2]!.trim());
+    if (key === "status") metadata.status = value;
+    else if (key === "superseded_by") metadata.superseded_by = value;
+    else if (key === "updated_at") metadata.updated_at = value;
+    else if (key === "validated_by") metadata.validated_by = value;
+  }
+  return metadata;
+}
+
+function stripFrontmatterQuotes(value: string): string {
+  if (
+    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
 
 function normalizeRelativePath(filePath: string): string {

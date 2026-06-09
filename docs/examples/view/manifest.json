@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "workspace_id": "seedrop-example",
+  "root": ".",
+  "updated_at": "2026-06-04T10:00:00.000Z",
+  "files": [
+    {
+      "path": "README.md",
+      "kind": "doc",
+      "size_bytes": 4200,
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "purpose": "Project overview and operating contract.",
+      "owner": "docs",
+      "confidence": 0.95
+    },
+    {
+      "path": "space/src/view.ts",
+      "kind": "source",
+      "size_bytes": 90000,
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "purpose": "Workspace View implementation.",
+      "owner": "space",
+      "confidence": 0.9
+    }
+  ],
+  "path_purposes": [
+    {
+      "path": "README.md",
+      "purpose": "Orientation for humans and agents.",
+      "owner": "docs",
+      "confidence": 0.95
+    },
+    {
+      "path": "space/src/view.ts",
+      "purpose": "Source of truth for View behavior.",
+      "owner": "space",
+      "confidence": 0.9
+    }
+  ],
+  "recommended_reads": [
+    {
+      "path": "README.md",
+      "reason": "Project overview",
+      "priority": 1
+    },
+    {
+      "path": "space/src/view.ts",
+      "reason": "View behavior source",
+      "priority": 2
+    }
+  ]
+}

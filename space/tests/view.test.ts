@@ -80,6 +80,38 @@ describe("WorkspaceView", () => {
     expect(stored.files[0].hash).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("drops files larger than the hash cap from the manifest", async () => {
+    // Manifests are an orientation tool, not a backup index. Files over
+    // 50MB crash readFile past Node's 2 GiB cap and are almost never useful
+    // for orientation. They should be silently excluded.
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    // Allocate a 51MB sparse file via truncate (no actual bytes written).
+    const big = path.join(root, "huge.bin");
+    spawnSync("dd", ["if=/dev/zero", `of=${big}`, "bs=1m", "count=51"], { stdio: "ignore" });
+    const manifest = await view().sync({ workspaceId: "demo" });
+    expect(manifest.files.map((file) => file.path)).toEqual(["README.md"]);
+  });
+
+  it("skips unreadable subdirectories instead of aborting the whole scan", async () => {
+    // Repro of #21: `seed view sync` against ~/.seedrop/view crashed on
+    // EPERM when the walker hit $HOME/.Trash. The fix: skip EPERM/EACCES/
+    // ENOENT and continue, so unreadable subtrees do not nuke the manifest.
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await mkdir(path.join(root, "src"));
+    await writeFile(path.join(root, "src", "index.ts"), "export const ok = true;\n");
+    const unreadable = path.join(root, "blocked");
+    await mkdir(unreadable);
+    await writeFile(path.join(unreadable, "secret.txt"), "noise\n");
+    spawnSync("chmod", ["000", unreadable]);
+
+    try {
+      const manifest = await view().sync({ workspaceId: "demo" });
+      expect(manifest.files.map((file) => file.path)).toEqual(["README.md", "src/index.ts"]);
+    } finally {
+      spawnSync("chmod", ["755", unreadable]);
+    }
+  });
+
   it("applies policy ignores, path purposes, recommended reads, and success requirements", async () => {
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await writeFile(path.join(root, "package.json"), '{"scripts":{"test":"vitest run"}}\n');
@@ -246,6 +278,39 @@ describe("WorkspaceView", () => {
     expect(await view().listSignals({ includeExpired: true })).toEqual([]);
   });
 
+  it("supports dry-run and expired-only signal release while guarding broad active cleanup", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+
+    const active = await view().claimSignal({
+      target: "src/active.ts",
+      intent: "Active work",
+      ttlMs: 10_000,
+    });
+    const expired = await view().claimSignal({
+      target: "src/expired.ts",
+      intent: "Expired work",
+      ttlMs: 1_000,
+    });
+
+    now = new Date("2026-05-14T10:00:02.000Z");
+
+    const preview = await view().releaseSignal({ owner: "codex", expiredOnly: true, dryRun: true });
+    expect(preview).toEqual([expired]);
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(2);
+
+    const releasedExpired = await view().releaseSignal({ owner: "codex", expiredOnly: true });
+    expect(releasedExpired).toEqual([expired]);
+    expect(await view().listSignals({ includeExpired: true })).toEqual([active]);
+
+    await expect(view().releaseSignal({ owner: "codex" })).rejects.toThrow(/Refusing to release active signals/);
+    expect(await view().listSignals({ includeExpired: true })).toEqual([active]);
+
+    const releasedActive = await view().releaseSignal({ owner: "codex", force: true });
+    expect(releasedActive).toEqual([active]);
+    expect(await view().listSignals({ includeExpired: true })).toEqual([]);
+  });
+
   it("reports manifest drift without failing the whole audit for warnings", async () => {
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await view().sync();
@@ -271,6 +336,47 @@ describe("WorkspaceView", () => {
         },
       ]),
     );
+  });
+
+  it("audit warns when knowledge markdown is marked superseded", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await writeFile(
+      path.join(root, ".seedrop", "view", "knowledge", "mcp-cli-coverage.md"),
+      [
+        "---",
+        "status: superseded",
+        "updated_at: 2026-05-19T00:00:00.000Z",
+        "superseded_by: mcp/src/coverage.ts",
+        "validated_by: npm test --workspace @seedrop/mcp -- coverage.test.ts",
+        "---",
+        "# MCP CLI coverage",
+        "Old coverage notes.",
+        "",
+      ].join("\n"),
+    );
+
+    const audit = await view().audit();
+
+    expect(audit.ok).toBe(true);
+    expect(audit.issues).toContainEqual({
+      severity: "warning",
+      code: "knowledge_superseded",
+      message: "Knowledge file is marked superseded and should not drive current decisions.",
+      path: "knowledge/mcp-cli-coverage.md",
+    });
+    expect(audit.checks?.find((check) => check.id === "knowledge_freshness")).toMatchObject({
+      status: "warn",
+      details: {
+        files: [
+          {
+            path: "knowledge/mcp-cli-coverage.md",
+            status: "superseded",
+            superseded_by: "mcp/src/coverage.ts",
+          },
+        ],
+      },
+    });
   });
 
   it("reports a missing manifest as an audit error", async () => {

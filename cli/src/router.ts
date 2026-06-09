@@ -27,6 +27,7 @@ import {
   upsertTomlServer,
 } from "./clients.js";
 import { runContinuity } from "./continuity.js";
+import { runBoot } from "./boot.js";
 import { seedError, renderCliError } from "./errors.js";
 import { runMigrateAcorn, failClosedIfUnmigrated } from "./migrate-acorn.js";
 
@@ -78,6 +79,15 @@ interface DoctorCheck {
   details: Record<string, unknown>;
   next_command: string | null;
   docs_url: string | null;
+}
+
+type DaemonErrorKind = "sandbox_denied" | "timeout" | "http_error" | "bad_health" | "fetch_failed";
+
+interface DaemonCheckResult {
+  ok: boolean;
+  health?: SpaceHealthResponse;
+  errorKind?: DaemonErrorKind;
+  errorMessage?: string;
 }
 
 interface ClientScanRow {
@@ -195,6 +205,44 @@ async function runLogin(argv: readonly string[], io: RunCliIO): Promise<number> 
     return 1;
   }
 
+  // Guard against MCP-pinned agents silently mutating shared shell state.
+  // SEEDROP_PASSPORT is process-scoped (e.g. set in Codex CLI's MCP config),
+  // so writing active-passport.json from such a process only affects OTHER
+  // shells. A same-target login is almost always an accidental no-op; a
+  // cross-target login is legitimate but should not be silent.
+  const envPassport = process.env.SEEDROP_PASSPORT?.trim();
+  const force = argv.includes("--force");
+  if (envPassport && !force) {
+    if (samePassport(envPassport, target)) {
+      if (json) {
+        io.stdout.write(
+          JSON.stringify(
+            {
+              ok: true,
+              no_op: true,
+              reason: "process already authenticates via SEEDROP_PASSPORT (same target)",
+              agent_id: passport.agent_id,
+              passport: target,
+            },
+            null,
+            2,
+          ) + "\n",
+        );
+      } else {
+        io.stdout.write(
+          `already authenticated as ${passport.agent_id} via $SEEDROP_PASSPORT (process-scoped).\n` +
+            `not writing global active-passport state — that would silently change identity for other shells.\n` +
+            `re-run with --force if you intended to set the global default too.\n`,
+        );
+      }
+      return 0;
+    }
+    io.stdout.write(
+      `⚠ this process is pinned to ${envPassport} via $SEEDROP_PASSPORT and will not change.\n` +
+        `  writing active-passport will only affect other shells (those without SEEDROP_PASSPORT set).\n\n`,
+    );
+  }
+
   // Before switching identity, warn if the OUTGOING identity has
   // in_progress runs in this repo. Switching mid-flight orphans them —
   // subsequent `seed run log`/`finish` calls resolve under the new
@@ -254,6 +302,14 @@ function sameDirectory(a: string, b: string): boolean {
   }
 }
 
+function samePassport(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return resolve(a) === resolve(b);
+  }
+}
+
 async function runLogout(io: RunCliIO): Promise<number> {
   const removed = await clearActivePassport();
   if (removed) {
@@ -285,6 +341,24 @@ async function runWhoami(io: RunCliIO): Promise<number> {
   io.stdout.write(`agent: ${agent}${issuedBy}${auto}\n`);
   io.stdout.write(`source: ${source}\n`);
   io.stdout.write(`passport: ${path}\n`);
+
+  // Surface a divergent identity state: this process is pinned via
+  // $SEEDROP_PASSPORT, but a `seed login` left active-passport.json pointing
+  // at a *different* agent. The pinned identity wins here (env > active), but
+  // any non-pinned shell on this machine resolves as the other agent — a
+  // confusing split that previously stayed silent.
+  if (resolution.source === "env") {
+    const active = await readActivePassport();
+    if (active && active.agent_id !== agent) {
+      io.stdout.write(
+        `\n⚠ identity divergence: \`seed login\` state points at ${active.agent_id} ` +
+          `(${active.passport_path}).\n` +
+          `  this process is pinned to ${agent} via $SEEDROP_PASSPORT, so it is unaffected,\n` +
+          `  but shells without SEEDROP_PASSPORT set resolve as ${active.agent_id}.\n` +
+          `  run \`seed login ${agent}\` to align the global default, or \`seed logout\` to clear it.\n`,
+      );
+    }
+  }
   return 0;
 }
 
@@ -397,14 +471,15 @@ export interface CommandRunner {
 export type CommandPlan = CommandDispatch | CommandDispatch[];
 
 const usage = `Usage:
-  seed                          (alias for \`seed continuity\` — your boot block)
+  seed                          (agent boot: who am I, where am I, what is next)
+  seed boot [--json] [--messages N]
   seed init                     (guided one-shot local setup)
   seed continuity [--brief|--medium|--full] [--json] [--messages N]
   seed doctor [--fix]           (diagnose local setup + exact next commands)
   seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]
   seed bootstrap --as <agent> --name <human-name> --purpose "<mission>"
   seed bootstrap --as <bot>   --autonomous --name <name> --purpose "..."
-  seed login <agent>            (switch this shell's identity)
+  seed login <agent> [--force]  (switch this shell's identity; --force overrides env-pinned no-op)
   seed logout                   (back to operator default)
   seed whoami                   (show active passport + source)
   seed clients scan [--json]    (inventory supported MCP clients)
@@ -425,6 +500,7 @@ const usage = `Usage:
 
 Examples:
   seed                          # who am I, where am I, what's next
+  seed boot --json              # structured stateless-agent boot report
   seed init                     # guided setup for this machine
   seed bootstrap --name mc --purpose "Operate seedrop"     # one-time, root principal
   seed bootstrap --as claude --name claude --purpose "..."  # add an agent under mc
@@ -445,12 +521,12 @@ Defaults:
   Space URL    $SEEDROP_SPACE_URL or http://127.0.0.1:18791
 `;
 
-export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "continuity" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
+export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "boot" | "continuity" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
   const [domain, ...rest] = argv;
 
   if (!domain) {
-    // Bare `seed` is the boot block when identity or repo View context is available.
-    return existsSync(defaultPassportPath()) || existsSync(join(process.cwd(), ".seedrop", "view")) ? "continuity" : "help";
+    // Bare `seed` is the stateless-agent boot block when identity or repo View context is available.
+    return existsSync(defaultPassportPath()) || existsSync(join(process.cwd(), ".seedrop", "view")) ? "boot" : "help";
   }
 
   if (domain === "help" || domain === "--help" || domain === "-h") {
@@ -469,6 +545,10 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
   if (domain === "init") return "init";
   if (domain === "doctor") return "doctor";
   if (domain === "print-boot-protocol") return "boot-protocol";
+
+  if (domain === "boot") {
+    return "boot";
+  }
 
   if (domain === "continuity") {
     return "continuity";
@@ -554,6 +634,14 @@ export async function runCli(
     }
     if (dispatch === "daemon") {
       return await runDaemon(argv.slice(1), io);
+    }
+    if (dispatch === "boot") {
+      const resolution = defaultPassportResolution();
+      return await runBoot(argv[0] === "boot" ? argv.slice(1) : argv, io, {
+        defaultPassport: resolution.path,
+        defaultPassportSource: resolution.source,
+        defaultUrl: defaultSpaceUrl(),
+      });
     }
     if (dispatch === "continuity") {
       const resolution = defaultPassportResolution();
@@ -1361,10 +1449,21 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
   if (daemon.ok) {
     add("daemon_reachable", "pass", `Space daemon reachable`, { url: defaultSpaceUrl() });
     add("daemon_health", "pass", `Space daemon health ok`, { health: daemon.health });
+  } else if (daemon.errorKind === "sandbox_denied") {
+    const details = { url: defaultSpaceUrl(), error_kind: daemon.errorKind, error: daemon.errorMessage ?? null };
+    add(
+      "daemon_reachable",
+      "warn",
+      `Space daemon reachability blocked by runtime sandbox`,
+      details,
+      "run seed doctor outside the sandbox or use Seedrop MCP tools",
+    );
+    add("daemon_health", "warn", `Space daemon health unavailable from this sandbox`, details, null);
   } else {
     const next = platform() === "darwin" ? "seed daemon install" : "seed space serve";
-    add("daemon_reachable", "fail", `Space daemon not reachable`, { url: defaultSpaceUrl() }, next);
-    add("daemon_health", "fail", `Space daemon health unavailable`, { url: defaultSpaceUrl() }, next);
+    const details = { url: defaultSpaceUrl(), error_kind: daemon.errorKind ?? "fetch_failed", error: daemon.errorMessage ?? null };
+    add("daemon_reachable", "fail", `Space daemon not reachable`, details, next);
+    add("daemon_health", "fail", `Space daemon health unavailable`, details, next);
   }
 
   const expectedPassports = [{ agent: "operator", path: operatorPath }, ...agentPassports].filter((passport) => existsSync(passport.path));
@@ -1406,6 +1505,19 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
     { path: activePath },
     existsSync(activePath) ? null : "seed login <agent>",
   );
+
+  const seedOnPath = spawnSync("which", ["seed"], { encoding: "utf8" });
+  if (seedOnPath.status === 0 && seedOnPath.stdout.trim().length > 0) {
+    add("seed_on_path", "pass", `seed reachable on $PATH`, { resolved: seedOnPath.stdout.trim() });
+  } else {
+    add(
+      "seed_on_path",
+      "warn",
+      `seed is not on $PATH — interactive shells must invoke it by absolute path`,
+      { path_env: process.env.PATH ?? "" },
+      `npm install -g @seedrop/cli (after publish) or add ${join(dirname(fileURLToPath(import.meta.url)), "..", "bin")} to $PATH`,
+    );
+  }
 
   const command = resolveMcpServerCommand();
   const localScript = command.command === process.execPath ? command.args[0] : undefined;
@@ -1537,18 +1649,52 @@ async function listAgentPassports(agentsDir: string): Promise<Array<{ agent: str
   return agents;
 }
 
-async function checkDaemon(url: string): Promise<{ ok: boolean; health?: SpaceHealthResponse }> {
+async function checkDaemon(url: string): Promise<DaemonCheckResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 800);
+    timer = setTimeout(() => controller.abort(), 800);
     const response = await fetch(`${url}/health`, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!response.ok) return { ok: false };
+    if (!response.ok) {
+      return { ok: false, errorKind: "http_error", errorMessage: `HTTP ${response.status}` };
+    }
     const health = await response.json() as SpaceHealthResponse;
-    return { ok: health.ok === true, health };
-  } catch {
-    return { ok: false };
+    return health.ok === true
+      ? { ok: true, health }
+      : { ok: false, health, errorKind: "bad_health", errorMessage: "health response ok=false" };
+  } catch (error) {
+    return {
+      ok: false,
+      errorKind: classifyDaemonFetchError(error),
+      errorMessage: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
+}
+
+function classifyDaemonFetchError(error: unknown): DaemonErrorKind {
+  if (isAbortError(error)) return "timeout";
+  const records = errorChain(error);
+  if (records.some((record) => record.code === "EPERM" || record.errno === "EPERM")) {
+    return "sandbox_denied";
+  }
+  return "fetch_failed";
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "name" in error && (error as { name?: unknown }).name === "AbortError";
+}
+
+function errorChain(error: unknown): Array<Record<string, unknown>> {
+  const records: Array<Record<string, unknown>> = [];
+  let current: unknown = error;
+  while (typeof current === "object" && current !== null) {
+    const record = current as Record<string, unknown>;
+    records.push(record);
+    current = record.cause;
+  }
+  return records;
 }
 
 function sameFilePath(a: string, b: string): boolean {

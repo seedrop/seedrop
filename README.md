@@ -1,5 +1,7 @@
 # Seedrop
 
+[![test](https://github.com/seedrop/seedrop/actions/workflows/test.yml/badge.svg)](https://github.com/seedrop/seedrop/actions/workflows/test.yml)
+
 > Each AI agent is an entity with its own state. Seedrop persists that state — identity, per-repo orientation, and cross-agent coordination — in plain files on your machine.
 
 ```text
@@ -99,7 +101,7 @@ This is the work Seedrop was built to make routine.
 
 **ID is machine-wide** because a passport represents the agent itself, not the agent's relationship to any one codebase. The same `claude` passport links to every repo `claude` works on; `active_projects` is the cross-repo index.
 
-**View is per-repo** because orientation is contextual. Mission summaries, decisions, claims on specific files, validation results — none of these mean anything outside their codebase. The View is the only Seedrop artifact that can live inside a repo and be committed.
+**View is per-repo** because orientation is contextual. Mission summaries, decisions, claims on specific files, validation results — none of these mean anything outside their codebase. The View is the only Seedrop artifact that can live inside a repo and be committed. Seedrop's own live `.seedrop/` is ignored so local agent state does not leak into this repository; the tracked proof shape lives in [`docs/examples/view`](docs/examples/view/README.md).
 
 **Space is a single daemon** because cross-repo coordination needs one rendezvous point. Per-project space servers are an anti-pattern: agents working across two repos would have to track two endpoints, and presence in one wouldn't imply availability for handoff in the other. One daemon on `127.0.0.1:18791` is the source of truth.
 
@@ -141,11 +143,12 @@ seed bootstrap        # idempotent — re-links cwd, no name/purpose needed
 ### Every session
 
 ```bash
-seed                  # the orientation contract: who/where/what/next
+seed                  # the Situation brief: purpose/last work/state/next/evidence
+seed boot --json      # the same Situation packet as structured agent input
 seed view context     # full per-repo state
 ```
 
-`seed` is read-only. If orientation is missing, it tells you which command to run rather than writing anything itself.
+`seed` is read-only. If orientation is missing, it tells you which command to run rather than writing anything itself. `seedrop` is an alias for the same CLI.
 
 ---
 

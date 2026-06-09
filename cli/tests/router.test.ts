@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
@@ -162,7 +162,7 @@ describe("resolveCommand", () => {
     }
   });
 
-  it("bare `seed` resolves continuity when repo View exists even without a passport", async () => {
+  it("bare `seed` resolves boot when repo View exists even without a passport", async () => {
     const priorPassport = process.env.SEEDROP_PASSPORT;
     const priorCwd = process.cwd();
     const scratch = await mkdtemp(join(tmpdir(), "seed-view-router-test-"));
@@ -170,7 +170,7 @@ describe("resolveCommand", () => {
     await mkdir(join(scratch, ".seedrop", "view"), { recursive: true });
     process.chdir(scratch);
     try {
-      expect(resolveCommand([])).toBe("continuity");
+      expect(resolveCommand([])).toBe("boot");
     } finally {
       process.chdir(priorCwd);
       if (priorPassport === undefined) delete process.env.SEEDROP_PASSPORT;
@@ -364,6 +364,48 @@ describe("continuity", () => {
     expect(parsed.orientation.place.view_present).toBe(false);
     expect(parsed.orientation.next_action.kind).toBe("setup");
     expect(parsed.orientation.next_action.command).toBe("seed bootstrap");
+  });
+
+  it("boot --json returns the stateless-agent cold-start contract", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "demo");
+    const io = createIo();
+    const code = await runCli(["boot", "--json", "--cwd", scratch, "--peek"], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+
+    expect(parsed.schema_version).toBe("1.0");
+    expect(parsed.identity).toMatchObject({ present: true, agent_id: "codex" });
+    expect(parsed.place).toMatchObject({ view_present: true, workspace_id: "demo" });
+    expect(parsed).toHaveProperty("mission");
+    expect(parsed).toHaveProperty("freshness");
+    expect(parsed).toHaveProperty("coordination");
+    expect(parsed).toHaveProperty("safety");
+    expect(parsed).toHaveProperty("situation");
+    expect(parsed.situation).toMatchObject({
+      schema_version: "1.0",
+      current_state: { identity: "codex", workspace: "demo" },
+      next_move: { category: "focus", command: "seed run start --goal \"...\"" },
+    });
+    expect(parsed.trust.map((entry: { label: string }) => entry.label)).toContain("live_local");
+    expect(parsed.next_action).toMatchObject({ kind: "focus", command: "seed run start --goal \"...\"" });
+  });
+
+  it("bare seed renders the boot report when orientation state exists", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "demo");
+    const prior = process.cwd();
+    process.chdir(scratch);
+    try {
+      const io = createIo();
+      const code = await runCli([], io, fakeRunner());
+      expect(code).toBe(0);
+      expect(io.stdoutText()).toContain("Seedrop Situation");
+      expect(io.stdoutText()).toContain("Next move:");
+      expect(io.stdoutText()).toContain("Evidence / confidence:");
+    } finally {
+      process.chdir(prior);
+    }
   });
 
   it("suggests cd to an active project when continuity runs from HOME", async () => {
@@ -786,6 +828,57 @@ describe("seed login / logout / whoami", () => {
       process.chdir(prior);
     }
   });
+
+  it("login is a no-op when SEEDROP_PASSPORT already points at the same passport", async () => {
+    const path = await makeAgentPassport("codex");
+    process.env.SEEDROP_PASSPORT = path;
+    const io = createIo();
+    const code = await runCli(["login", "codex"], io, fakeRunner());
+    expect(code).toBe(0);
+    expect(io.stdoutText()).toContain("already authenticated as codex");
+    expect(io.stdoutText()).toContain("--force");
+    expect(io.stdoutText()).not.toContain("identity ready");
+    // active-passport.json must NOT have been written
+    const statePath = join(process.env.HOME!, ".seedrop", "state", "active-passport.json");
+    expect(existsSync(statePath)).toBe(false);
+  });
+
+  it("login with --force writes active-passport even when env points at the same target", async () => {
+    const path = await makeAgentPassport("codex");
+    process.env.SEEDROP_PASSPORT = path;
+    const io = createIo();
+    const code = await runCli(["login", "codex", "--force"], io, fakeRunner());
+    expect(code).toBe(0);
+    expect(io.stdoutText()).toContain("identity ready: codex");
+    const statePath = join(process.env.HOME!, ".seedrop", "state", "active-passport.json");
+    expect(existsSync(statePath)).toBe(true);
+  });
+
+  it("login warns when SEEDROP_PASSPORT pins a different passport, then proceeds", async () => {
+    await makeAgentPassport("claude");
+    const envPath = await makeAgentPassport("codex");
+    process.env.SEEDROP_PASSPORT = envPath;
+    const io = createIo();
+    const code = await runCli(["login", "claude"], io, fakeRunner());
+    expect(code).toBe(0);
+    expect(io.stdoutText()).toContain("pinned to");
+    expect(io.stdoutText()).toContain("SEEDROP_PASSPORT");
+    expect(io.stdoutText()).toContain("identity ready: claude");
+    const statePath = join(process.env.HOME!, ".seedrop", "state", "active-passport.json");
+    expect(existsSync(statePath)).toBe(true);
+  });
+
+  it("login --json no-op returns structured payload when env matches", async () => {
+    const path = await makeAgentPassport("codex");
+    process.env.SEEDROP_PASSPORT = path;
+    const io = createIo();
+    const code = await runCli(["login", "codex", "--json"], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed.ok).toBe(true);
+    expect(parsed.no_op).toBe(true);
+    expect(parsed.agent_id).toBe("codex");
+  });
 });
 
 describe("seed install registry", () => {
@@ -1018,6 +1111,7 @@ describe("seed init / doctor", () => {
     if (envSnapshot.home !== undefined) process.env.HOME = envSnapshot.home;
     if (envSnapshot.spaceUrl === undefined) delete process.env.SEEDROP_SPACE_URL;
     else process.env.SEEDROP_SPACE_URL = envSnapshot.spaceUrl;
+    vi.unstubAllGlobals();
     await rm(scratch, { recursive: true, force: true });
   });
 
@@ -1059,6 +1153,29 @@ describe("seed init / doctor", () => {
     expect(parsed.checks.find((check: { id: string }) => check.id === "daemon_health").status).toBe("fail");
   });
 
+  it("doctor reports sandbox-denied daemon checks as warnings", async () => {
+    const cause = Object.assign(new Error("connect EPERM 127.0.0.1:18791"), {
+      code: "EPERM",
+      address: "127.0.0.1",
+      port: 18791,
+    });
+    const error = new TypeError("fetch failed");
+    Object.defineProperty(error, "cause", { value: cause });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+
+    const io = createIo();
+    const code = await runCli(["doctor", "--json"], io, fakeRunner());
+    expect(code).toBe(1);
+    const parsed = JSON.parse(io.stdoutText());
+    const reachable = parsed.checks.find((check: { id: string }) => check.id === "daemon_reachable");
+    const health = parsed.checks.find((check: { id: string }) => check.id === "daemon_health");
+    expect(reachable.status).toBe("warn");
+    expect(reachable.summary).toContain("runtime sandbox");
+    expect(reachable.details.error_kind).toBe("sandbox_denied");
+    expect(reachable.next_command).not.toBe("seed daemon install");
+    expect(health.status).toBe("warn");
+  });
+
   it("doctor --json warns when a client is wired to the operator passport", async () => {
     const operatorPath = join(process.env.HOME!, ".seedrop", "id", "passport.json");
     await mkdir(join(process.env.HOME!, ".seedrop", "id"), { recursive: true });
@@ -1077,6 +1194,18 @@ describe("seed init / doctor", () => {
     const clientConfigs = parsed.checks.find((check: { id: string }) => check.id === "client_configs");
     expect(clientConfigs.status).toBe("warn");
     expect(JSON.stringify(clientConfigs.details)).toContain("operator_passport");
+  });
+
+  it("doctor includes a seed_on_path check", async () => {
+    const io = createIo();
+    await runCli(["doctor", "--json"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+    const check = parsed.checks.find((c: { id: string }) => c.id === "seed_on_path");
+    expect(check).toBeDefined();
+    expect(["pass", "warn"]).toContain(check.status);
+    if (check.status === "warn") {
+      expect(check.next_command).toMatch(/PATH|@seedrop\/cli/);
+    }
   });
 
   it("doctor reports invalid user client registry entries", async () => {
@@ -1291,6 +1420,71 @@ describe("runCli", () => {
     const code = await runCli(["migrate"], io, fakeRunner());
     expect(code).toBe(1);
     expect(io.stderrText()).toContain("Unknown seed domain");
+  });
+});
+
+describe("whoami identity divergence (60733578)", () => {
+  let scratch: string;
+  let envSnapshot: { passport?: string; home?: string };
+
+  beforeEach(async () => {
+    scratch = await mkdtemp(join(tmpdir(), "seed-whoami-test-"));
+    envSnapshot = { passport: process.env.SEEDROP_PASSPORT, home: process.env.HOME };
+    process.env.HOME = join(scratch, "home");
+    await mkdir(join(process.env.HOME, ".seedrop", "state"), { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (envSnapshot.passport === undefined) delete process.env.SEEDROP_PASSPORT;
+    else process.env.SEEDROP_PASSPORT = envSnapshot.passport;
+    if (envSnapshot.home !== undefined) process.env.HOME = envSnapshot.home;
+    await rm(scratch, { recursive: true, force: true });
+  });
+
+  async function writePassportFile(agent: string): Promise<string> {
+    const p = join(scratch, `${agent}.json`);
+    await writeFile(p, JSON.stringify({ schema_version: "1.0", agent_id: agent, name: agent, purpose: "t", active_projects: [] }), "utf8");
+    return p;
+  }
+
+  async function writeActiveLogin(agent: string, passportPath: string): Promise<void> {
+    await writeFile(
+      join(process.env.HOME as string, ".seedrop", "state", "active-passport.json"),
+      JSON.stringify({ schema_version: "1.0", agent_id: agent, passport_path: passportPath, set_at: "2026-06-09T00:00:00.000Z" }),
+      "utf8",
+    );
+  }
+
+  it("warns when SEEDROP_PASSPORT and seed login point at different agents", async () => {
+    process.env.SEEDROP_PASSPORT = await writePassportFile("claude");
+    await writeActiveLogin("codex", await writePassportFile("codex"));
+
+    const io = createIo();
+    const code = await runCli(["whoami"], io, fakeRunner());
+    expect(code).toBe(0);
+    const out = io.stdoutText();
+    expect(out).toContain("agent: claude");
+    expect(out).toContain("identity divergence");
+    expect(out).toContain("codex");
+    expect(out).toContain("seed login claude");
+  });
+
+  it("stays quiet when seed login matches the pinned identity", async () => {
+    const claudePath = await writePassportFile("claude");
+    process.env.SEEDROP_PASSPORT = claudePath;
+    await writeActiveLogin("claude", claudePath);
+
+    const io = createIo();
+    await runCli(["whoami"], io, fakeRunner());
+    expect(io.stdoutText()).not.toContain("identity divergence");
+  });
+
+  it("stays quiet when there is no active login state", async () => {
+    process.env.SEEDROP_PASSPORT = await writePassportFile("claude");
+
+    const io = createIo();
+    await runCli(["whoami"], io, fakeRunner());
+    expect(io.stdoutText()).not.toContain("identity divergence");
   });
 });
 

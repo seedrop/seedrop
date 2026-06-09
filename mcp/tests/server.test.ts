@@ -6,6 +6,7 @@ describe("tools registry", () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
+        "seedrop_boot",
         "seedrop_bootstrap",
         "seedrop_continuity",
         "seedrop_daemon_status",
@@ -64,11 +65,18 @@ describe("tools registry", () => {
     }
   });
 
+  it("seedrop_boot advertises the Situation cold-start contract", () => {
+    const boot = tools.find((t) => t.name === "seedrop_boot");
+    expect(boot?.description).toContain("Situation packet");
+    expect(boot?.inputSchema.properties).toMatchObject({ json: { default: true } });
+  });
+
   it("seedrop_index groups the exposed MCP tools by intent", async () => {
     const index = tools.find((t) => t.name === "seedrop_index");
     expect(index).toBeDefined();
     const result = await index!.handler({});
     const parsed = JSON.parse(result.content[0]!.text) as Record<string, Array<{ tool: string }>>;
+    expect(parsed.orient.map((entry) => entry.tool)).toContain("seedrop_boot");
     expect(parsed.orient.map((entry) => entry.tool)).toContain("seedrop_continuity");
     expect(parsed.view.map((entry) => entry.tool)).toContain("seedrop_view_sync");
     expect(parsed.view.map((entry) => entry.tool)).toContain("seedrop_diff");
