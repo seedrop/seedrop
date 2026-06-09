@@ -130,6 +130,32 @@ describe("BootReport next-action resolver", () => {
     expect(out).toContain("Evidence / confidence:");
   });
 
+  it("truncates a long current_focus in the text render but keeps JSON lossless", () => {
+    const longFocus = `Improve cold-start attention ${"and reduce token waste ".repeat(20)}`.trim();
+    const report = buildBootReportFromContinuity(
+      continuity({
+        view: {
+          ...continuity().view,
+          brief: {
+            ...continuity().view.brief,
+            workspace: { id: "demo", root: ".", purpose: "Repo context recovery.", current_focus: longFocus },
+          } as ContinuityReport["view"]["brief"],
+        },
+      }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    // JSON surface is lossless
+    expect(report.situation.purpose.current_focus).toBe(longFocus);
+
+    // Text render is capped on a single line with an ellipsis
+    const focusLine = renderBoot(report).split("\n").find((line) => line.startsWith("  Focus:"));
+    expect(focusLine).toBeDefined();
+    expect(focusLine!.length).toBeLessThan("  Focus: ".length + 122);
+    expect(focusLine!.endsWith("…")).toBe(true);
+  });
+
   it("puts identity setup before any repo work", () => {
     const report = buildBootReportFromContinuity(
       continuity({ passport: null, view: { ...continuity().view, currentRun: { run_id: "r1", agent_id: "codex", goal: "work", status: "in_progress" } } }),

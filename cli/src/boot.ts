@@ -608,12 +608,26 @@ function situationConstraints(continuity: ContinuityReport): string[] {
   return [...(brief?.known_risks ?? [])].slice(0, 5);
 }
 
+/**
+ * Collapse to one line and cap length for the human Situation render. The JSON
+ * surface (report.situation) keeps the full, untruncated value — this only
+ * affects the text view so a long current_focus can't blow out the brief.
+ */
+function truncateForDisplay(text: string, max = 120): string {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  if (oneLine.length <= max) return oneLine;
+  const slice = oneLine.slice(0, max - 1);
+  const lastSpace = slice.lastIndexOf(" ");
+  const cut = lastSpace > max * 0.6 ? slice.slice(0, lastSpace) : slice;
+  return `${cut.trimEnd()}…`;
+}
+
 export function renderBoot(report: BootReport): string {
   const situation = report.situation;
   const lines = ["Seedrop Situation", ""];
   lines.push("What this is:");
   lines.push(`  ${situation.purpose.summary}`);
-  if (situation.purpose.current_focus) lines.push(`  Focus: ${situation.purpose.current_focus}`);
+  if (situation.purpose.current_focus) lines.push(`  Focus: ${truncateForDisplay(situation.purpose.current_focus)}`);
   lines.push("");
   lines.push("Last work:");
   lines.push(`  ${situation.last_work.summary}`);
