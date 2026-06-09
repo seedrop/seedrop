@@ -40,12 +40,15 @@ import {
   Handoff,
   ManifestFile,
   NextAction,
+  OpenThread,
   PathPurpose,
   RecommendedRead,
+  ResolvedThreadEntry,
   RunJournal,
   Signal,
   Task,
   TaskStatus,
+  ThreadList,
   ViewBrief,
   WorkspaceContext,
   WorkspaceManifest,
@@ -64,14 +67,17 @@ export type {
   Handoff,
   ManifestFile,
   NextAction,
+  OpenThread,
   PathPurpose,
   RecommendedRead,
+  ResolvedThreadEntry,
   RunJournal,
   RunStep,
   RunValidationEntry,
   Signal,
   Task,
   TaskStatus,
+  ThreadList,
   ViewBrief,
   ViewCheck,
   ViewPolicy,
@@ -301,6 +307,7 @@ export class WorkspaceView {
   readonly agentsPath: string;
   readonly policyPath: string;
   readonly auditPath: string;
+  readonly resolvedThreadsPath: string;
 
   private readonly agent: string;
   private readonly now: () => Date;
@@ -320,6 +327,7 @@ export class WorkspaceView {
     this.agentsPath = path.join(this.dataDir, "AGENTS.md");
     this.policyPath = path.join(this.dataDir, "policy.json");
     this.auditPath = path.join(this.dataDir, "audit.json");
+    this.resolvedThreadsPath = path.join(this.dataDir, "resolved-threads.json");
     this.agent = options.agent;
     this.now = options.now;
   }
@@ -1427,33 +1435,105 @@ export class WorkspaceView {
       latest_audit: latestAudit,
       preflight,
       next_actions: uniqueNextActions([...brief.next_actions, ...preflight.next_actions]),
-      open_threads: [
-        ...packets.flatMap((packet) =>
-          packet.open_threads.map((thread) => ({
-            thread,
-            packet_id: packet.id,
-            created_at: packet.created_at,
-            source: "legacy_continuity" as const,
-          })),
-        ),
-        ...runs.flatMap((run) =>
-          run.open_threads.map((thread) => ({
-            thread,
-            packet_id: run.run_id,
-            created_at: run.updated_at,
-            source: "run" as const,
-          })),
-        ),
-        ...pendingHandoffs.flatMap((handoff) =>
-          handoff.open_threads.map((thread) => ({
-            thread,
-            packet_id: handoff.handoff_id,
-            created_at: handoff.created_at,
-            source: "handoff" as const,
-          })),
-        ),
-      ],
+      open_threads: await this.filterResolvedThreads(
+        collectOpenThreads(packets, runs, pendingHandoffs),
+      ),
     };
+  }
+
+  /**
+   * List open threads (resolved ones suppressed) and, optionally, the resolution
+   * ledger. Lighter than `context()` — reads only continuity packets, runs, and
+   * pending handoffs, the three sources threads can originate from.
+   */
+  async listThreads(options: { includeResolved?: boolean } = {}): Promise<ThreadList> {
+    const [packets, runs, handoffs] = await Promise.all([
+      this.safeListContinuityPackets(),
+      this.safeListRuns(),
+      this.safeListHandoffs(),
+    ]);
+    const pendingHandoffs = handoffs.filter((handoff) => handoff.status === "pending");
+    const open = await this.filterResolvedThreads(collectOpenThreads(packets, runs, pendingHandoffs));
+    const resolved = options.includeResolved ? await this.readResolvedThreads() : [];
+    return { open, resolved };
+  }
+
+  /**
+   * Resolve open threads by id prefix (>=4 chars), suppressing them from future
+   * counts via the resolution ledger. Continuity packets stay untouched — they
+   * are append-only evidence; resolution is a derived overlay. Throws on no match
+   * or an ambiguous prefix that spans multiple distinct threads.
+   */
+  async resolveThread(options: { idPrefix: string; note?: string }): Promise<{ resolved: ResolvedThreadEntry[] }> {
+    const prefix = options.idPrefix.trim();
+    if (prefix.length < 4) {
+      throw new Error(`Thread id prefix too short (need >=4 chars): ${prefix}`);
+    }
+    const [packets, runs, handoffs] = await Promise.all([
+      this.safeListContinuityPackets(),
+      this.safeListRuns(),
+      this.safeListHandoffs(),
+    ]);
+    const pendingHandoffs = handoffs.filter((handoff) => handoff.status === "pending");
+    const all = collectOpenThreads(packets, runs, pendingHandoffs);
+    const matches = all.filter((thread) => thread.id.startsWith(prefix));
+    if (matches.length === 0) {
+      throw new Error(`No open thread matches id prefix: ${prefix}`);
+    }
+    const distinctIds = new Set(matches.map((thread) => thread.id));
+    if (distinctIds.size > 1) {
+      throw new Error(
+        `Ambiguous thread id prefix '${prefix}' matches ${distinctIds.size} threads: ${[...distinctIds].join(", ")}`,
+      );
+    }
+    const ledger = await this.readResolvedThreads();
+    const already = new Set(ledger.map((entry) => entry.id));
+    const resolvedAt = this.now().toISOString();
+    const added: ResolvedThreadEntry[] = [];
+    for (const thread of matches) {
+      if (already.has(thread.id)) continue;
+      already.add(thread.id);
+      const entry: ResolvedThreadEntry = {
+        id: thread.id,
+        packet_id: thread.packet_id,
+        thread: thread.thread,
+        resolved_at: resolvedAt,
+        ...(options.note ? { note: options.note } : {}),
+      };
+      ledger.push(entry);
+      added.push(entry);
+    }
+    if (added.length > 0) await this.writeResolvedThreads(ledger);
+    return { resolved: added.length > 0 ? added : matches.map((thread) => ({
+      id: thread.id,
+      packet_id: thread.packet_id,
+      thread: thread.thread,
+      resolved_at: resolvedAt,
+      ...(options.note ? { note: options.note } : {}),
+    })) };
+  }
+
+  private async readResolvedThreads(): Promise<ResolvedThreadEntry[]> {
+    if (!existsSync(this.resolvedThreadsPath)) return [];
+    try {
+      const raw = JSON.parse(await readFile(this.resolvedThreadsPath, "utf8"));
+      const list = Array.isArray(raw?.resolved) ? raw.resolved : [];
+      return list.filter(
+        (entry: unknown): entry is ResolvedThreadEntry =>
+          typeof (entry as ResolvedThreadEntry)?.id === "string",
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private async writeResolvedThreads(entries: ResolvedThreadEntry[]): Promise<void> {
+    await this.writeJson(this.resolvedThreadsPath, { schema_version: "1.0", resolved: entries });
+  }
+
+  private async filterResolvedThreads(threads: OpenThread[]): Promise<OpenThread[]> {
+    const resolved = new Set((await this.readResolvedThreads()).map((entry) => entry.id));
+    return threads.filter((thread) => !resolved.has(thread.id));
   }
 
   async preflight(options: ViewPreflightOptions = {}): Promise<ViewPreflightReport> {
@@ -2639,6 +2719,48 @@ function uniqueNextActions(actions: NextAction[]): NextAction[] {
     out.push(action);
   }
   return out;
+}
+
+/** Stable, addressable id for an open thread: sha256(packet_id + thread), 12 hex chars. */
+function threadId(packetId: string, thread: string): string {
+  return createHash("sha256").update(`${packetId} ${thread}`).digest("hex").slice(0, 12);
+}
+
+/** Aggregate open threads from continuity packets, run journals, and pending handoffs, each with a stable id. */
+function collectOpenThreads(
+  packets: ContinuityPacket[],
+  runs: RunJournal[],
+  pendingHandoffs: Handoff[],
+): OpenThread[] {
+  return [
+    ...packets.flatMap((packet) =>
+      packet.open_threads.map((thread) => ({
+        id: threadId(packet.id, thread),
+        thread,
+        packet_id: packet.id,
+        created_at: packet.created_at,
+        source: "legacy_continuity" as const,
+      })),
+    ),
+    ...runs.flatMap((run) =>
+      run.open_threads.map((thread) => ({
+        id: threadId(run.run_id, thread),
+        thread,
+        packet_id: run.run_id,
+        created_at: run.updated_at,
+        source: "run" as const,
+      })),
+    ),
+    ...pendingHandoffs.flatMap((handoff) =>
+      handoff.open_threads.map((thread) => ({
+        id: threadId(handoff.handoff_id, thread),
+        thread,
+        packet_id: handoff.handoff_id,
+        created_at: handoff.created_at,
+        source: "handoff" as const,
+      })),
+    ),
+  ];
 }
 
 function pickImportantPaths(manifest: WorkspaceManifest): string[] {

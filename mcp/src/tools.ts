@@ -314,6 +314,45 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "seedrop_view_threads",
+    description: desc("seed view threads [--all] --json", "List the repo's open threads (unresolved follow-ups), each with a stable id. Pass all=true to also return the resolution ledger. JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        all: { type: "boolean", description: "Also include resolved threads in the output." },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["view", "threads", "--json"];
+      if (args.all === true) cmd.push("--all");
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_view_thread_resolve",
+    description: desc("seed view thread resolve <id> [--note <text>] --json", "Resolve an open thread by id prefix (>=4 chars), suppressing it from future counts. Continuity packets stay untouched. JSON."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        id: { type: "string", description: "Open-thread id or unique prefix (>=4 chars) from seedrop_view_threads." },
+        note: { type: "string", description: "Optional rationale recorded with the resolution." },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const id = strArg(args, "id");
+      if (!id) return error("id is required");
+      const cmd = ["view", "thread", "resolve", id, "--json"];
+      const note = strArg(args, "note");
+      if (note) cmd.push("--note", note);
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
     name: "seedrop_diff",
     description: desc("seed diff [--since <iso|last-session|earliest>] --json", "Show View changes since an ISO-8601 timestamp, last-session, or earliest. Returns JSON."),
     inputSchema: {
@@ -1103,6 +1142,8 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
       { tool: "seedrop_view_sync", use_when: "Refresh the View manifest after file changes or drift.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_view_audit", use_when: "Run deep View validation for manifest drift and expired signals.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_view_explain", use_when: "Explain View success criteria or why a path is not represented.", example: { cwd: "/path/to/repo", topic: "success" } },
+      { tool: "seedrop_view_threads", use_when: "List unresolved open threads with stable ids before triaging or handing off.", example: { cwd: "/path/to/repo" } },
+      { tool: "seedrop_view_thread_resolve", use_when: "Resolve an open thread by id once it is handled or obsolete.", example: { cwd: "/path/to/repo", id: "b14fb931", note: "obsolete" } },
       { tool: "seedrop_diff", use_when: "Inspect View changes since last-session, earliest, or an ISO timestamp.", example: { cwd: "/path/to/repo", since: "last-session" } },
       { tool: "seedrop_view_log", use_when: "Leave a durable continuity packet after meaningful work.", example: { cwd: "/path/to/repo", mission: "Ship fix", summary: "Changed X and validated Y" } },
     ],

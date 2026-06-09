@@ -76,6 +76,8 @@ export const CLI_COMMAND_SURFACE = [
   "seed view release",
   "seed view signals",
   "seed view sync",
+  "seed view threads",
+  "seed view thread resolve",
   "seed whoami",
 ] as const;
 
@@ -151,5 +153,7 @@ export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "seed view release", status: "covered", tools: ["seedrop_signal_release"], reason: "Signal release is exposed by id, target, owner, or type." },
   { command: "seed view signals", status: "covered", tools: ["seedrop_signal_list"], reason: "Signal list is exposed directly." },
   { command: "seed view sync", status: "covered", tools: ["seedrop_view_sync"], reason: "View sync is exposed with workspace-id support." },
+  { command: "seed view threads", status: "covered", tools: ["seedrop_view_threads"], reason: "Open-thread listing is exposed with optional resolved-ledger output." },
+  { command: "seed view thread resolve", status: "covered", tools: ["seedrop_view_thread_resolve"], reason: "Open-thread resolution by id prefix is exposed with an optional rationale note." },
   { command: "seed whoami", status: "cli_only", reason: "Local shell identity inspection is intentionally CLI-only." },
 ];

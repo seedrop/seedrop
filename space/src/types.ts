@@ -115,10 +115,27 @@ export interface WorkspaceContext {
   latest_audit?: AuditReport;
   preflight?: ViewPreflightReport;
   next_actions?: NextAction[];
-  open_threads: Array<{
-    thread: string;
-    packet_id: string;
-    created_at: string;
-    source?: "legacy_continuity" | "run" | "handoff";
-  }>;
+  open_threads: OpenThread[];
+}
+
+export interface OpenThread {
+  /** Stable short id derived from packet_id + thread text; addressable for resolution. */
+  id: string;
+  thread: string;
+  packet_id: string;
+  created_at: string;
+  source?: "legacy_continuity" | "run" | "handoff";
+}
+
+export interface ResolvedThreadEntry {
+  id: string;
+  packet_id: string;
+  thread: string;
+  resolved_at: string;
+  note?: string;
+}
+
+export interface ThreadList {
+  open: OpenThread[];
+  resolved: ResolvedThreadEntry[];
 }
