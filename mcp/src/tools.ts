@@ -96,6 +96,21 @@ export const tools: ToolDef[] = [
     },
   },
   {
+    name: "seedrop_capabilities",
+    description: desc(
+      "seed capabilities --json",
+      "Return the full Seedrop capability map as JSON: every command grouped by domain, its MCP-tool equivalent (or CLI-only), status, and a one-line reason. This map is test-guaranteed complete and accurate, so it is the authoritative at-a-glance answer to 'what can Seedrop do and how do I call it'. Call once per session and cache.",
+    ),
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    async handler() {
+      return exec(["capabilities", "--json"]);
+    },
+  },
+  {
     name: "seedrop_continuity",
     description: desc(
       "seed continuity [--brief|--medium|--full] [--json] [--messages N]",
@@ -1131,6 +1146,7 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
     orient: [
       { tool: "seedrop_index", use_when: "Discover Seedrop MCP tools grouped by intent.", example: {} },
       { tool: "seedrop_manual", use_when: "Load the Seedrop concepts and workflow guide once per session.", example: { section: "workflows" } },
+      { tool: "seedrop_capabilities", use_when: "Get the full command -> MCP-tool capability map (what seed can do, how to call each).", example: {} },
       { tool: "seedrop_boot", use_when: "Start a stateless-agent session and get the canonical Situation packet plus single safest next action.", example: { cwd: "/path/to/repo", json: true, peek: true } },
       { tool: "seedrop_continuity", use_when: "Start a Seedrop-aware session or answer 'where was I?'.", example: { cwd: "/path/to/repo", messages: 5 } },
       { tool: "seedrop_bootstrap", use_when: "Create first passport or link the current repo View.", example: { cwd: "/path/to/repo" } },

@@ -15,3 +15,14 @@ export {
   type SituationNextMove,
 } from "./boot.js";
 export type { CommandDispatch, CommandRunner, RunCliIO } from "./router.js";
+export {
+  CLI_COMMAND_SURFACE,
+  MCP_CLI_COVERAGE,
+  MCP_ONLY_COMMANDS,
+  buildCapabilities,
+  renderCapabilities,
+  type CapabilityCatalog,
+  type CapabilityEntry,
+  type CliCommandCoverage,
+  type CliCoverageStatus,
+} from "./capabilities.js";

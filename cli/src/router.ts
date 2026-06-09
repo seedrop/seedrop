@@ -28,6 +28,7 @@ import {
 } from "./clients.js";
 import { runContinuity, runFocus } from "./continuity.js";
 import { runBoot } from "./boot.js";
+import { buildCapabilities, renderCapabilities } from "./capabilities.js";
 import { seedError, renderCliError } from "./errors.js";
 import { runMigrateAcorn, failClosedIfUnmigrated } from "./migrate-acorn.js";
 
@@ -320,6 +321,16 @@ async function runLogout(io: RunCliIO): Promise<number> {
   return 0;
 }
 
+function runCapabilities(argv: readonly string[], io: RunCliIO): number {
+  const catalog = buildCapabilities();
+  if (argv.includes("--json")) {
+    io.stdout.write(`${JSON.stringify(catalog, null, 2)}\n`);
+  } else {
+    io.stdout.write(renderCapabilities(catalog));
+  }
+  return 0;
+}
+
 async function runWhoami(io: RunCliIO): Promise<number> {
   const resolution = defaultPassportResolution();
   const source =
@@ -476,6 +487,7 @@ const usage = `Usage:
   seed init                     (guided one-shot local setup)
   seed continuity [--brief|--medium|--full] [--json] [--messages N]
   seed focus [--json]           (~400-token mission-scoped pre-flight; does not advance the watermark)
+  seed capabilities [--json]    (full command -> MCP-tool map; what seed can do at a glance)
   seed doctor [--fix]           (diagnose local setup + exact next commands)
   seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]
   seed bootstrap --as <agent> --name <human-name> --purpose "<mission>"
@@ -522,7 +534,7 @@ Defaults:
   Space URL    $SEEDROP_SPACE_URL or http://127.0.0.1:18791
 `;
 
-export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "boot" | "continuity" | "focus" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
+export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | "init" | "doctor" | "bootstrap" | "daemon" | "boot" | "continuity" | "focus" | "capabilities" | "id-list" | "login" | "logout" | "whoami" | "clients" | "install" | "boot-protocol" | "migrate-acorn" {
   const [domain, ...rest] = argv;
 
   if (!domain) {
@@ -557,6 +569,10 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
 
   if (domain === "focus") {
     return "focus";
+  }
+
+  if (domain === "capabilities") {
+    return "capabilities";
   }
 
   if (domain === "login") return "login";
@@ -663,6 +679,9 @@ export async function runCli(
         defaultPassportSource: resolution.source,
         defaultUrl: defaultSpaceUrl(),
       });
+    }
+    if (dispatch === "capabilities") {
+      return runCapabilities(argv.slice(1), io);
     }
     if (dispatch === "id-list") {
       return await runIdList(io);
