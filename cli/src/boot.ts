@@ -1151,10 +1151,6 @@ function trustLabels(continuity: ContinuityReport, audit: AuditReport | null): B
   return labels;
 }
 
-function formatBootAction(action: BootNextAction): string {
-  return action.command ? `${action.reason} Run: \`${action.command}\`.` : action.reason;
-}
-
 function formatSituationAction(action: SituationNextMove): string {
   return action.command ? `${action.reason} Run: \`${action.command}\`.` : action.reason;
 }
