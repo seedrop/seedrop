@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBootReportFromContinuity, resolveBootNextAction, scoreBootOutcome } from "../src/boot.js";
+import { buildBootReportFromContinuity, renderBoot, resolveBootNextAction, scoreBootOutcome } from "../src/boot.js";
 import type { ContinuityReport } from "../src/continuity.js";
 
 function continuity(overrides: Partial<ContinuityReport> = {}): ContinuityReport {
@@ -51,6 +51,83 @@ describe("BootReport next-action resolver", () => {
     expect(report.decision_trace.winner).toBe(report.next_action.candidate_id);
     expect(report.decision_trace.candidates.find((candidate) => candidate.selected)?.candidate_id).toBe(report.next_action.candidate_id);
     expect(report.decision_trace.candidates.find((candidate) => candidate.selected)?.objectives).not.toHaveLength(0);
+  });
+
+  it("adds an evidence-bound Situation packet to the boot report", () => {
+    const report = buildBootReportFromContinuity(
+      continuity({
+        view: {
+          ...continuity().view,
+          brief: {
+            ...continuity().view.brief,
+            workspace: {
+              id: "demo",
+              root: ".",
+              purpose: "Seedrop lets agents recover repo context from durable local state.",
+              current_focus: "Improve cold-start attention.",
+            },
+            manifest: {
+              present: true,
+              file_count: 2,
+              recommended_reads: [{ path: "cli/src/boot.ts", reason: "Boot contract", priority: 1 }],
+              important_paths: ["cli/src/boot.ts"],
+              freshness: "fresh",
+            },
+          } as ContinuityReport["view"]["brief"],
+          latestPacket: {
+            id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            created_at: "2026-06-04T09:00:00.000Z",
+            agent: "codex",
+            mission: "Previous mission",
+            summary: "Captured the last useful state.",
+            decisions: [],
+            assumptions: [],
+            open_threads: ["Decide whether Situation should be persisted."],
+            validation: { status: "passed", commands: ["npm test"] },
+            changed_paths: ["cli/src/boot.ts"],
+          },
+        },
+      }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.situation).toMatchObject({
+      schema_version: "1.0",
+      purpose: {
+        summary: "Seedrop lets agents recover repo context from durable local state.",
+        current_focus: "Improve cold-start attention.",
+      },
+      last_work: {
+        kind: "continuity",
+        ref: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        validation_status: "passed",
+      },
+      current_state: {
+        identity: "codex",
+        workspace: "demo",
+        git: "clean",
+        confidence: { level: "high" },
+      },
+      next_move: {
+        category: "focus",
+        command: "seed run start --goal \"...\"",
+      },
+    });
+    expect(report.situation.attention.recommended_reads[0]).toMatchObject({ path: "cli/src/boot.ts" });
+    expect(report.situation.attention.open_threads[0]?.summary).toContain("Situation");
+  });
+
+  it("renders bare seed as the five-part Situation brief", () => {
+    const report = buildBootReportFromContinuity(continuity(), null, "2026-06-04T10:00:00.000Z");
+    const out = renderBoot(report);
+
+    expect(out).toContain("Seedrop Situation");
+    expect(out).toContain("What this is:");
+    expect(out).toContain("Last work:");
+    expect(out).toContain("Current state:");
+    expect(out).toContain("Next move:");
+    expect(out).toContain("Evidence / confidence:");
   });
 
   it("puts identity setup before any repo work", () => {

@@ -65,6 +65,12 @@ describe("tools registry", () => {
     }
   });
 
+  it("seedrop_boot advertises the Situation cold-start contract", () => {
+    const boot = tools.find((t) => t.name === "seedrop_boot");
+    expect(boot?.description).toContain("Situation packet");
+    expect(boot?.inputSchema.properties).toMatchObject({ json: { default: true } });
+  });
+
   it("seedrop_index groups the exposed MCP tools by intent", async () => {
     const index = tools.find((t) => t.name === "seedrop_index");
     expect(index).toBeDefined();

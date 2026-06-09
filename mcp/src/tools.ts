@@ -134,7 +134,7 @@ export const tools: ToolDef[] = [
     name: "seedrop_boot",
     description: desc(
       "seed boot [--json] [--messages N]",
-      "Return the stateless-agent boot report: identity, place, mission, freshness, coordination, safety, trust labels, and one deterministic next action. Prefer this at session start when the agent needs one reliable answer for what to do now.",
+      "Return the canonical cold-start Situation packet: purpose, last work, current state, next move, attention cues, evidence, confidence, and the underlying deterministic boot report. Prefer this at session start when the agent needs one reliable answer for what to do now.",
     ),
     inputSchema: {
       type: "object",
@@ -1068,7 +1068,7 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
     orient: [
       { tool: "seedrop_index", use_when: "Discover Seedrop MCP tools grouped by intent.", example: {} },
       { tool: "seedrop_manual", use_when: "Load the Seedrop concepts and workflow guide once per session.", example: { section: "workflows" } },
-      { tool: "seedrop_boot", use_when: "Start a stateless-agent session and get the single safest next action.", example: { cwd: "/path/to/repo", json: true, peek: true } },
+      { tool: "seedrop_boot", use_when: "Start a stateless-agent session and get the canonical Situation packet plus single safest next action.", example: { cwd: "/path/to/repo", json: true, peek: true } },
       { tool: "seedrop_continuity", use_when: "Start a Seedrop-aware session or answer 'where was I?'.", example: { cwd: "/path/to/repo", messages: 5 } },
       { tool: "seedrop_bootstrap", use_when: "Create first passport or link the current repo View.", example: { cwd: "/path/to/repo" } },
     ],

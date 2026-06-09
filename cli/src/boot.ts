@@ -37,6 +37,76 @@ export interface BootNextAction {
   priority: number;
 }
 
+export type SituationEvidenceSource = BootEvidenceSource | "policy" | "task" | "signal" | "thread" | "verification";
+
+export interface SituationEvidence {
+  source: SituationEvidenceSource;
+  ref?: string;
+  summary: string;
+}
+
+export interface SituationConfidence {
+  level: "high" | "medium" | "low";
+  reasons: string[];
+}
+
+export interface SituationLastWork {
+  kind: "run" | "continuity" | "none";
+  ref?: string;
+  title: string;
+  summary: string;
+  agent?: string;
+  status?: string;
+  updated_at?: string;
+  validation_status?: string;
+  changed_paths_count?: number;
+  git_clean?: boolean;
+}
+
+export interface SituationNextMove {
+  kind: BootNextActionKind;
+  category: "setup" | "coordination" | "work" | "maintenance" | "verification" | "focus";
+  command?: string;
+  reason: string;
+  source: BootNextActionSource;
+  risk: BootRisk;
+  requires_human: boolean;
+  evidence: SituationEvidence[];
+}
+
+export interface Situation {
+  schema_version: "1.0";
+  generated_at: string;
+  purpose: {
+    summary: string;
+    current_focus: string | null;
+  };
+  last_work: SituationLastWork;
+  current_state: {
+    identity: string | null;
+    workspace: string | null;
+    cwd: string;
+    root: string;
+    git: "clean" | "dirty" | "unknown";
+    active_run: { run_id: string; goal: string } | null;
+    tasks: { assigned: number; open: number; blocked: number };
+    pending_handoffs: number;
+    inbox_unacked: number;
+    active_signals: number;
+    audit: { ok: boolean | null; warnings: number; errors: number };
+    daemon_reachable: boolean;
+    confidence: SituationConfidence;
+  };
+  next_move: SituationNextMove;
+  attention: {
+    recommended_reads: Array<{ path: string; reason: string; priority: number }>;
+    open_threads: Array<{ summary: string; ref?: string; source: "continuity" | "run" | "handoff" }>;
+    relevant_files: string[];
+    warnings: string[];
+    constraints: string[];
+  };
+}
+
 export interface BootCandidate {
   id: string;
   kind: BootNextActionKind;
@@ -182,11 +252,14 @@ export interface BootReport {
     label: "live_local" | "committed_proof" | "stale" | "untrusted" | "sandbox_limited";
     summary: string;
   }>;
+  situation: Situation;
   next_action: BootNextAction;
   alternate_actions: BootNextAction[];
   decision_trace: BootDecisionTrace;
   continuity: ContinuityReport["orientation"];
 }
+
+type BootReportBase = Omit<BootReport, "situation" | "next_action" | "alternate_actions" | "decision_trace">;
 
 export async function buildBootReport(opts: {
   passportPath: string;
@@ -219,7 +292,7 @@ export async function buildBootReport(opts: {
 
 export function buildBootReportFromContinuity(continuity: ContinuityReport, audit: AuditReport | null, generatedAt = new Date().toISOString()): BootReport {
   const knowledgeIssues = audit?.issues.filter((issue) => issue.code === "knowledge_stale" || issue.code === "knowledge_superseded") ?? [];
-  const report: Omit<BootReport, "next_action" | "alternate_actions" | "decision_trace"> = {
+  const report: BootReportBase = {
     schema_version: "1.0",
     generated_at: generatedAt,
     identity: {
@@ -285,11 +358,15 @@ export function buildBootReportFromContinuity(continuity: ContinuityReport, audi
   const candidates = collectBootCandidates(report, continuity, audit);
   const evaluation = evaluateBootCandidates(candidates, report, continuity, generatedAt);
   const actions = evaluation.actions;
-  return {
+  const partialReport: Omit<BootReport, "situation"> = {
     ...report,
     next_action: actions[0] ?? candidateToAction(fallbackCandidate, fallbackCandidate.base_priority),
     alternate_actions: actions.slice(1, 6),
     decision_trace: evaluation.trace,
+  };
+  return {
+    ...partialReport,
+    situation: buildSituation(partialReport, continuity, audit),
   };
 }
 
@@ -331,36 +408,239 @@ export function scoreBootOutcome(
   };
 }
 
-export function renderBoot(report: BootReport): string {
-  const lines = [
-    "Seedrop Boot",
-    "",
-    `Identity: ${report.identity.agent_id ?? "missing"} (${report.identity.source})`,
-    `Repo: ${report.place.workspace_id ?? "<unlinked>"} at ${report.place.root}`,
-    `View: ${report.place.view_present ? report.continuity.health.view_success_level ?? "present" : "missing"}`,
-    `Git: ${report.safety.git_dirty ? `${report.safety.uncommitted_count} uncommitted path(s)` : "clean"}`,
-    `Inbox: ${report.coordination.inbox_unacked} unacked`,
-    `Handoffs: ${report.coordination.pending_handoffs} pending`,
-    `Signals: ${report.coordination.active_signals} active`,
-  ];
-  if (report.freshness.knowledge.stale + report.freshness.knowledge.superseded > 0) {
-    lines.push(`Knowledge: ${report.freshness.knowledge.stale} stale, ${report.freshness.knowledge.superseded} superseded`);
+function buildSituation(
+  report: Omit<BootReport, "situation">,
+  continuity: ContinuityReport,
+  audit: AuditReport | null,
+): Situation {
+  const workspace = workspaceEvidence(continuity);
+  const confidence = situationConfidence(report);
+  return {
+    schema_version: "1.0",
+    generated_at: report.generated_at,
+    purpose: {
+      summary: workspace.purpose ?? "Seedrop is a vendor-neutral orientation engine for agents.",
+      current_focus: workspace.current_focus ?? report.mission.current_focus,
+    },
+    last_work: situationLastWork(continuity),
+    current_state: {
+      identity: report.identity.agent_id,
+      workspace: report.place.workspace_id,
+      cwd: report.place.cwd,
+      root: report.place.root,
+      git: report.safety.git_dirty ? "dirty" : report.safety.uncommitted_count === 0 ? "clean" : "unknown",
+      active_run: report.mission.current_run,
+      tasks: {
+        assigned: continuity.view.activeTasks.filter((task) => task.owner === report.identity.agent_id && task.status !== "open").length,
+        open: continuity.view.openTasksCount,
+        blocked: continuity.view.blockerTasks.length + continuity.view.activeTasks.filter((task) => task.status === "blocked").length,
+      },
+      pending_handoffs: report.coordination.pending_handoffs,
+      inbox_unacked: report.coordination.inbox_unacked,
+      active_signals: report.coordination.active_signals,
+      audit: report.freshness.audit,
+      daemon_reachable: report.coordination.daemon_reachable,
+      confidence,
+    },
+    next_move: {
+      kind: report.next_action.kind,
+      category: situationCategory(report.next_action),
+      ...(report.next_action.command ? { command: report.next_action.command } : {}),
+      reason: report.next_action.reason,
+      source: report.next_action.source,
+      risk: report.next_action.risk,
+      requires_human: report.next_action.requires_human,
+      evidence: situationEvidence(report, audit),
+    },
+    attention: {
+      recommended_reads: recommendedReads(continuity),
+      open_threads: openThreads(continuity),
+      relevant_files: relevantFiles(report, continuity),
+      warnings: report.safety.warnings.slice(0, 5),
+      constraints: situationConstraints(continuity),
+    },
+  };
+}
+
+function workspaceEvidence(continuity: ContinuityReport): { purpose?: string; current_focus?: string } {
+  const brief = continuity.view.brief as { workspace?: { purpose?: string; current_focus?: string } } | undefined;
+  return {
+    purpose: brief?.workspace?.purpose,
+    current_focus: brief?.workspace?.current_focus,
+  };
+}
+
+function situationLastWork(continuity: ContinuityReport): SituationLastWork {
+  const latestRun = continuity.view.latestRun;
+  const latestPacket = continuity.view.latestPacket;
+  if (latestRun?.status === "completed") {
+    const validation = latestRun.validation?.at(-1);
+    return {
+      kind: "run",
+      ref: latestRun.run_id,
+      title: latestRun.goal,
+      summary: `Latest completed run: ${latestRun.goal}.`,
+      agent: latestRun.agent_id,
+      status: latestRun.status,
+      updated_at: latestRun.updated_at,
+      validation_status: validation?.status,
+      changed_paths_count: latestRun.changed_paths?.length ?? 0,
+    };
   }
-  const staleTrust = report.trust.filter((entry) => entry.label === "stale" || entry.label === "untrusted" || entry.label === "sandbox_limited");
-  for (const entry of staleTrust.slice(0, 3)) {
-    lines.push(`Risk: ${entry.summary}`);
+  if (latestPacket) {
+    return {
+      kind: "continuity",
+      ref: latestPacket.id,
+      title: latestPacket.mission ?? "Latest continuity packet",
+      summary: latestPacket.summary ?? "Latest continuity packet has no summary.",
+      agent: latestPacket.agent,
+      status: latestPacket.validation?.status,
+      updated_at: latestPacket.created_at,
+      validation_status: latestPacket.validation?.status,
+      changed_paths_count: latestPacket.changed_paths?.length ?? 0,
+      git_clean: latestPacket.git_status ? !latestPacket.git_status.is_dirty : undefined,
+    };
   }
-  lines.push("", "Next action:", `  ${formatBootAction(report.next_action)}`);
-  const winner = report.decision_trace.candidates.find((candidate) => candidate.selected);
-  if (winner) {
-    const notable = winner.modifiers[0]?.reason ?? `Selected by ${report.decision_trace.policy_version} at priority ${winner.final_priority}.`;
-    lines.push("", "Why this?", `  ${notable}`);
+  if (latestRun) {
+    const validation = latestRun.validation?.at(-1);
+    return {
+      kind: "run",
+      ref: latestRun.run_id,
+      title: latestRun.goal,
+      summary: `Latest run is ${latestRun.status}: ${latestRun.goal}.`,
+      agent: latestRun.agent_id,
+      status: latestRun.status,
+      updated_at: latestRun.updated_at,
+      validation_status: validation?.status,
+      changed_paths_count: latestRun.changed_paths?.length ?? 0,
+    };
   }
-  if (report.alternate_actions.length > 0) {
-    lines.push("", "Also visible:");
-    for (const action of report.alternate_actions.slice(0, 3)) {
-      lines.push(`  - ${action.reason}${action.command ? ` (${action.command})` : ""}`);
+  return {
+    kind: "none",
+    title: "No prior work recorded",
+    summary: "No run or continuity packet is available in this View yet.",
+  };
+}
+
+function situationCategory(action: BootNextAction): SituationNextMove["category"] {
+  if (action.kind === "setup") return "setup";
+  if (action.kind === "inbox" || action.kind === "handoff") return "coordination";
+  if (action.kind === "verify") return "verification";
+  if (action.kind === "safety" || action.kind === "sync") return "maintenance";
+  if (action.kind === "focus") return "focus";
+  return "work";
+}
+
+function situationEvidence(
+  report: Omit<BootReport, "situation">,
+  audit: AuditReport | null,
+): SituationEvidence[] {
+  const selected = report.decision_trace.candidates.find((candidate) => candidate.selected);
+  const fromCandidate = selected?.evidence.map((entry) => ({
+    source: entry.source,
+    ...(entry.ref ? { ref: entry.ref } : {}),
+    summary: entry.summary,
+  })) ?? [];
+  const auditIssue = audit?.issues.find((issue) => issue.message === report.next_action.reason || issue.code === selected?.evidence[0]?.ref);
+  const extra = auditIssue
+    ? [{ source: "verification" as const, ...(auditIssue.path ? { ref: auditIssue.path } : {}), summary: `${auditIssue.severity}: ${auditIssue.message}` }]
+    : [];
+  return [...fromCandidate, ...extra].slice(0, 5);
+}
+
+function situationConfidence(report: Omit<BootReport, "situation">): SituationConfidence {
+  const reasons: string[] = [];
+  if (!report.identity.present) reasons.push("No active passport identity was readable.");
+  if (!report.place.view_present) reasons.push("No repo-local .seedrop/view was present.");
+  if (report.freshness.manifest !== "fresh" && report.freshness.manifest !== "unknown") reasons.push(`Manifest evidence is ${report.freshness.manifest}.`);
+  if (report.freshness.audit.errors > 0) reasons.push(`Audit has ${report.freshness.audit.errors} error(s).`);
+  if (report.trust.some((entry) => entry.label === "stale")) reasons.push("Some View evidence is stale.");
+  if (report.trust.some((entry) => entry.label === "untrusted")) reasons.push("View audit reported untrusted evidence.");
+  if (report.trust.some((entry) => entry.label === "sandbox_limited")) reasons.push("Runtime sandbox limits daemon proof.");
+  if (reasons.length === 0) {
+    return { level: "high", reasons: ["Identity, View, audit, and git evidence are available."] };
+  }
+  return { level: reasons.some((reason) => /No active|No repo-local|error|untrusted/i.test(reason)) ? "low" : "medium", reasons };
+}
+
+function recommendedReads(continuity: ContinuityReport): Situation["attention"]["recommended_reads"] {
+  const brief = continuity.view.brief as { manifest?: { recommended_reads?: Array<{ path: string; reason: string; priority: number }> } } | undefined;
+  return [...(brief?.manifest?.recommended_reads ?? [])]
+    .sort((a, b) => a.priority - b.priority || a.path.localeCompare(b.path))
+    .slice(0, 5);
+}
+
+function openThreads(continuity: ContinuityReport): Situation["attention"]["open_threads"] {
+  const out: Situation["attention"]["open_threads"] = [];
+  for (const thread of continuity.view.latestPacket?.open_threads ?? []) {
+    out.push({ summary: thread, ref: continuity.view.latestPacket?.id, source: "continuity" });
+  }
+  for (const thread of continuity.view.currentRun?.open_threads ?? []) {
+    out.push({ summary: thread, ref: continuity.view.currentRun?.run_id, source: "run" });
+  }
+  for (const thread of continuity.view.latestRun?.open_threads ?? []) {
+    out.push({ summary: thread, ref: continuity.view.latestRun?.run_id, source: "run" });
+  }
+  for (const handoff of continuity.view.pendingHandoffs) {
+    for (const thread of handoff.open_threads ?? []) {
+      out.push({ summary: thread, ref: handoff.handoff_id, source: "handoff" });
     }
+  }
+  return dedupeBy(out, (thread) => `${thread.source}:${thread.ref ?? ""}:${thread.summary}`).slice(0, 5);
+}
+
+function relevantFiles(
+  report: Omit<BootReport, "situation">,
+  continuity: ContinuityReport,
+): string[] {
+  const reads = recommendedReads(continuity).map((read) => read.path);
+  const changed = [
+    ...(continuity.view.currentRun?.changed_paths ?? []),
+    ...(continuity.view.latestRun?.changed_paths ?? []),
+    ...(continuity.view.latestPacket?.changed_paths ?? []),
+  ];
+  const dirty = report.safety.uncommitted_paths;
+  return uniqueStrings([...dirty, ...changed, ...reads]).slice(0, 8);
+}
+
+function situationConstraints(continuity: ContinuityReport): string[] {
+  const brief = continuity.view.brief as { known_risks?: string[] } | undefined;
+  return [...(brief?.known_risks ?? [])].slice(0, 5);
+}
+
+export function renderBoot(report: BootReport): string {
+  const situation = report.situation;
+  const lines = ["Seedrop Situation", ""];
+  lines.push("What this is:");
+  lines.push(`  ${situation.purpose.summary}`);
+  if (situation.purpose.current_focus) lines.push(`  Focus: ${situation.purpose.current_focus}`);
+  lines.push("");
+  lines.push("Last work:");
+  lines.push(`  ${situation.last_work.summary}`);
+  if (situation.last_work.ref) lines.push(`  Ref: ${situation.last_work.ref}`);
+  if (situation.last_work.validation_status) lines.push(`  Validation: ${situation.last_work.validation_status}`);
+  lines.push("");
+  lines.push("Current state:");
+  lines.push(`  Identity: ${situation.current_state.identity ?? "missing"}`);
+  lines.push(`  Repo: ${situation.current_state.workspace ?? "<unlinked>"} at ${situation.current_state.root}`);
+  lines.push(`  Git: ${situation.current_state.git}${report.safety.git_dirty ? ` (${report.safety.uncommitted_count} uncommitted path(s))` : ""}`);
+  lines.push(`  Run: ${situation.current_state.active_run ? situation.current_state.active_run.goal : "none"}`);
+  lines.push(`  Tasks: ${situation.current_state.tasks.assigned} assigned, ${situation.current_state.tasks.open} open, ${situation.current_state.tasks.blocked} blocked`);
+  lines.push(`  Coordination: ${situation.current_state.inbox_unacked} inbox, ${situation.current_state.pending_handoffs} handoff(s), ${situation.current_state.active_signals} signal(s)`);
+  lines.push("");
+  lines.push("Next move:");
+  lines.push(`  ${formatSituationAction(situation.next_move)}`);
+  lines.push("");
+  lines.push("Evidence / confidence:");
+  lines.push(`  Confidence: ${situation.current_state.confidence.level} - ${situation.current_state.confidence.reasons[0]}`);
+  for (const evidence of situation.next_move.evidence.slice(0, 3)) {
+    lines.push(`  - ${evidence.summary}${evidence.ref ? ` (${evidence.ref})` : ""}`);
+  }
+  if (situation.attention.open_threads.length > 0) {
+    lines.push(`  Open threads: ${situation.attention.open_threads.length} visible`);
+  }
+  if (situation.attention.warnings.length > 0) {
+    lines.push(`  Warning: ${situation.attention.warnings[0]}`);
   }
   return `${lines.join("\n")}\n`;
 }
@@ -392,7 +672,7 @@ export async function runBoot(
 }
 
 function collectBootCandidates(
-  report: Omit<BootReport, "next_action" | "alternate_actions" | "decision_trace">,
+  report: BootReportBase,
   continuity: ContinuityReport,
   audit: AuditReport | null,
 ): BootCandidate[] {
@@ -562,7 +842,7 @@ function collectBootCandidates(
 
 function evaluateBootCandidates(
   candidates: BootCandidate[],
-  report: Omit<BootReport, "next_action" | "alternate_actions" | "decision_trace">,
+  report: BootReportBase,
   continuity: ContinuityReport,
   generatedAt: string,
 ): { trace: BootDecisionTrace; actions: BootNextAction[] } {
@@ -644,7 +924,7 @@ function evaluateBootCandidates(
 
 function objectiveTermsForCandidate(
   candidate: BootCandidate,
-  report: Omit<BootReport, "next_action" | "alternate_actions" | "decision_trace">,
+  report: BootReportBase,
   continuity: ContinuityReport,
 ): BootObjectiveTerm[] {
   const dirtyActiveRun = candidate.id.startsWith("active_run:")
@@ -652,6 +932,9 @@ function objectiveTermsForCandidate(
     && (continuity.view.currentRun?.changed_paths?.length ?? 0) > 0;
   if (candidate.source === "identity") {
     return [{ term: "identity_error", weight: 5, reason: "Without a trusted agent identity, subsequent repo-local decisions can attach to the wrong principal." }];
+  }
+  if (candidate.id === "focus:start") {
+    return [{ term: "token_time_waste", weight: 1, reason: "A fallback focus action should reduce idle or unfocused boot time." }];
   }
   if (candidate.source === "view") {
     return [{ term: "missing_view", weight: 4, reason: "Without a repo View, future agents cannot recover local continuity from one stable surface." }];
@@ -695,7 +978,7 @@ function objectiveTermsForCandidate(
       { term: "token_time_waste", weight: 2, reason: "Following a continuity packet should reduce reorientation cost." },
     ];
   }
-  return [{ term: "token_time_waste", weight: 1, reason: "A fallback focus action should reduce idle or unfocused boot time." }];
+  return [{ term: "token_time_waste", weight: 1, reason: "A selected boot action should reduce idle or unfocused boot time." }];
 }
 
 function scoreObjectiveTerm(
@@ -872,10 +1155,30 @@ function formatBootAction(action: BootNextAction): string {
   return action.command ? `${action.reason} Run: \`${action.command}\`.` : action.reason;
 }
 
+function formatSituationAction(action: SituationNextMove): string {
+  return action.command ? `${action.reason} Run: \`${action.command}\`.` : action.reason;
+}
+
 function summarizePaths(paths: string[]): string {
   if (paths.length === 0) return "unknown paths";
   if (paths.length <= 3) return paths.join(", ");
   return `${paths.slice(0, 3).join(", ")}, +${paths.length - 3} more`;
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function dedupeBy<T>(values: readonly T[], keyFor: (value: T) => string): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const value of values) {
+    const key = keyFor(value);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
 }
 
 function manifestFreshness(continuity: ContinuityReport, audit: AuditReport | null): BootReport["freshness"]["manifest"] {

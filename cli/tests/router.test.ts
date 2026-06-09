@@ -381,6 +381,12 @@ describe("continuity", () => {
     expect(parsed).toHaveProperty("freshness");
     expect(parsed).toHaveProperty("coordination");
     expect(parsed).toHaveProperty("safety");
+    expect(parsed).toHaveProperty("situation");
+    expect(parsed.situation).toMatchObject({
+      schema_version: "1.0",
+      current_state: { identity: "codex", workspace: "demo" },
+      next_move: { category: "focus", command: "seed run start --goal \"...\"" },
+    });
     expect(parsed.trust.map((entry: { label: string }) => entry.label)).toContain("live_local");
     expect(parsed.next_action).toMatchObject({ kind: "focus", command: "seed run start --goal \"...\"" });
   });
@@ -394,8 +400,9 @@ describe("continuity", () => {
       const io = createIo();
       const code = await runCli([], io, fakeRunner());
       expect(code).toBe(0);
-      expect(io.stdoutText()).toContain("Seedrop Boot");
-      expect(io.stdoutText()).toContain("Next action:");
+      expect(io.stdoutText()).toContain("Seedrop Situation");
+      expect(io.stdoutText()).toContain("Next move:");
+      expect(io.stdoutText()).toContain("Evidence / confidence:");
     } finally {
       process.chdir(prior);
     }

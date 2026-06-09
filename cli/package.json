@@ -4,7 +4,8 @@
   "description": "Top-level Seedrop CLI router for id, space, and view commands.",
   "type": "module",
   "bin": {
-    "seed": "./bin/seed.mjs"
+    "seed": "./bin/seed.mjs",
+    "seedrop": "./bin/seed.mjs"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

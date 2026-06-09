@@ -143,11 +143,12 @@ seed bootstrap        # idempotent — re-links cwd, no name/purpose needed
 ### Every session
 
 ```bash
-seed                  # the orientation contract: who/where/what/next
+seed                  # the Situation brief: purpose/last work/state/next/evidence
+seed boot --json      # the same Situation packet as structured agent input
 seed view context     # full per-repo state
 ```
 
-`seed` is read-only. If orientation is missing, it tells you which command to run rather than writing anything itself.
+`seed` is read-only. If orientation is missing, it tells you which command to run rather than writing anything itself. `seedrop` is an alias for the same CLI.
 
 ---
 
