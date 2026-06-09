@@ -1010,6 +1010,7 @@ describe("seed install registry", () => {
     const skill = await readFile(skillPath, "utf8");
     expect(skill).toContain("name: seedrop");
     expect(skill).toContain("seedrop_continuity");
+    expect(skill).toContain("seedrop_capabilities");
   });
 
   it("writes the boot reflex into ~/.codex/AGENTS.md inside managed markers", async () => {

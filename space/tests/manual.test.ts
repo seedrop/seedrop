@@ -38,6 +38,11 @@ describe("seedropManual", () => {
     expect(antipatterns).toMatch(/sprint board/i);
   });
 
+  it("points agents at `seed capabilities` for the full command map", () => {
+    expect(seedropManual("workflows")).toMatch(/seed capabilities/);
+    expect(seedropManual("state")).toMatch(/seed capabilities/);
+  });
+
   it("is stable across calls (cacheable by agents)", () => {
     const a = seedropManual();
     const b = seedropManual();

@@ -63,6 +63,7 @@ const WORKFLOWS = `## Common workflows
 
 \`\`\`
 seed continuity                # boot block: identity, view state, next move
+seed capabilities               # full command -> MCP-tool map (what seed can do, at a glance)
 seed view explain success       # why view is at L1/L2/L3/L4 with ✓/✗ per criterion
 seed inbox --unacked-only       # @-mentions you haven't acted on
 \`\`\`
@@ -145,6 +146,7 @@ const STATE_QUERIES = `## Where to look for what
 
 | Question                             | Command                                           |
 |--------------------------------------|---------------------------------------------------|
+| What can seed do? / how do I call X? | \`seed capabilities\` (full command → MCP-tool map) |
 | Who am I and where am I?             | \`seed continuity\`                                 |
 | What's the current sprint/focus?     | \`seed continuity\` (focus line) + \`knowledge/*.md\` |
 | What's my active task / run?         | \`seed continuity\` (your tasks + current run)      |
