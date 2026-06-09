@@ -341,6 +341,24 @@ async function runWhoami(io: RunCliIO): Promise<number> {
   io.stdout.write(`agent: ${agent}${issuedBy}${auto}\n`);
   io.stdout.write(`source: ${source}\n`);
   io.stdout.write(`passport: ${path}\n`);
+
+  // Surface a divergent identity state: this process is pinned via
+  // $SEEDROP_PASSPORT, but a `seed login` left active-passport.json pointing
+  // at a *different* agent. The pinned identity wins here (env > active), but
+  // any non-pinned shell on this machine resolves as the other agent — a
+  // confusing split that previously stayed silent.
+  if (resolution.source === "env") {
+    const active = await readActivePassport();
+    if (active && active.agent_id !== agent) {
+      io.stdout.write(
+        `\n⚠ identity divergence: \`seed login\` state points at ${active.agent_id} ` +
+          `(${active.passport_path}).\n` +
+          `  this process is pinned to ${agent} via $SEEDROP_PASSPORT, so it is unaffected,\n` +
+          `  but shells without SEEDROP_PASSPORT set resolve as ${active.agent_id}.\n` +
+          `  run \`seed login ${agent}\` to align the global default, or \`seed logout\` to clear it.\n`,
+      );
+    }
+  }
   return 0;
 }
 

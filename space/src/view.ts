@@ -10,6 +10,7 @@ import {
   TaskNotFoundError,
   WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
+  WorkspaceRunOwnershipError,
   WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
   WorkspaceViewParseError,
@@ -103,6 +104,7 @@ export {
   TaskNotFoundError,
   WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
+  WorkspaceRunOwnershipError,
   WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
   WorkspaceViewError,
@@ -685,6 +687,15 @@ export class WorkspaceView {
       const fullId = await this.resolveRunId(input.runId);
       const run = (await this.listRuns()).find((r) => r.run_id === fullId);
       if (!run) throw new Error(`Run ${fullId} not found.`);
+      // Guard against silent cross-owner takeover: targeting a run by id must
+      // not let one identity mutate (log/verify/finish) another agent's run
+      // and misattribute the work. The resolving identity is `input.agent ??
+      // this.agent`, so the documented `seed run finish --agent <owner>`
+      // recovery path still resolves cleanly to the owner.
+      const resolvedAgent = input.agent ?? this.agent;
+      if (run.agent_id !== resolvedAgent) {
+        throw new WorkspaceRunOwnershipError(run.run_id, run.agent_id, resolvedAgent);
+      }
       return run;
     }
     return this.requireActiveRun(input.agent);

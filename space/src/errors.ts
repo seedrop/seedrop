@@ -215,6 +215,39 @@ export class WorkspaceRunTaskConflictError extends WorkspaceViewError {
   }
 }
 
+export class WorkspaceRunOwnershipError extends WorkspaceViewError {
+  constructor(
+    public readonly runId: string,
+    public readonly owner: string,
+    public readonly resolvedAgent: string,
+  ) {
+    super(
+      `Run ${runId.slice(0, 8)} is owned by ${owner}, but this session resolves as ${resolvedAgent}. ` +
+        `Mutating another agent's run would misattribute the work. ` +
+        `Re-run with --agent ${owner} (if you are acting on their behalf) or \`seed login ${owner}\`.`,
+      {
+        recovery: [
+          {
+            kind: "command",
+            command: `seed run finish --agent ${owner} --status completed`,
+            risk: "low",
+            requires_human: true,
+            reason: `Act explicitly as ${owner} (the run's owner) for this command only.`,
+          },
+          {
+            kind: "command",
+            command: `seed login ${owner}`,
+            risk: "low",
+            requires_human: true,
+            reason: `Switch this shell's identity to ${owner} before retrying.`,
+          },
+        ],
+      },
+    );
+    this.name = "WorkspaceRunOwnershipError";
+  }
+}
+
 export class WorkspaceViewValidationError extends WorkspaceViewError {
   constructor(
     public readonly issues: ZodIssue[],

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkspaceView } from "../src/view.js";
+import { WorkspaceRunOwnershipError } from "../src/errors.js";
 
 let root: string;
 let now: Date;
@@ -56,28 +57,42 @@ describe("run targeting via runId (cross-agent confusion fix)", () => {
     expect(b.run_id).toBeTruthy();
   });
 
-  it("logRun --runId targets a specific run regardless of agent's latest active", async () => {
+  it("logRun --runId targets a specific run owned by the resolving agent", async () => {
+    const claude = view("claude");
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await claude.sync();
+
+    // claude starts two runs; "latest active" returns B.
+    const a = (await claude.startRun({ goal: "claude A" })).run;
+    now = new Date(now.getTime() + 1000);
+    await claude.startRun({ goal: "claude B", newRun: true });
+
+    // Without --runId, log lands on the latest active (B). With --runId, it
+    // targets the older run A even though it isn't the latest active one.
+    const loggedToA = await claude.logRun({ runId: a.run_id, summary: "into run A by id" });
+    expect(loggedToA.run_id).toBe(a.run_id);
+    expect(loggedToA.steps.at(-1)?.summary).toBe("into run A by id");
+  });
+
+  it("logRun --runId refuses to mutate another agent's run (ownership guard)", async () => {
     const claude = view("claude");
     const codex = view("codex");
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await claude.sync();
 
-    // claude starts run A.
-    const a = (await claude.startRun({ goal: "claude work" })).run;
-    // codex (separate identity) starts run B.
+    await claude.startRun({ goal: "claude work" });
     const b = (await codex.startRun({ goal: "codex work" })).run;
 
-    // Claude's "latest active" returns A. Without --runId, log lands on A.
-    const loggedToA = await claude.logRun({ summary: "into claude's run" });
-    expect(loggedToA.run_id).toBe(a.run_id);
-    expect(loggedToA.steps.at(-1)?.summary).toBe("into claude's run");
+    // claude targeting codex's run by id is a silent cross-owner takeover —
+    // now refused. (Replaces the deferred "tomorrow" ownership check.)
+    await expect(claude.logRun({ runId: b.run_id, summary: "into codex's run" })).rejects.toBeInstanceOf(
+      WorkspaceRunOwnershipError,
+    );
 
-    // With --runId pointing at B, log lands on B even though claude isn't
-    // its owner. (Cross-agent log via explicit runId. Tomorrow we might add
-    // an ownership check here; today the explicit targeting is the fix.)
-    const loggedToB = await claude.logRun({ runId: b.run_id, summary: "into codex's run by id" });
-    expect(loggedToB.run_id).toBe(b.run_id);
-    expect(loggedToB.steps.at(-1)?.summary).toBe("into codex's run by id");
+    // The supported path: act explicitly as the owner via --agent.
+    const loggedAsCodex = await claude.logRun({ runId: b.run_id, agent: "codex", summary: "as codex" });
+    expect(loggedAsCodex.run_id).toBe(b.run_id);
+    expect(loggedAsCodex.steps.at(-1)?.summary).toBe("as codex");
   });
 
   it("finishRun --runId targets a specific run", async () => {

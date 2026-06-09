@@ -1423,6 +1423,71 @@ describe("runCli", () => {
   });
 });
 
+describe("whoami identity divergence (60733578)", () => {
+  let scratch: string;
+  let envSnapshot: { passport?: string; home?: string };
+
+  beforeEach(async () => {
+    scratch = await mkdtemp(join(tmpdir(), "seed-whoami-test-"));
+    envSnapshot = { passport: process.env.SEEDROP_PASSPORT, home: process.env.HOME };
+    process.env.HOME = join(scratch, "home");
+    await mkdir(join(process.env.HOME, ".seedrop", "state"), { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (envSnapshot.passport === undefined) delete process.env.SEEDROP_PASSPORT;
+    else process.env.SEEDROP_PASSPORT = envSnapshot.passport;
+    if (envSnapshot.home !== undefined) process.env.HOME = envSnapshot.home;
+    await rm(scratch, { recursive: true, force: true });
+  });
+
+  async function writePassportFile(agent: string): Promise<string> {
+    const p = join(scratch, `${agent}.json`);
+    await writeFile(p, JSON.stringify({ schema_version: "1.0", agent_id: agent, name: agent, purpose: "t", active_projects: [] }), "utf8");
+    return p;
+  }
+
+  async function writeActiveLogin(agent: string, passportPath: string): Promise<void> {
+    await writeFile(
+      join(process.env.HOME as string, ".seedrop", "state", "active-passport.json"),
+      JSON.stringify({ schema_version: "1.0", agent_id: agent, passport_path: passportPath, set_at: "2026-06-09T00:00:00.000Z" }),
+      "utf8",
+    );
+  }
+
+  it("warns when SEEDROP_PASSPORT and seed login point at different agents", async () => {
+    process.env.SEEDROP_PASSPORT = await writePassportFile("claude");
+    await writeActiveLogin("codex", await writePassportFile("codex"));
+
+    const io = createIo();
+    const code = await runCli(["whoami"], io, fakeRunner());
+    expect(code).toBe(0);
+    const out = io.stdoutText();
+    expect(out).toContain("agent: claude");
+    expect(out).toContain("identity divergence");
+    expect(out).toContain("codex");
+    expect(out).toContain("seed login claude");
+  });
+
+  it("stays quiet when seed login matches the pinned identity", async () => {
+    const claudePath = await writePassportFile("claude");
+    process.env.SEEDROP_PASSPORT = claudePath;
+    await writeActiveLogin("claude", claudePath);
+
+    const io = createIo();
+    await runCli(["whoami"], io, fakeRunner());
+    expect(io.stdoutText()).not.toContain("identity divergence");
+  });
+
+  it("stays quiet when there is no active login state", async () => {
+    process.env.SEEDROP_PASSPORT = await writePassportFile("claude");
+
+    const io = createIo();
+    await runCli(["whoami"], io, fakeRunner());
+    expect(io.stdoutText()).not.toContain("identity divergence");
+  });
+});
+
 function fakeRunner(code = 0, seen: CommandDispatch[] = []): CommandRunner {
   return {
     async run(dispatch) {
