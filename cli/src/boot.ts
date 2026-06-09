@@ -818,23 +818,61 @@ function collectBootCandidates(
       evidence: [{ source: "git", summary: `${report.safety.uncommitted_count} uncommitted file(s).` }],
     });
   }
-  const assigned = continuity.view.activeTasks.find((task) =>
+  const taskLookup = [...continuity.view.activeTasks, ...continuity.view.blockerTasks];
+  const openTaskBlockers = (task: (typeof taskLookup)[number]): string[] =>
+    (task.blocked_by ?? []).filter((blockerId) => {
+      const blocker = taskLookup.find((t) => t.task_id === blockerId);
+      // If the blocker can't be read, assume it's open (we can't see its state).
+      return !blocker || (blocker.status !== "done" && blocker.status !== "dropped");
+    });
+  const mine = continuity.view.activeTasks.find((task) =>
     task.owner === report.identity.agent_id && (task.status === "claimed" || task.status === "in_progress")
-  ) ?? continuity.view.activeTasks.find((task) => task.status === "open");
-  if (assigned) {
+  );
+  const openTasks = continuity.view.activeTasks.filter((task) => task.status === "open");
+  const readyTasks = openTasks.filter((task) => openTaskBlockers(task).length === 0);
+  const proposed = mine ?? readyTasks[0];
+  if (proposed) {
+    const shortId = proposed.task_id.slice(0, 8);
     push({
-      id: `task:${assigned.task_id}`,
+      id: `task:${proposed.task_id}`,
       kind: "run",
-      command: assigned.status === "in_progress"
-        ? `seed run start --task ${assigned.task_id} --goal "${assigned.title}"`
-        : `seed task start ${assigned.task_id}`,
-      reason: `${assigned.status === "in_progress" ? "Continue" : "Start"} task [${assigned.task_id.slice(0, 8)}] "${assigned.title}".`,
+      command: proposed.status === "in_progress"
+        ? `seed run start --task ${proposed.task_id} --goal "${proposed.title}"`
+        : proposed.status === "claimed"
+          ? `seed task start ${proposed.task_id}`
+          : `seed task claim ${shortId}`,
+      reason: proposed.status === "open"
+        ? `Claim task [${shortId}] "${proposed.title}" — ${readyTasks.length} unclaimed task(s) queued.`
+        : `${proposed.status === "in_progress" ? "Continue" : "Start"} task [${shortId}] "${proposed.title}".`,
       source: "run",
       risk: "medium",
       requires_human: false,
       base_priority: 80,
       blocks_work: false,
-      evidence: [{ source: "view", ref: assigned.task_id, summary: `Task is ${assigned.status}.` }],
+      evidence: [{
+        source: "view",
+        ref: proposed.task_id,
+        summary: proposed.status === "open"
+          ? `Task is open and unblocked; ${readyTasks.length} ready in the queue.`
+          : `Task is ${proposed.status}.`,
+      }],
+    });
+  }
+  // Blocked open tasks stay visible in the decision trace (suppressed by the
+  // task_blocked rule) so queued-but-stuck work is auditable, never proposable.
+  for (const blocked of openTasks.filter((task) => openTaskBlockers(task).length > 0).slice(0, 3)) {
+    const blockers = openTaskBlockers(blocked);
+    push({
+      id: `task:blocked:${blocked.task_id}`,
+      kind: "run",
+      command: `seed task show ${blocked.task_id.slice(0, 8)}`,
+      reason: `Task [${blocked.task_id.slice(0, 8)}] "${blocked.title}" is blocked by ${blockers.length} open task(s).`,
+      source: "run",
+      risk: "medium",
+      requires_human: false,
+      base_priority: 80,
+      blocks_work: false,
+      evidence: [{ source: "view", ref: blocked.task_id, summary: `Blocked by ${blockers.map((b) => b.slice(0, 8)).join(", ")}.` }],
     });
   }
   if (continuity.view.latestPacket?.next_actions?.length) {
@@ -894,6 +932,13 @@ function evaluateBootCandidates(
         effect: "demote",
         delta: 20,
         reason: "Inbox is external input; dirty active run is a higher safety obligation.",
+      });
+    }
+    if (candidate.id.startsWith("task:blocked:")) {
+      modifiers.push({
+        rule: "task_blocked",
+        effect: "suppress",
+        reason: "Task has open blockers; it stays visible for awareness but is not proposable until they resolve.",
       });
     }
     return { candidate, finalPriority, modifiers };
@@ -990,6 +1035,12 @@ function objectiveTermsForCandidate(
     return [
       { term: "duplicate_exploration", weight: 3, reason: "The latest continuity packet carries explicit next actions from prior work." },
       { term: "token_time_waste", weight: 2, reason: "Following a continuity packet should reduce reorientation cost." },
+    ];
+  }
+  if (candidate.id.startsWith("task:")) {
+    return [
+      { term: "coordination_lag", weight: 3, reason: "Queued tasks are recorded commitments; leaving them unrouted lets the backlog rot." },
+      { term: "token_time_waste", weight: 2, reason: "Consuming the task queue avoids re-deriving what to work on next." },
     ];
   }
   return [{ term: "token_time_waste", weight: 1, reason: "A selected boot action should reduce idle or unfocused boot time." }];

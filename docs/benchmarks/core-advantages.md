@@ -10,6 +10,7 @@ These benchmarks define the Seedrop behaviors that should keep getting stronger:
 | Cold start context | A fresh agent gets purpose, manifest, continuity, and resume proof from one View context fetch. | View can exist but still be too low-signal to resume from. |
 | Interruption recovery | An active run preserves changed paths and next actions across session loss. | Agents can leave work that is visible but not actionable. |
 | Multi-agent awareness | Another agent's claim is visible as structured state, not shared prose. | Coordination can silently devolve into markdown convention. |
+| Task queue routing | With unclaimed, unblocked tasks and no active run, `next_move` proposes claiming the first one; blocked open tasks stay visible in the decision trace as suppressed, rejected candidates. | The router can report queued work in state while telling a fresh agent there is nothing to do. |
 | Stale knowledge guardrail | Superseded or stale notes are audit-visible before decisions depend on them. | Knowledge can rot while still looking authoritative. |
 
 Executable coverage lives in `cli/tests/boot.test.ts`, `cli/tests/router.test.ts`, and `space/tests/core-advantages.test.ts`.

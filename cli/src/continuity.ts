@@ -876,7 +876,7 @@ function renderContinuityFull(report: ContinuityReport): string {
   return lines.join("\n");
 }
 
-function selectNextAction(report: Omit<ContinuityReport, "orientation">): OrientationNextAction {
+export function selectNextAction(report: Omit<ContinuityReport, "orientation">): OrientationNextAction {
   const p = report.passport;
   if (!p) {
     return {
@@ -1004,18 +1004,14 @@ function selectNextAction(report: Omit<ContinuityReport, "orientation">): Orient
 
   // Claimed task ready to start. Surface the task's own state — including open
   // blockers — instead of any DM that might have nudged the work.
+  const taskLookup = [...report.view.activeTasks, ...report.view.blockerTasks];
   if (myAgentId) {
     const claimed = report.view.activeTasks.find(
       (t) => t.owner === myAgentId && t.status === "claimed",
     );
     if (claimed) {
       const shortId = claimed.task_id.slice(0, 8);
-      const taskLookup = [...report.view.activeTasks, ...report.view.blockerTasks];
-      const openBlockers = (claimed.blocked_by ?? []).filter((blockerId) => {
-        const blocker = taskLookup.find((t) => t.task_id === blockerId);
-        // If the blocker can't be read, assume it's open (we can't see its state).
-        return !blocker || (blocker.status !== "done" && blocker.status !== "dropped");
-      });
+      const openBlockers = openTaskBlockers(claimed, taskLookup);
       if (openBlockers.length > 0) {
         return {
           kind: "run",
@@ -1036,6 +1032,24 @@ function selectNextAction(report: Omit<ContinuityReport, "orientation">): Orient
         requires_human: false,
       };
     }
+  }
+
+  // Unclaimed queue: open, unblocked tasks are queued work — never report
+  // "no queued work" while the View holds tasks anyone could claim.
+  const unclaimedReady = report.view.activeTasks.filter(
+    (t) => t.status === "open" && openTaskBlockers(t, taskLookup).length === 0,
+  );
+  if (unclaimedReady.length > 0) {
+    const next = unclaimedReady[0]!;
+    const shortId = next.task_id.slice(0, 8);
+    return {
+      kind: "run",
+      command: `seed task claim ${shortId}`,
+      reason: `${unclaimedReady.length} unclaimed task(s) queued. Claim [${shortId}] "${truncate(next.title, 80)}".`,
+      source: "run",
+      risk: "low",
+      requires_human: false,
+    };
   }
 
   const pkt = report.view.latestPacket;
@@ -1069,6 +1083,14 @@ function selectNextAction(report: Omit<ContinuityReport, "orientation">): Orient
     risk: "low",
     requires_human: false,
   };
+}
+
+function openTaskBlockers(task: ViewTask, lookup: ViewTask[]): string[] {
+  return (task.blocked_by ?? []).filter((blockerId) => {
+    const blocker = lookup.find((t) => t.task_id === blockerId);
+    // If the blocker can't be read, assume it's open (we can't see its state).
+    return !blocker || (blocker.status !== "done" && blocker.status !== "dropped");
+  });
 }
 
 function sameDirectory(a: string, b: string): boolean {

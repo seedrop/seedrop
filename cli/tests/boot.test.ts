@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildBootReportFromContinuity, renderBoot, resolveBootNextAction, scoreBootOutcome } from "../src/boot.js";
+import { selectNextAction } from "../src/continuity.js";
 import type { ContinuityReport } from "../src/continuity.js";
 
 function continuity(overrides: Partial<ContinuityReport> = {}): ContinuityReport {
@@ -372,5 +373,109 @@ describe("BootReport next-action resolver", () => {
 
     expect(score).toMatchObject({ status: "inconclusive", confidence: "low" });
     expect(score.total.unknown_weight).toBeGreaterThan(0);
+  });
+});
+
+describe("boot task-queue routing (134c647c)", () => {
+  const openTask = { task_id: "11111111-1111-4111-8111-111111111111", title: "Budget-aware deep surfaces", status: "open" as const };
+  const blocker = { task_id: "33333333-3333-4333-8333-333333333333", title: "Ontology ADR", status: "open" as const };
+  const blockedTask = {
+    task_id: "22222222-2222-4222-8222-222222222222",
+    title: "Ship v0.2",
+    status: "open" as const,
+    blocked_by: [blocker.task_id],
+  };
+
+  it("proposes claiming an unclaimed, unblocked task instead of the focus fallback", () => {
+    const report = buildBootReportFromContinuity(
+      continuity({ view: { ...continuity().view, activeTasks: [openTask], openTasksCount: 1 } }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.next_action.candidate_id).toBe(`task:${openTask.task_id}`);
+    expect(report.next_action.command).toBe("seed task claim 11111111");
+    expect(report.next_action.reason).toContain("unclaimed task(s) queued");
+  });
+
+  it("keeps blocked open tasks visible in the trace as suppressed, rejected candidates", () => {
+    const report = buildBootReportFromContinuity(
+      continuity({ view: { ...continuity().view, activeTasks: [blockedTask, blocker], openTasksCount: 2 } }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.next_action.candidate_id).toBe(`task:${blocker.task_id}`);
+    const blockedEntry = report.decision_trace.candidates.find(
+      (candidate) => candidate.candidate_id === `task:blocked:${blockedTask.task_id}`,
+    );
+    expect(blockedEntry).toBeDefined();
+    expect(blockedEntry?.selected).toBe(false);
+    expect(blockedEntry?.modifiers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ rule: "task_blocked", effect: "suppress" }),
+    ]));
+    expect(blockedEntry?.rejected_because).toBeTruthy();
+    expect(report.alternate_actions.map((action) => action.candidate_id)).not.toContain(
+      `task:blocked:${blockedTask.task_id}`,
+    );
+  });
+
+  it("falls back to focus when every open task is blocked", () => {
+    const report = buildBootReportFromContinuity(
+      continuity({ view: { ...continuity().view, activeTasks: [blockedTask], openTasksCount: 1 } }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.next_action.candidate_id).toBe("focus:start");
+    expect(
+      report.decision_trace.candidates.some(
+        (candidate) => candidate.candidate_id === `task:blocked:${blockedTask.task_id}`,
+      ),
+    ).toBe(true);
+  });
+
+  it("prefers my claimed task over the unclaimed queue", () => {
+    const claimed = {
+      task_id: "44444444-4444-4444-8444-444444444444",
+      title: "Claimed by me",
+      status: "claimed" as const,
+      owner: "codex",
+    };
+    const report = buildBootReportFromContinuity(
+      continuity({ view: { ...continuity().view, activeTasks: [openTask, claimed], openTasksCount: 2 } }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.next_action.candidate_id).toBe(`task:${claimed.task_id}`);
+    expect(report.next_action.command).toBe(`seed task start ${claimed.task_id}`);
+  });
+});
+
+describe("continuity next-move task queue (134c647c)", () => {
+  const openTask = { task_id: "11111111-1111-4111-8111-111111111111", title: "Budget-aware deep surfaces", status: "open" as const };
+  const blockedTask = {
+    task_id: "22222222-2222-4222-8222-222222222222",
+    title: "Ship v0.2",
+    status: "open" as const,
+    blocked_by: ["33333333-3333-4333-8333-333333333333"],
+  };
+
+  it("claims from the unclaimed queue instead of reporting no queued work", () => {
+    const action = selectNextAction(
+      continuity({ view: { ...continuity().view, activeTasks: [openTask], openTasksCount: 1 } }),
+    );
+
+    expect(action.command).toBe("seed task claim 11111111");
+    expect(action.reason).toContain("1 unclaimed task(s) queued");
+  });
+
+  it("still falls back to focus when open tasks are all blocked", () => {
+    const action = selectNextAction(
+      continuity({ view: { ...continuity().view, activeTasks: [blockedTask], openTasksCount: 1 } }),
+    );
+
+    expect(action.reason).toContain("No queued work");
   });
 });
