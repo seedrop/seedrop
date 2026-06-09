@@ -188,9 +188,16 @@ export interface CapabilityEntry {
 }
 
 export interface CapabilityCatalog {
+  /** All entries in the map (CLI commands + the one MCP-only catalog tool). */
   total: number;
+  /** CLI commands (everything except the MCP-only entries). */
+  cli_commands: number;
+  /** CLI commands that ALSO have an MCP tool (covered/partial). */
   via_mcp: number;
+  /** CLI commands with no MCP equivalent. */
   cli_only: number;
+  /** Tools exposed only over MCP, with no CLI command (e.g. seedrop_index). */
+  mcp_only: number;
   groups: Record<string, CapabilityEntry[]>;
 }
 
@@ -199,14 +206,23 @@ export function buildCapabilities(): CapabilityCatalog {
   const groups: Record<string, CapabilityEntry[]> = {};
   let viaMcp = 0;
   let cliOnly = 0;
+  let mcpOnly = 0;
   for (const entry of MCP_CLI_COVERAGE) {
     const tool = entry.tools?.[0] ?? null;
-    if (tool && entry.status !== "cli_only") viaMcp += 1;
-    if (entry.status === "cli_only") cliOnly += 1;
+    if (entry.status === "mcp_only") mcpOnly += 1;
+    else if (entry.status === "cli_only") cliOnly += 1;
+    else if (tool) viaMcp += 1;
     const group = domainOf(entry.command);
     (groups[group] ??= []).push({ command: entry.command, tool, status: entry.status, reason: entry.reason });
   }
-  return { total: MCP_CLI_COVERAGE.length, via_mcp: viaMcp, cli_only: cliOnly, groups };
+  return {
+    total: MCP_CLI_COVERAGE.length,
+    cli_commands: MCP_CLI_COVERAGE.length - mcpOnly,
+    via_mcp: viaMcp,
+    cli_only: cliOnly,
+    mcp_only: mcpOnly,
+    groups,
+  };
 }
 
 function toolCell(entry: CapabilityEntry): string {
@@ -224,7 +240,7 @@ function truncate(text: string, max: number): string {
 /** Human at-a-glance render of the full capability surface, grouped by domain. */
 export function renderCapabilities(catalog: CapabilityCatalog = buildCapabilities()): string {
   const lines: string[] = [
-    `Seedrop capabilities — ${catalog.total} commands, ${catalog.via_mcp} via MCP, ${catalog.cli_only} CLI-only`,
+    `Seedrop capabilities — ${catalog.cli_commands} CLI commands (${catalog.via_mcp} also via MCP, ${catalog.cli_only} CLI-only) + ${catalog.mcp_only} MCP-only tool`,
     "",
   ];
   for (const group of GROUP_ORDER) {

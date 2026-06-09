@@ -25,12 +25,15 @@ describe("capabilities map", () => {
     }
   });
 
-  it("counts MCP-exposed vs CLI-only consistently", () => {
+  it("partitions counts cleanly: cli_commands = via_mcp + cli_only, total = cli_commands + mcp_only", () => {
     const catalog = buildCapabilities();
     const flat = Object.values(catalog.groups).flat();
-    expect(catalog.via_mcp).toBe(flat.filter((e) => e.tool && e.status !== "cli_only").length);
+    expect(catalog.mcp_only).toBe(flat.filter((e) => e.status === "mcp_only").length);
     expect(catalog.cli_only).toBe(flat.filter((e) => e.status === "cli_only").length);
-    expect(catalog.via_mcp + catalog.cli_only).toBeLessThanOrEqual(catalog.total);
+    expect(catalog.via_mcp).toBe(flat.filter((e) => e.status === "covered" || e.status === "partial").length);
+    // every CLI command is either also-via-mcp or cli-only — no overlap, no gap
+    expect(catalog.cli_commands).toBe(catalog.via_mcp + catalog.cli_only);
+    expect(catalog.total).toBe(catalog.cli_commands + catalog.mcp_only);
   });
 
   it("exposes seed capabilities itself through seedrop_capabilities", () => {
