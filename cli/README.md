@@ -10,7 +10,7 @@ seed init --yes
 seed doctor
 ```
 
-`seed init` creates the operator passport, detects known MCP clients, creates agent passports, wires client configs, deploys the per-client Seedrop skill, writes the boot reflex into each client's instructions file (e.g. `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) inside a managed marker block, and offers the macOS Space daemon. After it finishes, agents are ready to call `seedrop_continuity` from their next session.
+`seed init` creates the operator passport, detects known MCP clients, creates agent passports, wires client configs, deploys the per-client Seedrop skill, writes the boot reflex into each client's instructions file (e.g. `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) inside a managed marker block, and offers the macOS Space daemon. After it finishes, agents are ready to call `seedrop_boot` from their next session.
 
 `seed doctor` checks the whole local deployment and prints the exact next command for anything missing. `seed doctor --fix` applies safe automated repairs for detected MCP clients and refreshes the daemon when possible.
 

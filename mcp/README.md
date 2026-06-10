@@ -40,7 +40,7 @@ Restart the client. The tools below will appear in the tool list:
 
 | Tool | Purpose |
 |---|---|
-| `seedrop_continuity` | Boot block: identity + view + daemon + recent messages + next move. |
+| `seedrop_boot` | Boot block: identity + view + daemon + recent messages + next move. |
 | `seedrop_bootstrap` | First-time setup or per-repo link. |
 | `seedrop_view_context` | Per-repo View state. |
 | `seedrop_view_log` | Write a continuity packet. |
@@ -56,7 +56,7 @@ Restart the client. The tools below will appear in the tool list:
 
 The recommended global instruction (in `~/.claude/CLAUDE.md` or equivalent) is:
 
-> When the user mentions Seedrop, says "seed", asks "where was I", or you're working in a repo that contains `.seedrop/view/`, call `seedrop_continuity` immediately. Use its output to orient before doing anything else.
+> When the user mentions Seedrop, says "seed", asks "where was I", or you're working in a repo that contains `.seedrop/view/`, call `seedrop_boot` immediately. Use its output to orient before doing anything else.
 
 ## Verification
 

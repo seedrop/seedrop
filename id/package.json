@@ -56,5 +56,12 @@
   "dependencies": {
     "tsx": "^4.22.0",
     "zod": "^3.23.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seedrop/seedrop.git",
+    "directory": "id"
+  },
+  "homepage": "https://github.com/seedrop/seedrop#readme",
+  "bugs": "https://github.com/seedrop/seedrop/issues"
 }

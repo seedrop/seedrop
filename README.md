@@ -122,7 +122,7 @@ That single package pulls in `@seedrop/id` and `@seedrop/space` as dependencies 
 <summary>From source (for contributors)</summary>
 
 ```bash
-git clone https://github.com/<your-user>/seedrop.git
+git clone https://github.com/seedrop/seedrop.git
 cd seedrop
 npm install
 npm run link          # symlinks `seed` + `seed-mcp` + `seed-id` into your global bin

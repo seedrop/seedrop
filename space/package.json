@@ -63,5 +63,12 @@
     "better-sqlite3": "^12.10.0",
     "tsx": "^4.21.1",
     "zod": "^3.25.76"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seedrop/seedrop.git",
+    "directory": "space"
+  },
+  "homepage": "https://github.com/seedrop/seedrop#readme",
+  "bugs": "https://github.com/seedrop/seedrop/issues"
 }
