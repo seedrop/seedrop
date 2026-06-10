@@ -15,7 +15,7 @@ To see the full surface at a glance, call `seedrop_capabilities` once and cache 
 
 At the start of Seedrop-related work, orient before editing:
 
-1. Call `seedrop_continuity` with the repo `cwd` when available.
+1. Call `seedrop_boot` with the repo `cwd` when available.
 2. Call `seedrop_view_context` to read the stable repo View state.
 3. Call `seedrop_view_preflight` to catch missing or stale View setup.
 4. Call `seedrop_inbox` to check unacked mentions addressed to the active passport.

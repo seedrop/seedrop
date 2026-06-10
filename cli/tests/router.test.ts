@@ -1009,7 +1009,7 @@ describe("seed install registry", () => {
     expect(existsSync(skillPath)).toBe(true);
     const skill = await readFile(skillPath, "utf8");
     expect(skill).toContain("name: seedrop");
-    expect(skill).toContain("seedrop_continuity");
+    expect(skill).toContain("seedrop_boot");
     expect(skill).toContain("seedrop_capabilities");
   });
 

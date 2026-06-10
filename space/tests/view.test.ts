@@ -983,7 +983,8 @@ describe("context byte budget (fc8b8b30)", () => {
     const context = await view().context({ budgetBytes: 0 });
 
     expect(context.budget).toBeUndefined();
-    expect((context.active_tasks?.[0]?.description ?? "").length).toBe(1200);
+    const fatTask = context.active_tasks?.find((task) => task.title === "Task 0");
+    expect((fatTask?.description ?? "").length).toBe(1200);
     expect(context.manifest?.files_count).toBeGreaterThan(0);
   });
 });

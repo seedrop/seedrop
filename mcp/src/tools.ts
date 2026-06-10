@@ -111,43 +111,6 @@ export const tools: ToolDef[] = [
     },
   },
   {
-    name: "seedrop_continuity",
-    description: desc(
-      "seed continuity [--brief|--medium|--full] [--json] [--messages N]",
-      "Run Seedrop's boot block: identity, current repo View, daemon presence, recent Space messages, and a next-move suggestion. Call this whenever the user asks about Seedrop, mentions 'where was I', or works in a repo with `.seedrop/view/`. Returns Markdown by default; pass `json: true` for structured output.",
-    ),
-    inputSchema: {
-      type: "object",
-      properties: {
-        cwd: { type: "string", description: "Project directory to orient against. Defaults to the server's cwd." },
-        json: { type: "boolean", description: "Return structured JSON instead of human-readable Markdown.", default: false },
-        messages: { type: "number", description: "Max recent messages per joined space (default 5).", default: 5 },
-        mode: { type: "string", enum: ["brief", "medium", "full"], description: "Plain-text detail level. Defaults to brief." },
-        passport: { type: "string", description: "Explicit passport path." },
-        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
-        peek: { type: "boolean", description: "Do not advance the continuity watermark.", default: false },
-        since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
-        budget: { type: "number", description: "Compact-JSON byte budget for the JSON report. Only applies with json: true." },
-      },
-      additionalProperties: false,
-    },
-    async handler(args) {
-      const cwd = strArg(args, "cwd");
-      const cmd = ["continuity"];
-      if (args.json === true) cmd.push("--json");
-      if (typeof args.budget === "number") cmd.push("--budget", String(args.budget));
-      const mode = strArg(args, "mode");
-      if (mode === "medium") cmd.push("--medium");
-      if (mode === "full") cmd.push("--full");
-      if (typeof args.messages === "number") cmd.push("--messages", String(args.messages));
-      pushStringFlag(cmd, args, "passport", "--passport");
-      pushStringFlag(cmd, args, "url", "--url");
-      if (args.peek === true) cmd.push("--peek");
-      pushStringFlag(cmd, args, "since", "--since");
-      return exec(cmd, cwd);
-    },
-  },
-  {
     name: "seedrop_focus",
     description: desc(
       "seed focus [--json]",
@@ -263,18 +226,6 @@ export const tools: ToolDef[] = [
       const cmd = ["view", "context", "--json"];
       if (typeof args?.budget === "number") cmd.push("--budget", String(args.budget));
       return exec(cmd, strArg(args, "cwd"));
-    },
-  },
-  {
-    name: "seedrop_view_brief",
-    description: desc("seed view brief --json", "Return the stable per-repo View orientation packet for cwd as JSON."),
-    inputSchema: {
-      type: "object",
-      properties: { cwd: { type: "string" } },
-      additionalProperties: false,
-    },
-    async handler(args) {
-      return exec(["view", "brief", "--json"], strArg(args, "cwd"));
     },
   },
   {
@@ -540,13 +491,14 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_signal_claim",
-    description: desc("seed view claim <target> <intent>", "Create an advisory claim signal lease for a View target. Returns JSON."),
+    description: desc("seed view claim|lock <target> <intent>", "Create an advisory signal lease for a View target. type 'claim' (default) is cooperative; type 'lock' requests exclusive work. Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
         cwd: { type: "string" },
         target: { type: "string" },
         intent: { type: "string" },
+        type: { type: "string", enum: ["claim", "lock"], description: "Lease type. Default claim." },
         owner: { type: "string" },
         ttl_ms: { type: "number", description: "Lease TTL in milliseconds. Passed to CLI as --ttl." },
         recovery: { type: "string", description: "Recovery guidance if the signal expires or conflicts." },
@@ -558,36 +510,8 @@ export const tools: ToolDef[] = [
       const target = strArg(args, "target");
       const intent = strArg(args, "intent");
       if (!target || !intent) return error("target and intent are required");
-      const cmd = ["view", "claim", target, intent];
-      const owner = strArg(args, "owner");
-      if (owner) cmd.push("--owner", owner);
-      if (typeof args.ttl_ms === "number") cmd.push("--ttl", String(args.ttl_ms));
-      const recovery = strArg(args, "recovery");
-      if (recovery) cmd.push("--recovery", recovery);
-      return exec(cmd, strArg(args, "cwd"));
-    },
-  },
-  {
-    name: "seedrop_signal_lock",
-    description: desc("seed view lock <target> <intent>", "Create an advisory lock signal lease for a View target. Returns JSON."),
-    inputSchema: {
-      type: "object",
-      properties: {
-        cwd: { type: "string" },
-        target: { type: "string" },
-        intent: { type: "string" },
-        owner: { type: "string" },
-        ttl_ms: { type: "number", description: "Lease TTL in milliseconds. Passed to CLI as --ttl." },
-        recovery: { type: "string", description: "Recovery guidance if the signal expires or conflicts." },
-      },
-      required: ["target", "intent"],
-      additionalProperties: false,
-    },
-    async handler(args) {
-      const target = strArg(args, "target");
-      const intent = strArg(args, "intent");
-      if (!target || !intent) return error("target and intent are required");
-      const cmd = ["view", "lock", target, intent];
+      const verb = strArg(args, "type") === "lock" ? "lock" : "claim";
+      const cmd = ["view", verb, target, intent];
       const owner = strArg(args, "owner");
       if (owner) cmd.push("--owner", owner);
       if (typeof args.ttl_ms === "number") cmd.push("--ttl", String(args.ttl_ms));
@@ -1046,12 +970,10 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
       { tool: "seedrop_manual", use_when: "Load the Seedrop concepts and workflow guide once per session.", example: { section: "workflows" } },
       { tool: "seedrop_capabilities", use_when: "Get the full command -> MCP-tool capability map (what seed can do, how to call each).", example: {} },
       { tool: "seedrop_boot", use_when: "Start a stateless-agent session and get the canonical Situation packet plus single safest next action.", example: { cwd: "/path/to/repo", json: true, peek: true } },
-      { tool: "seedrop_continuity", use_when: "Start a Seedrop-aware session or answer 'where was I?'.", example: { cwd: "/path/to/repo", messages: 5 } },
       { tool: "seedrop_bootstrap", use_when: "Create first passport or link the current repo View.", example: { cwd: "/path/to/repo" } },
     ],
     view: [
       { tool: "seedrop_view_context", use_when: "Read full repo View state, active runs, tasks, signals, and open threads.", example: { cwd: "/path/to/repo" } },
-      { tool: "seedrop_view_brief", use_when: "Read the compact stable repo orientation packet.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_view_preflight", use_when: "Check whether it is safe to start or continue repo work.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_view_sync", use_when: "Refresh the View manifest after file changes or drift.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_view_audit", use_when: "Run deep View validation for manifest drift and expired signals.", example: { cwd: "/path/to/repo" } },
@@ -1082,7 +1004,6 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
     ],
     signal: [
       { tool: "seedrop_signal_claim", use_when: "Create an advisory claim signal for a target.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts", intent: "edit MCP wrappers" } },
-      { tool: "seedrop_signal_lock", use_when: "Create an advisory lock signal for exclusive target work.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts", intent: "avoid conflicting edits" } },
       { tool: "seedrop_signal_list", use_when: "List current signal leases.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_signal_release", use_when: "Release signal leases by id, target, owner, or type.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts" } },
     ],

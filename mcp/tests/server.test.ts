@@ -9,7 +9,6 @@ describe("tools registry", () => {
         "seedrop_boot",
         "seedrop_bootstrap",
         "seedrop_capabilities",
-        "seedrop_continuity",
         "seedrop_daemon_status",
         "seedrop_diff",
         "seedrop_focus",
@@ -25,7 +24,6 @@ describe("tools registry", () => {
         "seedrop_run_verify",
         "seedrop_signal_claim",
         "seedrop_signal_list",
-        "seedrop_signal_lock",
         "seedrop_signal_release",
         "seedrop_space_heartbeat",
         "seedrop_space_join",
@@ -45,7 +43,6 @@ describe("tools registry", () => {
         "seedrop_task_show",
         "seedrop_task_start",
         "seedrop_view_audit",
-        "seedrop_view_brief",
         "seedrop_view_context",
         "seedrop_view_explain",
         "seedrop_view_log",
@@ -75,7 +72,7 @@ describe("tools registry", () => {
     const result = await index!.handler({});
     const parsed = JSON.parse(result.content[0]!.text) as Record<string, Array<{ tool: string }>>;
     expect(parsed.orient.map((entry) => entry.tool)).toContain("seedrop_boot");
-    expect(parsed.orient.map((entry) => entry.tool)).toContain("seedrop_continuity");
+    expect(parsed.orient.map((entry) => entry.tool)).toContain("seedrop_boot");
     expect(parsed.view.map((entry) => entry.tool)).toContain("seedrop_view_sync");
     expect(parsed.view.map((entry) => entry.tool)).toContain("seedrop_diff");
     expect(parsed.run.map((entry) => entry.tool)).toContain("seedrop_run_start");
@@ -110,8 +107,6 @@ describe("tools registry", () => {
     expect(explain?.inputSchema).toMatchObject({ required: ["topic"] });
     const signalClaim = tools.find((t) => t.name === "seedrop_signal_claim");
     expect(signalClaim?.inputSchema).toMatchObject({ required: ["target", "intent"] });
-    const signalLock = tools.find((t) => t.name === "seedrop_signal_lock");
-    expect(signalLock?.inputSchema).toMatchObject({ required: ["target", "intent"] });
     const taskCreate = tools.find((t) => t.name === "seedrop_task_create");
     expect(taskCreate?.inputSchema).toMatchObject({ required: ["title"] });
     const taskShow = tools.find((t) => t.name === "seedrop_task_show");
@@ -120,15 +115,15 @@ describe("tools registry", () => {
 });
 
 describe("tool handlers (smoke)", () => {
-  it("seedrop_continuity returns text content even when no passport exists", async () => {
+  it("seedrop_boot returns text content even when no passport exists", async () => {
     const prior = process.env.SEEDROP_PASSPORT;
     process.env.SEEDROP_PASSPORT = "/nonexistent/__seed-mcp-test__.json";
     try {
-      const tool = tools.find((t) => t.name === "seedrop_continuity");
+      const tool = tools.find((t) => t.name === "seedrop_boot");
       expect(tool).toBeDefined();
       const result = await tool!.handler({});
       expect(result.content[0]?.type).toBe("text");
-      expect(result.content[0]?.text).toContain("Continuity");
+      expect(result.content[0]?.text).toContain("schema_version");
     } finally {
       if (prior === undefined) delete process.env.SEEDROP_PASSPORT;
       else process.env.SEEDROP_PASSPORT = prior;

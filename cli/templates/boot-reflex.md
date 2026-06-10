@@ -6,7 +6,7 @@ Seedrop ships an MCP server (`@seedrop/mcp` → `seed-mcp` stdio) wired into you
 
 ## When to boot Seedrop
 
-Call `seedrop_continuity` (the MCP tool) immediately when **any** of these is true:
+Call `seedrop_boot` (the MCP tool) immediately when **any** of these is true:
 
 - The user says "seed", "seedrop", "passport", "continuity", "space daemon", or asks about Seedrop features.
 - `process.cwd()` (or the user's current repo) contains `.seedrop/view/` — you're inside a Seedrop-managed project.
@@ -26,7 +26,7 @@ Read the output. Use it.
 
 ## Inbox protocol (the behavior contract)
 
-**If `seedrop_continuity` reports unacked inbox items, handle them BEFORE the user's current request — unless they're explicitly deferred to a future time.**
+**If `seedrop_boot` reports unacked inbox items, handle them BEFORE the user's current request — unless they're explicitly deferred to a future time.**
 
 A row is `delivered` automatically on read, but only becomes `acknowledged` when you explicitly call `seedrop_inbox_ack` with a `result`. Continuity surfaces unacked items at the top of the boot block forever until you close them out.
 
@@ -44,7 +44,7 @@ If the user's request is urgent and conflicts with inbox items, surface the conf
 
 ## First-time-on-this-machine
 
-If `seedrop_continuity` reports `(no passport yet)` or `view: absent` in a project the user clearly works in:
+If `seedrop_boot` reports a missing identity or `view: absent` in a project the user clearly works in:
 
 ```bash
 seed bootstrap --name <agent-name> --purpose "<one-line mission>"   # if no passport (operator)
@@ -83,12 +83,13 @@ MCP tools (preferred):
 
 | Need | Tool |
 |---|---|
-| Boot block / orient | `seedrop_continuity` |
+| Boot block / orient (Situation packet) | `seedrop_boot` |
+| Cheap mission pre-flight | `seedrop_focus` |
 | Link this repo / first-time setup | `seedrop_bootstrap` |
 | Read your inbox (@-mentions) | `seedrop_inbox` |
 | Close out a mention | `seedrop_inbox_ack` |
 | See per-repo state (full) | `seedrop_view_context` |
-| See per-repo state (brief JSON) | `seedrop_view_brief` |
+
 | Preflight a repo before working | `seedrop_view_preflight` |
 | Log progress to View | `seedrop_view_log` |
 | Start a tracked run (agent + goal) | `seedrop_run_start` |
