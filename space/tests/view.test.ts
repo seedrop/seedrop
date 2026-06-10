@@ -1011,3 +1011,59 @@ describe("signal GC (1eeadcf3)", () => {
     expect(await view().listSignals({ includeExpired: true })).toHaveLength(0);
   });
 });
+
+describe("run claim lifecycle (57e37682)", () => {
+  it("archives the run's own claims on completed finish", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    const { run } = await view().startRun({ goal: "edit readme", claim: ["README.md"] });
+    await view().logRun({ summary: "done", changedPaths: [] });
+
+    expect(await view().listSignals()).toHaveLength(1);
+    await view().finishRun({ status: "completed" });
+
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(0);
+    const archived = await view().listArchivedSignals();
+    expect(archived).toHaveLength(1);
+    expect(archived[0]).toMatchObject({ target: "README.md", details: { run_id: run.run_id } });
+    expect(archived[0]?.archived_at).toBeTruthy();
+  });
+
+  it("releases claims on blocked and failed finishes too", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().startRun({ goal: "stuck work", claim: ["README.md"] });
+    await view().finishRun({ status: "blocked" });
+
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(0);
+    expect(await view().listArchivedSignals()).toHaveLength(1);
+  });
+
+  it("leaves other agents' and unrelated claims alone", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    const other = WorkspaceView.open({ root, agent: "claude", now: () => now });
+    await other.claimSignal({ target: "README.md", intent: "claude reviewing readme" });
+    await view().claimSignal({ target: "docs/guide.md", intent: "codex manual claim, no run" });
+
+    await view().startRun({ goal: "edit readme", claim: ["src/index.ts"] });
+    await view().finishRun({ status: "completed" });
+
+    const live = await view().listSignals({ includeExpired: true });
+    expect(live.map((s) => s.target).sort()).toEqual(["README.md", "docs/guide.md"]);
+    expect((await view().listArchivedSignals()).map((s) => s.target)).toEqual(["src/index.ts"]);
+  });
+
+  it("releases pre-stamp claims via the intent prefix fallback", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    const { run } = await view().startRun({ goal: "legacy claims" });
+    // Simulate a claim created before details.run_id stamping existed.
+    await view().claimSignal({ target: "README.md", intent: `run ${run.run_id.slice(0, 8)}: legacy claims` });
+
+    await view().finishRun({ status: "completed" });
+
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(0);
+    expect(await view().listArchivedSignals()).toHaveLength(1);
+  });
+});

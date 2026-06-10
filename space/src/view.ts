@@ -694,6 +694,7 @@ export class WorkspaceView {
           target,
           intent: `run ${run.run_id.slice(0, 8)}: ${input.goal}`,
           owner: agentId,
+          details: { run_id: run.run_id },
         });
       }
     }
@@ -785,6 +786,14 @@ export class WorkspaceView {
     run.status = input.status;
     run.finished_at = this.nowIso();
     if (input.nextActions) run.next_actions = input.nextActions;
+
+    // A finished run's claims are residue, not active collision warnings —
+    // archive them on every terminal status (completed, blocked, failed).
+    try {
+      await this.releaseRunClaims(run);
+    } catch {
+      // intentional: claim cleanup must never fail a finish
+    }
 
     if (input.status === "completed") {
       // Auto-sync the manifest so the View reflects the post-run state.
@@ -1284,18 +1293,42 @@ export class WorkspaceView {
     );
     if (expired.length === 0) return [];
 
+    await this.archiveAndRemoveSignals(expired);
+    return expired;
+  }
+
+  /**
+   * Release the claim signals a run created (matched by details.run_id, with
+   * an intent-prefix fallback for pre-stamp signals) into the archive ledger.
+   * A finished run's claims become queryable residue instead of reading as
+   * "another agent is working here" until TTL expiry.
+   */
+  async releaseRunClaims(run: RunJournal): Promise<Signal[]> {
+    const prefix = `run ${run.run_id.slice(0, 8)}:`;
+    const claims = (await this.listSignals({ includeExpired: true })).filter(
+      (signal) =>
+        signal.owner === run.agent_id
+        && ((signal.details as { run_id?: string } | undefined)?.run_id === run.run_id
+          || signal.intent.startsWith(prefix)),
+    );
+    if (claims.length === 0) return [];
+    await this.archiveAndRemoveSignals(claims);
+    return claims;
+  }
+
+  /** Append signals to the archive ledger, then delete their live files. */
+  private async archiveAndRemoveSignals(signals: Signal[]): Promise<void> {
     const archivedAt = this.nowIso();
     const merged = [
       ...(await this.listArchivedSignals()),
-      ...expired.map((signal) => ({ ...signal, archived_at: archivedAt })),
+      ...signals.map((signal) => ({ ...signal, archived_at: archivedAt })),
     ].slice(-SIGNAL_ARCHIVE_CAP);
     await this.writeJson(this.signalsArchivePath, merged);
 
-    for (const signal of expired) {
+    for (const signal of signals) {
       const filename = await this.findSignalFilename(signal.id);
       if (filename) await unlink(path.join(this.signalsDir, filename));
     }
-    return expired;
   }
 
   async brief(options: ViewBriefOptions = {}): Promise<ViewBrief> {
