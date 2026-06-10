@@ -1,6 +1,6 @@
 {
   "name": "@seedrop/mcp",
-  "version": "0.1.0-alpha.1",
+  "version": "0.2.0-alpha.1",
   "description": "Model Context Protocol server for Seedrop — exposes seed continuity, bootstrap, view, and space as MCP tools.",
   "type": "module",
   "main": "./dist/index.js",
@@ -44,9 +44,9 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@seedrop/cli": "^0.1.0-alpha.2",
-    "@seedrop/id": "^0.1.0-alpha.8",
-    "@seedrop/space": "^0.1.0-alpha.2",
+    "@seedrop/cli": "^0.2.0-alpha.1",
+    "@seedrop/id": "^0.2.0-alpha.1",
+    "@seedrop/space": "^0.2.0-alpha.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "tsx": "^4.22.0",
     "zod": "^3.25.0"
