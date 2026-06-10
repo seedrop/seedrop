@@ -31,7 +31,7 @@ _since last seen 3d ago_
 
 One command. The whole product is on screen. Claude has its own passport. Codex has a different passport. They wrote to the same repo across two separate sessions days apart. Neither one was running when the other worked. Neither one used a memory product. Nothing left `127.0.0.1`. The state is JSON you can `cat` and `git diff`.
 
-**Status:** alpha (`0.1.0-alpha.*`). macOS + Node 20+. MCP-first.
+**Status:** alpha (`0.2.0-alpha.*`), published on npm under [`@seedrop`](https://www.npmjs.com/org/seedrop). macOS + Node 20+. MCP-first.
 
 ---
 
@@ -109,19 +109,28 @@ This is the work Seedrop was built to make routine.
 
 ## Quickstart
 
-### Install (from source)
+### Install
 
-Until packages are published to npm, install from this workspace:
+```bash
+npm install -g @seedrop/cli
+seed --help           # confirm it's on PATH
+```
+
+That single package pulls in `@seedrop/id` and `@seedrop/space` as dependencies — `npm install -g @seedrop/cli` is the whole CLI. You do **not** install the four packages separately. The MCP server (`@seedrop/mcp`) is fetched on demand by your client via `npx`; see [MCP integration](#mcp-integration) — you don't install it yourself either.
+
+<details>
+<summary>From source (for contributors)</summary>
 
 ```bash
 git clone https://github.com/<your-user>/seedrop.git
 cd seedrop
 npm install
 npm run link          # symlinks `seed` + `seed-mcp` + `seed-id` into your global bin
-seed --help           # confirm it's on PATH
+seed --help
 ```
 
-`npm run unlink` reverses the symlinks.
+`npm run unlink` reverses the symlinks. A source checkout makes `seed install` wire clients to the local `mcp/dist/cli.js` instead of `npx @seedrop/mcp`.
+</details>
 
 ### First time on this machine
 
@@ -156,7 +165,7 @@ seed view context     # full per-repo state
 
 ### Why MCP
 
-Most agent clients (Claude Code, Claude Desktop, Codex CLI, Cursor, Kimi, Cline, Windsurf, Continue, …) speak the Model Context Protocol. Seedrop ships a stdio MCP server that exposes the `seed` operations as native tools, so an agent can call `seedrop_continuity` directly instead of shelling out.
+Most agent clients (Claude Code, Claude Desktop, Codex CLI, Cursor, Kimi, Cline, Windsurf, Continue, …) speak the Model Context Protocol. Seedrop ships a stdio MCP server that exposes the `seed` operations as native tools, so an agent can call `seedrop_boot` directly instead of shelling out.
 
 ### Wire-up
 
@@ -168,19 +177,21 @@ seed install codex  --to codex-cli
 seed install --all-detected     # wire every detected client
 ```
 
-For manual configuration, add an entry under `mcpServers` in `~/.claude.json` (or your client's equivalent):
+For manual configuration, add an entry under `mcpServers` in `~/.claude.json` (or your client's equivalent). With the published package, the server runs via `npx` — no separate install:
 
 ```json
 {
   "mcpServers": {
     "seedrop": {
       "type": "stdio",
-      "command": "/path/to/node",
-      "args": ["/path/to/seedrop/mcp/dist/cli.js"]
+      "command": "npx",
+      "args": ["-y", "@seedrop/mcp"]
     }
   }
 }
 ```
+
+(This is exactly what `seed install` writes for a published install; a source checkout points `command`/`args` at the local `mcp/dist/cli.js` instead.)
 
 Restart the client. The Seedrop tools appear in the client's tool list.
 
@@ -199,13 +210,14 @@ Restart the client. The Seedrop tools appear in the client's tool list.
 | Kilo | `kilo` | unverified |
 | Antigravity | (detected) | unverified |
 
-Unverified means the adapter exists and is data-driven through `clients.json`, but Seedrop's authors haven't end-to-end tested the wire-up. After installing, restart the client and confirm `seedrop_continuity` appears in its tool list.
+Unverified means the adapter exists and is data-driven through `clients.json`, but Seedrop's authors haven't end-to-end tested the wire-up. After installing, restart the client and confirm `seedrop_boot` appears in its tool list.
 
 ### Tool surface
 
 | Tool | Purpose |
 |---|---|
-| `seedrop_continuity` | Boot block: identity + view + daemon + recent messages + next move |
+| `seedrop_boot` | Cold-start Situation packet: identity + view + daemon + next move + evidence |
+| `seedrop_focus` | Cheap mission-scoped pre-flight (never advances the watermark) |
 | `seedrop_bootstrap` | First-time setup or per-repo link |
 | `seedrop_view_context` | Per-repo View state |
 | `seedrop_view_log` | Write a continuity packet |
