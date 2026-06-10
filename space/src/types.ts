@@ -1,6 +1,7 @@
 import type { ContinuityPacket, Handoff, NextAction, RunJournal, Signal, ViewPolicy, WorkspaceManifest } from "./schema.js";
 
 export type {
+  ArchivedSignal,
   ContinuityPacket,
   ContinuityValidation,
   FileKind,

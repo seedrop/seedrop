@@ -33,8 +33,10 @@ import {
   TaskStatusSchema,
   ViewPolicySchema,
   WorkspaceManifestSchema,
+  SignalsArchiveSchema,
 } from "./schema.js";
 import {
+  ArchivedSignal,
   AuditReport,
   ContextBudget,
   ContinuityPacket,
@@ -310,6 +312,7 @@ export class WorkspaceView {
   readonly policyPath: string;
   readonly auditPath: string;
   readonly resolvedThreadsPath: string;
+  readonly signalsArchivePath: string;
 
   private readonly agent: string;
   private readonly now: () => Date;
@@ -330,6 +333,7 @@ export class WorkspaceView {
     this.policyPath = path.join(this.dataDir, "policy.json");
     this.auditPath = path.join(this.dataDir, "audit.json");
     this.resolvedThreadsPath = path.join(this.dataDir, "resolved-threads.json");
+    this.signalsArchivePath = path.join(this.dataDir, "signals-archive.json");
     this.agent = options.agent;
     this.now = options.now;
   }
@@ -447,6 +451,15 @@ export class WorkspaceView {
     };
 
     await this.writeJson(this.manifestPath, manifest);
+
+    // Sync is the natural maintenance moment: sweep long-expired signals into
+    // the archive so audit warnings clear without manual releases.
+    try {
+      await this.gcExpiredSignals();
+    } catch {
+      // intentional: GC must never fail a sync
+    }
+
     return manifest;
   }
 
@@ -1245,6 +1258,44 @@ export class WorkspaceView {
     }
 
     return signals.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+
+  /** Read the archive ledger of GC-swept signals. Missing or corrupt file reads as empty. */
+  async listArchivedSignals(): Promise<ArchivedSignal[]> {
+    try {
+      return await this.readJson(this.signalsArchivePath, SignalsArchiveSchema);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Sweep signals that expired more than `graceMs` ago into the archive
+   * ledger, then delete their live files. Expired-but-within-grace signals
+   * stay live (and stay audit-visible) so a crashed owner can still renew.
+   * Runs from mutating operations only (sync, and run finish via sync) —
+   * bare reads never garbage-collect.
+   */
+  async gcExpiredSignals(options: { graceMs?: number } = {}): Promise<Signal[]> {
+    const graceMs = options.graceMs ?? SIGNAL_GC_GRACE_MS;
+    const cutoff = this.now().getTime() - graceMs;
+    const expired = (await this.listSignals({ includeExpired: true })).filter(
+      (signal) => Date.parse(signal.expires_at) <= cutoff,
+    );
+    if (expired.length === 0) return [];
+
+    const archivedAt = this.nowIso();
+    const merged = [
+      ...(await this.listArchivedSignals()),
+      ...expired.map((signal) => ({ ...signal, archived_at: archivedAt })),
+    ].slice(-SIGNAL_ARCHIVE_CAP);
+    await this.writeJson(this.signalsArchivePath, merged);
+
+    for (const signal of expired) {
+      const filename = await this.findSignalFilename(signal.id);
+      if (filename) await unlink(path.join(this.signalsDir, filename));
+    }
+    return expired;
   }
 
   async brief(options: ViewBriefOptions = {}): Promise<ViewBrief> {
@@ -2812,6 +2863,12 @@ function sanitizeFilename(input: string): string {
  * agent's tool-result window; callers that need everything pass `budgetBytes: 0`.
  */
 const DEFAULT_CONTEXT_BUDGET_BYTES = 8192;
+
+/** Expired signals stay live (and audit-visible) this long before GC archives them. */
+const SIGNAL_GC_GRACE_MS = 24 * 60 * 60 * 1000;
+
+/** The archive ledger keeps the most recent N swept signals. */
+const SIGNAL_ARCHIVE_CAP = 500;
 
 function summarizeManifest(manifest: WorkspaceManifest): WorkspaceManifestSummary {
   return {

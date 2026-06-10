@@ -123,6 +123,11 @@ export const SignalSchema = z
   })
   .strict();
 
+/** A signal swept off the live set by GC; kept in the archive ledger for audit. */
+export const ArchivedSignalSchema = SignalSchema.extend({ archived_at: IsoDateTime });
+
+export const SignalsArchiveSchema = z.array(ArchivedSignalSchema);
+
 export const NextActionSchema = z
   .object({
     kind: z.enum(["command", "read", "write", "verify", "handoff", "decide"]),
@@ -364,6 +369,7 @@ export type WorkspaceManifest = z.infer<typeof WorkspaceManifestSchema>;
 export type ContinuityValidation = z.infer<typeof ContinuityValidationSchema>;
 export type ContinuityPacket = z.infer<typeof ContinuityPacketSchema>;
 export type Signal = z.infer<typeof SignalSchema>;
+export type ArchivedSignal = z.infer<typeof ArchivedSignalSchema>;
 export type NextAction = z.infer<typeof NextActionSchema>;
 export type RunValidationEntry = z.infer<typeof RunValidationEntrySchema>;
 export type RunStep = z.infer<typeof RunStepSchema>;

@@ -941,6 +941,25 @@ function collectBootCandidates(
       evidence: [{ source: "view", ref: blocked.task_id, summary: `Blocked by ${blockers.map((b) => b.slice(0, 8)).join(", ")}.` }],
     });
   }
+  const staleThreadCutoff = Date.parse(report.generated_at) - STALE_THREAD_MS;
+  const staleThreads = (continuity.view.openThreads ?? []).filter(
+    (thread) => thread.created_at && Date.parse(thread.created_at) < staleThreadCutoff,
+  );
+  if (staleThreads.length > 0) {
+    const oldest = staleThreads[0]!;
+    push({
+      id: `thread:stale:${oldest.id}`,
+      kind: "run",
+      command: "seed view threads",
+      reason: `${staleThreads.length} open thread(s) stale >14d. Start with [${oldest.id}] — resolve or convert to a task.`,
+      source: "view",
+      risk: "low",
+      requires_human: false,
+      base_priority: 85,
+      blocks_work: false,
+      evidence: [{ source: "view", ref: oldest.id, summary: `Oldest stale thread created ${oldest.created_at}.` }],
+    });
+  }
   if (continuity.view.latestPacket?.next_actions?.length) {
     push({
       id: `continuity:${continuity.view.latestPacket.id ?? "latest"}`,
@@ -1103,6 +1122,9 @@ function objectiveTermsForCandidate(
       { term: "token_time_waste", weight: 2, reason: "Following a continuity packet should reduce reorientation cost." },
     ];
   }
+  if (candidate.id.startsWith("thread:stale:")) {
+    return [{ term: "stale_assumption", weight: 2, reason: "Open threads that rot quietly become stale assumptions future decisions rely on." }];
+  }
   if (candidate.id.startsWith("task:")) {
     return [
       { term: "coordination_lag", weight: 3, reason: "Queued tasks are recorded commitments; leaving them unrouted lets the backlog rot." },
@@ -1248,6 +1270,9 @@ function rejectionReason(
   }
   return `Selected ${winner.id} because it has higher policy priority under boot-next-action-v1.`;
 }
+
+/** Open threads older than this surface as a boot candidate. */
+const STALE_THREAD_MS = 14 * 24 * 60 * 60 * 1000;
 
 const fallbackCandidate: BootCandidate = {
   id: "focus:start",

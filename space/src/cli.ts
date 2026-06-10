@@ -307,7 +307,15 @@ async function run(args: ParsedArgs): Promise<void> {
   }
 
   if (command === "signals") {
-    printJson(await view.listSignals({ includeExpired: args.flags.has("include-expired") }));
+    const includeExpired = args.flags.has("include-expired");
+    const live = await view.listSignals({ includeExpired });
+    // The archive ledger holds GC-swept signals; surface it with the same
+    // flag so expired history stays queryable after cleanup.
+    if (includeExpired) {
+      printJson({ live, archived: await view.listArchivedSignals() });
+    } else {
+      printJson(live);
+    }
     return;
   }
 

@@ -963,3 +963,51 @@ describe("context byte budget (fc8b8b30)", () => {
     expect(context.manifest?.files_count).toBeGreaterThan(0);
   });
 });
+
+describe("signal GC (1eeadcf3)", () => {
+  it("keeps expired signals live during the grace period", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().claimSignal({ target: "README.md", intent: "short claim", ttlMs: 1000 });
+
+    now = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2h later: expired, within grace
+    await view().sync();
+
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(1);
+    expect(await view().listArchivedSignals()).toHaveLength(0);
+  });
+
+  it("archives signals expired beyond the grace period and clears audit warnings", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    const claim = await view().claimSignal({ target: "README.md", intent: "old claim", ttlMs: 1000 });
+
+    now = new Date(now.getTime() + 26 * 60 * 60 * 1000); // past expiry + 24h grace
+    await view().sync();
+
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(0);
+    const archived = await view().listArchivedSignals();
+    expect(archived).toHaveLength(1);
+    expect(archived[0]).toMatchObject({ id: claim.id, intent: "old claim" });
+    expect(archived[0]?.archived_at).toBeTruthy();
+
+    const audit = await view().audit();
+    expect(audit.issues.filter((issue) => issue.code === "signal_expired")).toHaveLength(0);
+  });
+
+  it("gc is explicit and reads never sweep", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    await view().claimSignal({ target: "README.md", intent: "stale claim", ttlMs: 1000 });
+
+    now = new Date(now.getTime() + 26 * 60 * 60 * 1000);
+    // Read-only surfaces must not mutate state.
+    await view().listSignals({ includeExpired: true });
+    await view().context();
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(1);
+
+    const swept = await view().gcExpiredSignals();
+    expect(swept).toHaveLength(1);
+    expect(await view().listSignals({ includeExpired: true })).toHaveLength(0);
+  });
+});
