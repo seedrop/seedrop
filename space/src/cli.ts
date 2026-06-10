@@ -194,9 +194,17 @@ async function run(args: ParsedArgs): Promise<void> {
   }
 
   if (command === "context") {
-    const context = await view.context();
-    if (args.flags.has("json")) printJson(context);
-    else printContext(context);
+    const budgetFlag = args.flags.get("budget")?.[0];
+    const budgetBytes = budgetFlag === undefined ? undefined : Number(budgetFlag);
+    if (budgetBytes !== undefined && (!Number.isFinite(budgetBytes) || budgetBytes < 0)) {
+      throw new Error(`--budget must be a non-negative byte count (got '${budgetFlag}').`);
+    }
+    const context = await view.context(budgetBytes === undefined ? {} : { budgetBytes });
+    if (args.flags.has("json")) {
+      // Budgeted output is compact: indentation would spend the budget on whitespace.
+      if (context.budget) console.log(JSON.stringify(context));
+      else printJson(context);
+    } else printContext(context);
     return;
   }
 

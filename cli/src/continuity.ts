@@ -52,7 +52,10 @@ interface Passport {
 interface ViewManifest {
   workspace_id?: string;
   root?: string;
+  /** Full file list — only present when reading manifest.json directly. */
   files?: Array<{ path: string }>;
+  /** Summary form delivered by `view context` (files are never inlined there). */
+  files_count?: number;
   updated_at?: string;
 }
 
@@ -263,10 +266,12 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     since = state?.last_seen_at;
   }
 
+  // Internal consumption: no byte budget — trimming here would starve the
+  // router (capped task lists would make blocked_by lookups read as open).
   const viewContext = await WorkspaceView.open({
     root,
     agent: passport?.agent_id ?? "agent",
-  }).context();
+  }).context({ budgetBytes: 0 });
   const viewPresent = viewContext.view?.present ?? false;
   const manifest = viewContext.manifest as ViewManifest | undefined;
   const viewBrief = viewContext.brief as ViewBrief | undefined;
@@ -718,7 +723,7 @@ function renderContinuityFull(report: ContinuityReport): string {
   if (report.root !== report.cwd) lines.push(`  root: ${report.root} (${report.rootKind})`);
   if (report.view.present) {
     const m = report.view.manifest;
-    lines.push(`  view: present (workspace_id: ${m?.workspace_id ?? "?"}, ${m?.files?.length ?? 0} tracked files)`);
+    lines.push(`  view: present (workspace_id: ${m?.workspace_id ?? "?"}, ${m?.files_count ?? m?.files?.length ?? 0} tracked files)`);
     if (report.view.brief?.success?.level) {
       const success = report.view.brief.success;
       lines.push(`  view success: ${success.level}${success.label ? ` ${success.label}` : ""}${success.required_level ? ` (requires ${success.required_level})` : ""}`);
@@ -1376,13 +1381,85 @@ export async function runContinuity(
   const mode: ContinuityRenderMode = argv.includes("--full") ? "full" : argv.includes("--medium") ? "medium" : "brief";
   const limit = Number(readFlag(argv, "messages") ?? "5");
 
+  const budgetFlag = readFlag(argv, "budget");
+  const budgetBytes = budgetFlag === undefined ? undefined : Number(budgetFlag);
+  if (budgetBytes !== undefined && (!Number.isFinite(budgetBytes) || budgetBytes < 0)) {
+    io.stderr.write(`--budget must be a non-negative byte count (got '${budgetFlag}').\n`);
+    return 1;
+  }
+
   const report = await buildContinuity({ passportPath, passportSource, spaceUrl, cwd, root: place.root, rootKind: place.kind, messageLimit: limit, json, peek, since });
   if (json) {
-    io.stdout.write(JSON.stringify(report, null, 2) + "\n");
+    if (budgetBytes) {
+      // Budgeted output is compact: indentation would spend the budget on whitespace.
+      io.stdout.write(JSON.stringify(applyContinuityBudget(report, budgetBytes)) + "\n");
+    } else {
+      io.stdout.write(JSON.stringify(report, null, 2) + "\n");
+    }
   } else {
     io.stdout.write(renderContinuity(report, mode));
   }
   return 0;
+}
+
+/**
+ * Trim a continuity report to a compact-JSON byte budget at print time. The
+ * report has already been routed, so trimming here cannot starve the router —
+ * it only shrinks what the caller pays to read.
+ */
+export function applyContinuityBudget(
+  report: ContinuityReport,
+  limitBytes: number,
+): ContinuityReport & { budget?: { limit_bytes: number; bytes: number; stages_applied: string[]; exceeded: boolean } } {
+  const size = (value: unknown): number => Buffer.byteLength(JSON.stringify(value), "utf8");
+  if (size(report) <= limitBytes) {
+    return { ...report, budget: { limit_bytes: limitBytes, bytes: size(report), stages_applied: [], exceeded: false } };
+  }
+  const out = structuredClone(report) as ContinuityReport & { budget?: { limit_bytes: number; bytes: number; stages_applied: string[]; exceeded: boolean } };
+  const applied: string[] = [];
+  const stages: Array<{ id: string; apply: () => boolean }> = [
+    {
+      id: "task_descriptions_truncated",
+      apply: () => {
+        let touched = false;
+        for (const task of [...out.view.activeTasks, ...out.view.blockerTasks] as Array<{ description?: string }>) {
+          if (task.description && task.description.length > 160) {
+            task.description = `${task.description.slice(0, 159)}…`;
+            touched = true;
+          }
+        }
+        return touched;
+      },
+    },
+    {
+      id: "space_messages_capped",
+      apply: () => {
+        let touched = false;
+        for (const space of out.joinedSpaces) {
+          if (space.recentMessages.length > 3) {
+            space.recentMessages = space.recentMessages.slice(-3);
+            touched = true;
+          }
+        }
+        return touched;
+      },
+    },
+    {
+      id: "active_tasks_capped",
+      apply: () => {
+        if (out.view.activeTasks.length <= 8) return false;
+        out.view.activeTasks = out.view.activeTasks.slice(0, 8);
+        return true;
+      },
+    },
+  ];
+  for (const stage of stages) {
+    if (size(out) <= limitBytes) break;
+    if (stage.apply()) applied.push(stage.id);
+  }
+  const bytes = size(out);
+  out.budget = { limit_bytes: limitBytes, bytes, stages_applied: applied, exceeded: bytes > limitBytes };
+  return out;
 }
 
 export async function runFocus(

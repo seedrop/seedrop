@@ -678,11 +678,77 @@ export async function runBoot(
     peek: argv.includes("--peek"),
   });
   if (argv.includes("--json")) {
-    io.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    const budgetFlag = readFlag(argv, "budget");
+    const budgetBytes = budgetFlag === undefined ? undefined : Number(budgetFlag);
+    if (budgetBytes !== undefined && (!Number.isFinite(budgetBytes) || budgetBytes < 0)) {
+      io.stderr.write(`--budget must be a non-negative byte count (got '${budgetFlag}').\n`);
+      return 1;
+    }
+    if (budgetBytes) {
+      // Budgeted output is compact: indentation would spend the budget on whitespace.
+      io.stdout.write(`${JSON.stringify(applyBootBudget(report, budgetBytes))}\n`);
+    } else {
+      io.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    }
   } else {
     io.stdout.write(renderBoot(report));
   }
   return 0;
+}
+
+/**
+ * Trim a boot report to a compact-JSON byte budget. The winner keeps its full
+ * decision evidence; alternates and rejected trace candidates shed detail first,
+ * so the report stays auditable about what was withheld.
+ */
+export function applyBootBudget(report: BootReport, limitBytes: number): BootReport & { budget?: { limit_bytes: number; bytes: number; stages_applied: string[]; exceeded: boolean } } {
+  const size = (value: unknown): number => Buffer.byteLength(JSON.stringify(value), "utf8");
+  if (size(report) <= limitBytes) {
+    return { ...report, budget: { limit_bytes: limitBytes, bytes: size(report), stages_applied: [], exceeded: false } };
+  }
+  const out = structuredClone(report) as BootReport & { budget?: { limit_bytes: number; bytes: number; stages_applied: string[]; exceeded: boolean } };
+  const applied: string[] = [];
+  const stages: Array<{ id: string; apply: () => boolean }> = [
+    {
+      id: "alternate_actions_capped",
+      apply: () => {
+        if (out.alternate_actions.length <= 2) return false;
+        out.alternate_actions = out.alternate_actions.slice(0, 2);
+        return true;
+      },
+    },
+    {
+      id: "rejected_candidates_compacted",
+      apply: () => {
+        let touched = false;
+        for (const candidate of out.decision_trace.candidates) {
+          if (candidate.selected) continue;
+          if (candidate.evidence.length > 0 || candidate.objectives.length > 0) {
+            candidate.evidence = [];
+            candidate.objectives = [];
+            touched = true;
+          }
+        }
+        return touched;
+      },
+    },
+    {
+      id: "situation_evidence_capped",
+      apply: () => {
+        const evidence = out.situation.next_move.evidence;
+        if (evidence.length <= 1) return false;
+        out.situation.next_move.evidence = evidence.slice(0, 1);
+        return true;
+      },
+    },
+  ];
+  for (const stage of stages) {
+    if (size(out) <= limitBytes) break;
+    if (stage.apply()) applied.push(stage.id);
+  }
+  const bytes = size(out);
+  out.budget = { limit_bytes: limitBytes, bytes, stages_applied: applied, exceeded: bytes > limitBytes };
+  return out;
 }
 
 function collectBootCandidates(

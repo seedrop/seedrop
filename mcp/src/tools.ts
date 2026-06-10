@@ -127,6 +127,7 @@ export const tools: ToolDef[] = [
         url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
         peek: { type: "boolean", description: "Do not advance the continuity watermark.", default: false },
         since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
+        budget: { type: "number", description: "Compact-JSON byte budget for the JSON report. Only applies with json: true." },
       },
       additionalProperties: false,
     },
@@ -134,6 +135,7 @@ export const tools: ToolDef[] = [
       const cwd = strArg(args, "cwd");
       const cmd = ["continuity"];
       if (args.json === true) cmd.push("--json");
+      if (typeof args.budget === "number") cmd.push("--budget", String(args.budget));
       const mode = strArg(args, "mode");
       if (mode === "medium") cmd.push("--medium");
       if (mode === "full") cmd.push("--full");
@@ -185,6 +187,7 @@ export const tools: ToolDef[] = [
         url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
         peek: { type: "boolean", description: "Do not advance the continuity watermark.", default: false },
         since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
+        budget: { type: "number", description: "Compact-JSON byte budget for the JSON report. Omit for the full pretty-printed report." },
       },
       additionalProperties: false,
     },
@@ -192,6 +195,7 @@ export const tools: ToolDef[] = [
       const cwd = strArg(args, "cwd");
       const cmd = ["boot"];
       if (args.json !== false) cmd.push("--json");
+      if (typeof args.budget === "number") cmd.push("--budget", String(args.budget));
       if (typeof args.messages === "number") cmd.push("--messages", String(args.messages));
       pushStringFlag(cmd, args, "passport", "--passport");
       pushStringFlag(cmd, args, "url", "--url");
@@ -246,14 +250,19 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_view_context",
-    description: desc("seed view context --json", "Return the per-repo View state for `cwd` (manifest, active signals, open threads). JSON."),
+    description: desc("seed view context --json [--budget <bytes>]", "Return the per-repo View state for `cwd` (manifest summary, active signals, open threads). Byte-budgeted by default (8KB); pass budget 0 for the untrimmed payload. JSON."),
     inputSchema: {
       type: "object",
-      properties: { cwd: { type: "string" } },
+      properties: {
+        cwd: { type: "string" },
+        budget: { type: "number", description: "Compact-JSON byte budget. Default 8192; 0 disables trimming." },
+      },
       additionalProperties: false,
     },
     async handler(args) {
-      return exec(["view", "context", "--json"], strArg(args, "cwd"));
+      const cmd = ["view", "context", "--json"];
+      if (typeof args?.budget === "number") cmd.push("--budget", String(args.budget));
+      return exec(cmd, strArg(args, "cwd"));
     },
   },
   {

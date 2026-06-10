@@ -36,6 +36,7 @@ import {
 } from "./schema.js";
 import {
   AuditReport,
+  ContextBudget,
   ContinuityPacket,
   Handoff,
   ManifestFile,
@@ -52,6 +53,7 @@ import {
   ViewBrief,
   WorkspaceContext,
   WorkspaceManifest,
+  WorkspaceManifestSummary,
   ViewCheck,
   ViewPolicy,
   ViewPreflightReport,
@@ -1339,7 +1341,8 @@ export class WorkspaceView {
     };
   }
 
-  async context(): Promise<WorkspaceContext> {
+  async context(options: { budgetBytes?: number } = {}): Promise<WorkspaceContext> {
+    const budgetBytes = options.budgetBytes ?? DEFAULT_CONTEXT_BUDGET_BYTES;
     const brief = await this.brief({ checkFreshness: false });
     if (!brief.view.present) {
       const preflight = await this.preflight({ checkManifestDrift: false });
@@ -1418,11 +1421,11 @@ export class WorkspaceView {
     const preflight = await this.preflight({ checkManifestDrift: false });
     const latestAudit = await this.readCachedAuditReport();
 
-    return {
+    const payload: WorkspaceContext = {
       schema_version: "1.0",
       view: brief.view,
       brief,
-      ...(manifest ? { manifest } : {}),
+      ...(manifest ? { manifest: summarizeManifest(manifest) } : {}),
       ...(latestContinuity ? { latest_continuity: latestContinuity } : {}),
       active_signals: await this.safeListSignals(),
       ...(currentRun ? { current_run: currentRun } : {}),
@@ -1439,6 +1442,7 @@ export class WorkspaceView {
         collectOpenThreads(packets, runs, pendingHandoffs),
       ),
     };
+    return applyContextBudget(payload, budgetBytes);
   }
 
   /**
@@ -2801,4 +2805,300 @@ function sanitizeFilename(input: string): string {
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+/**
+ * Default compact-JSON byte budget for `context()`. Deep surfaces must fit an
+ * agent's tool-result window; callers that need everything pass `budgetBytes: 0`.
+ */
+const DEFAULT_CONTEXT_BUDGET_BYTES = 8192;
+
+function summarizeManifest(manifest: WorkspaceManifest): WorkspaceManifestSummary {
+  return {
+    schema_version: "1.0",
+    workspace_id: manifest.workspace_id,
+    root: manifest.root,
+    updated_at: manifest.updated_at,
+    files_count: manifest.files.length,
+    ...(manifest.path_purposes ? { path_purposes: manifest.path_purposes } : {}),
+    recommended_reads: manifest.recommended_reads,
+    files_note: "Per-file entries are never inlined in context; read .seedrop/view/manifest.json for the full list.",
+  };
+}
+
+function truncateText(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+/**
+ * Trim a context payload to a compact-JSON byte budget. Stages run in order of
+ * cheapest information loss and stop as soon as the payload fits; every applied
+ * stage is recorded so consumers can see what was withheld and where to drill in.
+ */
+function applyContextBudget(payload: WorkspaceContext, limitBytes: number): WorkspaceContext {
+  if (!Number.isFinite(limitBytes) || limitBytes <= 0) return payload;
+  const size = (value: unknown): number => Buffer.byteLength(JSON.stringify(value), "utf8");
+  if (size(payload) <= limitBytes) {
+    return { ...payload, budget: { limit_bytes: limitBytes, bytes: size(payload), stages_applied: [], exceeded: false } };
+  }
+
+  const out = structuredClone(payload);
+  const applied: string[] = [];
+  const capArray = <T>(items: T[] | undefined, max: number): T[] | undefined =>
+    items && items.length > max ? items.slice(0, max) : undefined;
+
+  const stages: Array<{ id: string; apply: () => boolean }> = [
+    {
+      // Lossless: the top-level next_actions field is already the union of
+      // brief.next_actions and preflight.next_actions.
+      id: "redundant_next_actions_deduped",
+      apply: () => {
+        let touched = false;
+        const brief = out.brief as { next_actions?: unknown[] } | undefined;
+        if (brief?.next_actions?.length) {
+          brief.next_actions = [];
+          touched = true;
+        }
+        if (out.preflight && out.preflight.next_actions.length > 0) {
+          out.preflight = { ...out.preflight, next_actions: [] };
+          touched = true;
+        }
+        return touched;
+      },
+    },
+    {
+      // Lossless: current_run is repeated verbatim in latest_run and active_runs.
+      id: "redundant_runs_deduped",
+      apply: () => {
+        let touched = false;
+        if (out.current_run && out.latest_run && out.current_run.run_id === out.latest_run.run_id) {
+          delete out.latest_run;
+          touched = true;
+        }
+        if (out.current_run && out.active_runs?.some((run) => run.run_id === out.current_run!.run_id)) {
+          out.active_runs = out.active_runs.filter((run) => run.run_id !== out.current_run!.run_id);
+          touched = true;
+        }
+        return touched;
+      },
+    },
+    {
+      id: "audit_issues_capped",
+      apply: () => {
+        const capped = capArray(out.latest_audit?.issues, 5);
+        if (!capped || !out.latest_audit) return false;
+        out.latest_audit = { ...out.latest_audit, issues: capped };
+        return true;
+      },
+    },
+    {
+      id: "preflight_pass_checks_dropped",
+      apply: () => {
+        if (!out.preflight) return false;
+        const failing = out.preflight.checks.filter((check) => check.status !== "pass");
+        if (failing.length === out.preflight.checks.length) return false;
+        out.preflight = { ...out.preflight, checks: failing };
+        return true;
+      },
+    },
+    {
+      id: "task_descriptions_truncated",
+      apply: () => {
+        let touched = false;
+        for (const task of out.active_tasks ?? []) {
+          if (task.description && task.description.length > 160) {
+            task.description = truncateText(task.description, 160);
+            touched = true;
+          }
+        }
+        return touched;
+      },
+    },
+    {
+      id: "continuity_packet_truncated",
+      apply: () => {
+        const packet = out.latest_continuity;
+        if (!packet) return false;
+        let touched = false;
+        if (packet.summary && packet.summary.length > 240) {
+          packet.summary = truncateText(packet.summary, 240);
+          touched = true;
+        }
+        for (const key of ["decisions", "assumptions", "open_threads"] as const) {
+          const capped = capArray(packet[key], 3);
+          if (capped) {
+            packet[key] = capped;
+            touched = true;
+          }
+        }
+        return touched;
+      },
+    },
+    {
+      id: "open_threads_capped",
+      apply: () => {
+        const capped = capArray(out.open_threads, 5);
+        if (!capped) return false;
+        out.open_threads = capped;
+        return true;
+      },
+    },
+    {
+      id: "active_tasks_capped",
+      apply: () => {
+        const capped = capArray(out.active_tasks, 8);
+        if (!capped) return false;
+        out.active_tasks = capped;
+        return true;
+      },
+    },
+    {
+      id: "manifest_path_purposes_capped",
+      apply: () => {
+        const capped = capArray(out.manifest?.path_purposes, 8);
+        if (!capped || !out.manifest) return false;
+        out.manifest = { ...out.manifest, path_purposes: capped };
+        return true;
+      },
+    },
+    {
+      id: "active_runs_capped",
+      apply: () => {
+        const capped = capArray(out.active_runs, 3);
+        if (!capped) return false;
+        out.active_runs = capped;
+        return true;
+      },
+    },
+    // Hard stages: only reached on tight budgets. They trade detail for ids
+    // the caller can drill into via task show / view threads / view preflight.
+    {
+      id: "task_descriptions_dropped",
+      apply: () => {
+        let touched = false;
+        for (const task of out.active_tasks ?? []) {
+          if (task.description !== undefined) {
+            delete task.description;
+            touched = true;
+          }
+        }
+        return touched;
+      },
+    },
+    {
+      id: "preflight_detail_dropped",
+      apply: () => {
+        if (!out.preflight || (out.preflight.checks.length === 0 && out.preflight.issues.length === 0)) return false;
+        out.preflight = { ...out.preflight, checks: [], issues: [] };
+        return true;
+      },
+    },
+    {
+      id: "audit_detail_dropped",
+      apply: () => {
+        const audit = out.latest_audit as
+          | (AuditReport & { checks?: unknown[]; next_actions?: unknown[] })
+          | undefined;
+        if (!audit) return false;
+        if (audit.issues.length === 0 && !audit.checks?.length && !audit.next_actions?.length) return false;
+        out.latest_audit = { ...audit, issues: [], checks: [], next_actions: [] } as AuditReport;
+        return true;
+      },
+    },
+    {
+      // The brief embeds its own manifest summary; the top-level manifest
+      // summary supersedes it when both are present.
+      id: "brief_manifest_deduped",
+      apply: () => {
+        const brief = out.brief as { manifest?: unknown } | undefined;
+        if (!brief?.manifest || !out.manifest) return false;
+        delete brief.manifest;
+        return true;
+      },
+    },
+    {
+      id: "brief_workspace_truncated",
+      apply: () => {
+        const workspace = (out.brief as { workspace?: { purpose?: string; current_focus?: string } } | undefined)?.workspace;
+        if (!workspace) return false;
+        let touched = false;
+        for (const key of ["purpose", "current_focus"] as const) {
+          const value = workspace[key];
+          if (value && value.length > 160) {
+            workspace[key] = truncateText(value, 160);
+            touched = true;
+          }
+        }
+        return touched;
+      },
+    },
+    {
+      id: "continuity_packet_minimal",
+      apply: () => {
+        const packet = out.latest_continuity;
+        if (!packet) return false;
+        let touched = false;
+        if (packet.summary && packet.summary.length > 160) {
+          packet.summary = truncateText(packet.summary, 160);
+          touched = true;
+        }
+        for (const key of ["decisions", "assumptions", "open_threads"] as const) {
+          if ((packet[key]?.length ?? 0) > 0) {
+            packet[key] = [];
+            touched = true;
+          }
+        }
+        return touched;
+      },
+    },
+    {
+      id: "open_threads_capped_hard",
+      apply: () => {
+        const capped = capArray(out.open_threads, 2);
+        if (!capped) return false;
+        out.open_threads = capped;
+        return true;
+      },
+    },
+    {
+      id: "active_tasks_capped_hard",
+      apply: () => {
+        const capped = capArray(out.active_tasks, 3);
+        if (!capped) return false;
+        out.active_tasks = capped;
+        return true;
+      },
+    },
+    {
+      id: "brief_detail_capped",
+      apply: () => {
+        let touched = false;
+        const brief = out.brief as
+          | { known_risks?: unknown[]; verification_commands?: unknown[] }
+          | undefined;
+        for (const key of ["known_risks", "verification_commands"] as const) {
+          const capped = capArray(brief?.[key], 2);
+          if (capped && brief) {
+            brief[key] = capped;
+            touched = true;
+          }
+        }
+        const cappedActions = capArray(out.next_actions, 3);
+        if (cappedActions) {
+          out.next_actions = cappedActions;
+          touched = true;
+        }
+        return touched;
+      },
+    },
+  ];
+
+  for (const stage of stages) {
+    if (size(out) <= limitBytes) break;
+    if (stage.apply()) applied.push(stage.id);
+  }
+
+  const bytes = size(out);
+  out.budget = { limit_bytes: limitBytes, bytes, stages_applied: applied, exceeded: bytes > limitBytes };
+  return out;
 }

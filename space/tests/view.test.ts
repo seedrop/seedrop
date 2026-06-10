@@ -900,3 +900,66 @@ describe("WorkspaceView", () => {
     });
   });
 });
+
+describe("context byte budget (fc8b8b30)", () => {
+  async function seedFatView(): Promise<void> {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync({ workspaceId: "budget-demo" });
+    const longText = "x".repeat(1200);
+    for (let i = 0; i < 12; i += 1) {
+      await view().createTask({ title: `Task ${i}`, description: longText });
+    }
+    await view().log({
+      mission: "budget fixture",
+      summary: longText,
+      decisions: Array.from({ length: 6 }, (_, i) => `decision ${i}: ${"y".repeat(120)}`),
+      openThreads: Array.from({ length: 8 }, (_, i) => `thread ${i}: ${"z".repeat(120)}`),
+      validation: { status: "passed", commands: ["npm test"] },
+    });
+  }
+
+  it("summarizes the manifest and never inlines the file list", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync({ workspaceId: "budget-demo" });
+
+    const context = await view().context();
+
+    expect(context.manifest?.workspace_id).toBe("budget-demo");
+    expect(context.manifest?.files_count).toBeGreaterThan(0);
+    expect((context.manifest as unknown as { files?: unknown }).files).toBeUndefined();
+    expect(context.manifest?.files_note).toContain("manifest.json");
+  });
+
+  it("applies trim stages until the payload fits and records them", async () => {
+    await seedFatView();
+
+    const context = await view().context({ budgetBytes: 4096 });
+
+    expect(context.budget).toBeDefined();
+    expect(context.budget?.limit_bytes).toBe(4096);
+    expect(context.budget?.stages_applied).toContain("task_descriptions_truncated");
+    const description = context.active_tasks?.[0]?.description ?? "";
+    expect(description.length).toBeLessThanOrEqual(160);
+    expect(context.budget?.bytes).toBeLessThanOrEqual(4096);
+    expect(context.budget?.exceeded).toBe(false);
+  });
+
+  it("reports exceeded honestly when stages cannot reach the limit", async () => {
+    await seedFatView();
+
+    const context = await view().context({ budgetBytes: 64 });
+
+    expect(context.budget?.exceeded).toBe(true);
+    expect(context.budget?.stages_applied.length).toBeGreaterThan(0);
+  });
+
+  it("budgetBytes 0 disables trimming entirely", async () => {
+    await seedFatView();
+
+    const context = await view().context({ budgetBytes: 0 });
+
+    expect(context.budget).toBeUndefined();
+    expect((context.active_tasks?.[0]?.description ?? "").length).toBe(1200);
+    expect(context.manifest?.files_count).toBeGreaterThan(0);
+  });
+});

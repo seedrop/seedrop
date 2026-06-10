@@ -89,6 +89,30 @@ export interface ViewPreflightReport {
   next_actions: NextAction[];
 }
 
+/**
+ * Manifest as it appears in a context payload: per-file entries are never
+ * inlined (they dominated the payload — 34KB of 74KB on the seedrop repo).
+ * Read `.seedrop/view/manifest.json` directly when the file list is needed.
+ */
+export interface WorkspaceManifestSummary {
+  schema_version: "1.0";
+  workspace_id: string;
+  root: ".";
+  updated_at: string;
+  files_count: number;
+  path_purposes?: WorkspaceManifest["path_purposes"];
+  recommended_reads: WorkspaceManifest["recommended_reads"];
+  files_note: string;
+}
+
+/** Byte-budget accounting for a context payload. Sizes are compact-JSON bytes. */
+export interface ContextBudget {
+  limit_bytes: number;
+  bytes: number;
+  stages_applied: string[];
+  exceeded: boolean;
+}
+
 export interface WorkspaceContext {
   schema_version?: "1.0";
   view?: {
@@ -97,7 +121,7 @@ export interface WorkspaceContext {
     data_dir: string;
   };
   brief?: ViewBrief;
-  manifest?: WorkspaceManifest;
+  manifest?: WorkspaceManifestSummary;
   latest_continuity?: ContinuityPacket;
   active_signals: Signal[];
   current_run?: RunJournal;
@@ -116,6 +140,7 @@ export interface WorkspaceContext {
   preflight?: ViewPreflightReport;
   next_actions?: NextAction[];
   open_threads: OpenThread[];
+  budget?: ContextBudget;
 }
 
 export interface OpenThread {

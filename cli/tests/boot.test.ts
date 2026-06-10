@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBootReportFromContinuity, renderBoot, resolveBootNextAction, scoreBootOutcome } from "../src/boot.js";
+import { applyBootBudget, buildBootReportFromContinuity, renderBoot, resolveBootNextAction, scoreBootOutcome } from "../src/boot.js";
 import { selectNextAction } from "../src/continuity.js";
 import type { ContinuityReport } from "../src/continuity.js";
 
@@ -477,5 +477,43 @@ describe("continuity next-move task queue (134c647c)", () => {
     );
 
     expect(action.reason).toContain("No queued work");
+  });
+});
+
+describe("boot byte budget (fc8b8b30)", () => {
+  it("annotates within-budget reports without trimming", () => {
+    const report = buildBootReportFromContinuity(continuity(), null, "2026-06-04T10:00:00.000Z");
+    const budgeted = applyBootBudget(report, 1_000_000);
+
+    expect(budgeted.budget).toMatchObject({ limit_bytes: 1_000_000, exceeded: false, stages_applied: [] });
+    expect(budgeted.decision_trace).toEqual(report.decision_trace);
+  });
+
+  it("compacts rejected trace candidates and caps alternates under a tight budget", () => {
+    const report = buildBootReportFromContinuity(
+      continuity({
+        view: {
+          ...continuity().view,
+          activeTasks: [
+            { task_id: "11111111-1111-4111-8111-111111111111", title: "Task A", status: "open" as const },
+          ],
+          currentRun: { run_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent_id: "codex", goal: "work", status: "in_progress" },
+        },
+      }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+    const budgeted = applyBootBudget(report, 64);
+
+    expect(budgeted.budget?.stages_applied).toContain("rejected_candidates_compacted");
+    for (const candidate of budgeted.decision_trace.candidates) {
+      if (!candidate.selected) {
+        expect(candidate.evidence).toEqual([]);
+        expect(candidate.objectives).toEqual([]);
+      }
+    }
+    const winner = budgeted.decision_trace.candidates.find((candidate) => candidate.selected);
+    expect(winner?.objectives.length).toBeGreaterThan(0);
+    expect(budgeted.budget?.exceeded).toBe(true);
   });
 });
