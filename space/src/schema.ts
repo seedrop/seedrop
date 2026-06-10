@@ -358,6 +358,9 @@ export const SessionSchema = z
 
 export const PresenceRecordSchema = SessionSchema.extend({
   online: z.boolean(),
+  /** Set when more than one online session shares this passport_id — duplicate
+   * identity is made obvious instead of reading as independent presence (60733578). */
+  duplicate_sessions: z.number().int().min(2).optional(),
 });
 
 export type FileKind = z.infer<typeof FileKindSchema>;

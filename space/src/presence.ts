@@ -146,10 +146,22 @@ export class Presence {
         )
         .all(...params) as SessionRow[];
 
-      return rows.map((row) => ({
+      const records = rows.map((row) => ({
         ...toSession(row),
         online: now - new Date(row.last_seen_at).getTime() <= ttlMs,
       }));
+
+      // Duplicate identity must be obvious (60733578 part 5): two live
+      // sessions for one passport look like normal independent presence
+      // otherwise. Flag every online record whose passport has >1 online row.
+      const onlineCounts = new Map<string, number>();
+      for (const record of records) {
+        if (record.online) onlineCounts.set(record.passport_id, (onlineCounts.get(record.passport_id) ?? 0) + 1);
+      }
+      return records.map((record) => {
+        const count = onlineCounts.get(record.passport_id) ?? 0;
+        return record.online && count > 1 ? { ...record, duplicate_sessions: count } : record;
+      });
     } finally {
       live.close();
     }

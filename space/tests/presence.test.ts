@@ -147,3 +147,32 @@ describe("Presence", () => {
     expect(stamp).toBeLessThanOrEqual(after);
   });
 });
+
+describe("duplicate identity flagging (60733578 part 5)", () => {
+  it("flags every online session whose passport has more than one live row", async () => {
+    await Presence.register({ root, passportId: "claude", now });
+    await Presence.register({ root, passportId: "claude", now });
+    await Presence.register({ root, passportId: "codex", now });
+
+    const records = await Presence.list({ root, now });
+
+    const claudes = records.filter((r) => r.passport_id === "claude");
+    expect(claudes).toHaveLength(2);
+    for (const record of claudes) expect(record.duplicate_sessions).toBe(2);
+    expect(records.find((r) => r.passport_id === "codex")?.duplicate_sessions).toBeUndefined();
+  });
+
+  it("does not count offline sessions toward duplicates", async () => {
+    await Presence.register({ root, passportId: "claude", now });
+    currentTime = new Date(currentTime.getTime() + 120_000); // first session falls out of ttl
+    await Presence.register({ root, passportId: "claude", now });
+
+    const records = await Presence.list({ root, now });
+
+    const online = records.filter((r) => r.passport_id === "claude" && r.online);
+    expect(online).toHaveLength(1);
+    expect(online[0]?.duplicate_sessions).toBeUndefined();
+    const offline = records.find((r) => r.passport_id === "claude" && !r.online);
+    expect(offline?.duplicate_sessions).toBeUndefined();
+  });
+});
