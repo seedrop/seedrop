@@ -30,8 +30,7 @@ For meaningful work, create durable Seedrop state:
 - Start or attach to a run journal with `seedrop_run_start`. Use `new: true` only when a fresh run is clearly needed; otherwise let the tool attach/open the active run.
 - Use `seedrop_run_log` to record material progress and changed paths as work proceeds.
 - Use `seedrop_run_verify` for each meaningful validation command, including skipped validation with a reason.
-- Use `seedrop_handoff_list`, `seedrop_handoff_read`, and `seedrop_handoff_accept` when the work depends on durable handoffs.
-- Use `seedrop_handoff_create` for unfinished work that another agent or human must continue.
+- A handoff is a task assigned to the recipient (ADR 0001): use `seedrop_run_finish` with `handoff_to`, or `seedrop_task_assign`, for unfinished work another agent must continue; the recipient sees it in their task queue.
 - Use `seedrop_space_join`, `seedrop_space_messages`, `seedrop_space_presence`, `seedrop_space_register`, and `seedrop_space_post` for multi-agent coordination that should be visible in a Space.
 - Finish with `seedrop_run_finish` when the run reaches `completed`, `blocked`, or `failed`.
 

@@ -506,7 +506,6 @@ const usage = `Usage:
   seed space <command> [options]
   seed view <command> [options]
   seed run <command> [options]
-  seed handoff <command> [options]
   seed inbox [--unacked-only]   (mentions addressed to this passport)
   seed inbox ack <id> [--result done|deferred|ignored] [--note "..."]
   seed migrate-acorn [--remove-acorn] [--json]   (one-shot copy of ~/.acorn/ → ~/.seedrop/)
@@ -523,7 +522,6 @@ Examples:
   seed id list
   seed view init
   seed run start --goal "..."
-  seed handoff list --json
   seed space join seedrop-team
   seed space register --working-on "<what>"
   seed space heartbeat --working-on "<update>"
@@ -610,9 +608,6 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
     return { command: "seed-space", args: ["run", ...rest] };
   }
 
-  if (domain === "handoff") {
-    return { command: "seed-space", args: ["handoff", ...rest] };
-  }
 
   if (domain === "task") {
     return { command: "seed-space", args: ["task", ...rest] };

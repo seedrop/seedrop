@@ -136,7 +136,6 @@ interface OrientationReport {
     current_run_id: string | null;
     current_run_goal: string | null;
     latest_run_status: string | null;
-    pending_handoffs: number;
     open_signals: number;
   };
   coordination: {
@@ -153,17 +152,6 @@ interface OrientationReport {
     view_success_meets_required: boolean | null;
   };
   next_action: OrientationNextAction;
-}
-
-interface ViewHandoff {
-  handoff_id: string;
-  source_agent: string;
-  recipient: string;
-  summary: string;
-  status: "pending" | "accepted";
-  created_at?: string;
-  open_threads?: string[];
-  next_actions?: Array<{ command?: string; reason: string; kind: string }>;
 }
 
 interface PresenceRecord {
@@ -231,7 +219,6 @@ export interface ContinuityReport {
     latestPacket?: ContinuityPacket;
     currentRun?: ViewRun;
     latestRun?: ViewRun;
-    pendingHandoffs: ViewHandoff[];
     activeTasks: ViewTask[];
     blockerTasks: ViewTask[];
     openTasksCount: number;
@@ -288,7 +275,6 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   const latestPacket = viewContext.latest_continuity as ContinuityPacket | undefined;
   const currentRun = viewContext.current_run as ViewRun | undefined;
   const latestRun = viewContext.latest_run as ViewRun | undefined;
-  const pendingHandoffs = (viewContext.pending_handoffs ?? []) as ViewHandoff[];
   const activeTasks = (viewContext.active_tasks ?? []) as ViewTask[];
   const blockerTasks = await loadReferencedBlockerTasks(root, activeTasks);
   const openTasksCount = typeof viewContext.open_tasks_count === "number" ? viewContext.open_tasks_count : 0;
@@ -390,7 +376,6 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
       latestPacket,
       currentRun,
       latestRun,
-      pendingHandoffs,
       activeTasks,
       blockerTasks,
       openTasksCount,
@@ -511,10 +496,6 @@ function appendMediumCoordination(lines: string[], report: ContinuityReport): vo
   lines.push(`  your tasks: ${myTasks.length}`);
   for (const task of myTasks.slice(0, 5)) {
     lines.push(`    - [${task.task_id.slice(0, 8)}] ${task.status}: ${truncate(task.title, 80)}`);
-  }
-  lines.push(`  pending handoffs: ${report.view.pendingHandoffs.length}`);
-  for (const handoff of report.view.pendingHandoffs.slice(0, 5)) {
-    lines.push(`    - [${handoff.handoff_id.slice(0, 8)}] from ${handoff.source_agent}: ${truncate(handoff.summary, 80)}`);
   }
   if (report.view.otherAgents.length > 0) {
     lines.push("  other agents:");
@@ -783,12 +764,6 @@ function renderContinuityFull(report: ContinuityReport): string {
         lines.push(`    latest validation: ${latestValidation?.status ?? "unknown"} — ${latestValidation?.command ?? ""}`);
       }
     }
-    if (report.view.pendingHandoffs.length > 0) {
-      lines.push(`  pending handoffs: ${report.view.pendingHandoffs.length}`);
-      for (const handoff of report.view.pendingHandoffs.slice(0, 3)) {
-        lines.push(`    - [${handoff.handoff_id.slice(0, 8)}] from ${handoff.source_agent}: ${truncate(handoff.summary, 80)}`);
-      }
-    }
     const myAgentId = report.passport?.agent_id;
     const yoursActive = report.view.activeTasks.filter((t) => t.owner === myAgentId && t.status !== "open");
     const pendingAccept = report.view.activeTasks.filter((t) => t.owner === myAgentId && t.assigned_by && t.assigned_by !== myAgentId);
@@ -970,17 +945,6 @@ export function selectNextAction(report: Omit<ContinuityReport, "orientation">):
       requires_human: false,
     };
   }
-  if (report.view.pendingHandoffs.length > 0) {
-    const handoff = report.view.pendingHandoffs[0]!;
-    return {
-      kind: "handoff",
-      command: `seed handoff read ${handoff.handoff_id}`,
-      reason: `Review handoff [${handoff.handoff_id.slice(0, 8)}] from ${handoff.source_agent}: ${handoff.summary}.`,
-      source: "handoff",
-      risk: "medium",
-      requires_human: false,
-    };
-  }
 
   const latestValidation = report.view.currentRun?.validation?.at(-1) ?? report.view.latestRun?.validation?.at(-1);
   if (latestValidation?.status === "failed") {
@@ -997,8 +961,8 @@ export function selectNextAction(report: Omit<ContinuityReport, "orientation">):
   if (report.view.latestRun?.status === "blocked" || report.view.latestRun?.status === "failed") {
     return {
       kind: "run",
-      command: "seed handoff create --to <agent> --summary \"...\"",
-      reason: `Latest run is ${report.view.latestRun.status}: ${report.view.latestRun.goal}.`,
+      command: "seed run finish --status blocked --handoff-to <agent> --handoff-note \"...\"",
+      reason: `Latest run is ${report.view.latestRun.status}: ${report.view.latestRun.goal}. Hand off as an assigned task.`,
       source: "run",
       risk: report.view.latestRun.status === "failed" ? "high" : "medium",
       requires_human: false,
@@ -1173,7 +1137,6 @@ function buildOrientation(report: Omit<ContinuityReport, "orientation">, viewPre
       current_run_id: report.view.currentRun?.run_id ?? null,
       current_run_goal: report.view.currentRun?.goal ?? null,
       latest_run_status: latestRun?.status ?? null,
-      pending_handoffs: report.view.pendingHandoffs.length,
       open_signals: report.view.signals.length,
     },
     coordination: {
@@ -1304,22 +1267,6 @@ async function readViewRuns(dir: string): Promise<ViewRun[]> {
       if (run?.run_id && run.agent_id && run.status) runs.push(run);
     }
     return runs.sort((a, b) => (a.started_at ?? "").localeCompare(b.started_at ?? ""));
-  } catch {
-    return [];
-  }
-}
-
-async function readViewHandoffs(dir: string): Promise<ViewHandoff[]> {
-  if (!existsSync(dir)) return [];
-  try {
-    const entries = await readdir(dir);
-    const handoffs: ViewHandoff[] = [];
-    for (const entry of entries) {
-      if (!entry.endsWith(".json")) continue;
-      const handoff = await readJson<ViewHandoff>(join(dir, entry));
-      if (handoff?.handoff_id && handoff.recipient && handoff.status) handoffs.push(handoff);
-    }
-    return handoffs.sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
   } catch {
     return [];
   }

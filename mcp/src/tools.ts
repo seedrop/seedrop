@@ -74,7 +74,7 @@ export const tools: ToolDef[] = [
     name: "seedrop_manual",
     description: desc(
       "seed manual [section]",
-      "Return the agent-shaped Seedrop cheat sheet: 4 primitives, 5-layer model, common workflows (sprint → tasks, run lifecycle, handoffs), state queries, and anti-patterns. Call this ONCE at session start and cache the result — every subsequent 'how do I X in seedrop' question is answered offline from this content. Cheaper than discovering through trial and error. Pass section to retrieve a slice ('concepts' | 'workflows' | 'state' | 'anti-patterns' | 'all', defaults to 'all').",
+      "Return the agent-shaped Seedrop cheat sheet: 3 primitives, common workflows (tasks, run lifecycle, assigned-task handoffs), state queries, and anti-patterns. Call this ONCE at session start and cache the result — every subsequent 'how do I X in seedrop' question is answered offline from this content. Cheaper than discovering through trial and error. Pass section to retrieve a slice ('concepts' | 'workflows' | 'state' | 'anti-patterns' | 'all', defaults to 'all').",
     ),
     inputSchema: {
       type: "object",
@@ -508,7 +508,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "seedrop_run_finish",
-    description: desc("seed run finish --status completed|blocked|failed [--force]", "Finish the active repo-local run journal with a terminal status. Refuses status=completed when any of the run's changed_paths are uncommitted in git; pass force=true to override. Returns JSON."),
+    description: desc("seed run finish --status completed|blocked|failed [--force] [--handoff-to <agent>]", "Finish the active repo-local run journal with a terminal status. Refuses status=completed when any of the run's changed_paths are uncommitted in git; pass force=true to override. Pass handoff_to to create a task assigned to that agent carrying the run's evidence (ADR 0001: handoffs are tasks). Returns JSON."),
     inputSchema: {
       type: "object",
       properties: {
@@ -516,6 +516,8 @@ export const tools: ToolDef[] = [
         status: { type: "string", enum: ["completed", "blocked", "failed"] },
         force: { type: "boolean", description: "Bypass the uncommitted-changed_paths gate when status=completed." },
         run_id: { type: "string", description: "Explicit run id or prefix." },
+        handoff_to: { type: "string", description: "Create a task assigned to this agent carrying the run's evidence." },
+        handoff_note: { type: "string", description: "Note for the assigned handoff task; defaults to the run goal." },
       },
       required: ["status"],
       additionalProperties: false,
@@ -526,83 +528,9 @@ export const tools: ToolDef[] = [
       const cmd = ["run", "finish", "--status", status];
       if (args.force === true) cmd.push("--force");
       pushStringFlag(cmd, args, "run_id", "--run-id");
+      pushStringFlag(cmd, args, "handoff_to", "--handoff-to");
+      pushStringFlag(cmd, args, "handoff_note", "--handoff-note");
       return exec(cmd, strArg(args, "cwd"));
-    },
-  },
-  {
-    name: "seedrop_handoff_create",
-    description: desc("seed handoff create --to <agent> --summary <summary>", "Create a structured repo-local handoff artifact for another agent or human. Returns JSON."),
-    inputSchema: {
-      type: "object",
-      properties: {
-        cwd: { type: "string" },
-        to: { type: "string" },
-        summary: { type: "string" },
-        run_id: { type: "string" },
-        blockers: { type: "array", items: { type: "string" } },
-        risks: { type: "array", items: { type: "string" } },
-      },
-      required: ["to", "summary"],
-      additionalProperties: false,
-    },
-    async handler(args) {
-      const to = strArg(args, "to");
-      const summary = strArg(args, "summary");
-      if (!to || !summary) return error("to and summary are required");
-      const cmd = ["handoff", "create", "--to", to, "--summary", summary];
-      const runId = strArg(args, "run_id");
-      if (runId) cmd.push("--run-id", runId);
-      for (const blocker of strArrayArg(args, "blockers")) cmd.push("--blocker", blocker);
-      for (const risk of strArrayArg(args, "risks")) cmd.push("--risk", risk);
-      return exec(cmd, strArg(args, "cwd"));
-    },
-  },
-  {
-    name: "seedrop_handoff_list",
-    description: desc("seed handoff list --json", "List repo-local handoff artifacts as JSON."),
-    inputSchema: {
-      type: "object",
-      properties: { cwd: { type: "string" } },
-      additionalProperties: false,
-    },
-    async handler(args) {
-      return exec(["handoff", "list", "--json"], strArg(args, "cwd"));
-    },
-  },
-  {
-    name: "seedrop_handoff_read",
-    description: desc("seed handoff read <id> --json", "Read one repo-local handoff artifact as JSON."),
-    inputSchema: {
-      type: "object",
-      properties: {
-        cwd: { type: "string" },
-        id: { type: "string" },
-      },
-      required: ["id"],
-      additionalProperties: false,
-    },
-    async handler(args) {
-      const id = strArg(args, "id");
-      if (!id) return error("id is required");
-      return exec(["handoff", "read", id, "--json"], strArg(args, "cwd"));
-    },
-  },
-  {
-    name: "seedrop_handoff_accept",
-    description: desc("seed handoff accept <id>", "Mark one repo-local handoff artifact accepted without deleting it. Returns JSON."),
-    inputSchema: {
-      type: "object",
-      properties: {
-        cwd: { type: "string" },
-        id: { type: "string" },
-      },
-      required: ["id"],
-      additionalProperties: false,
-    },
-    async handler(args) {
-      const id = strArg(args, "id");
-      if (!id) return error("id is required");
-      return exec(["handoff", "accept", id], strArg(args, "cwd"));
     },
   },
   {
@@ -1198,12 +1126,6 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
       { tool: "seedrop_signal_lock", use_when: "Create an advisory lock signal for exclusive target work.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts", intent: "avoid conflicting edits" } },
       { tool: "seedrop_signal_list", use_when: "List current signal leases.", example: { cwd: "/path/to/repo" } },
       { tool: "seedrop_signal_release", use_when: "Release signal leases by id, target, owner, or type.", example: { cwd: "/path/to/repo", target: "mcp/src/tools.ts" } },
-    ],
-    handoff: [
-      { tool: "seedrop_handoff_create", use_when: "Create a durable handoff for another agent or human.", example: { cwd: "/path/to/repo", to: "claude", summary: "Continue from X" } },
-      { tool: "seedrop_handoff_list", use_when: "List repo-local handoff artifacts.", example: { cwd: "/path/to/repo" } },
-      { tool: "seedrop_handoff_read", use_when: "Read one handoff artifact.", example: { cwd: "/path/to/repo", id: "handoff-id" } },
-      { tool: "seedrop_handoff_accept", use_when: "Mark a handoff accepted without deleting it.", example: { cwd: "/path/to/repo", id: "handoff-id" } },
     ],
     space: [
       { tool: "seedrop_space_join", use_when: "Open or join a durable coordination Space.", example: { space: "seedrop-team" } },

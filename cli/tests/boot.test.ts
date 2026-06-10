@@ -20,7 +20,6 @@ function continuity(overrides: Partial<ContinuityReport> = {}): ContinuityReport
         git_status: { is_repo: true, is_dirty: false, uncommitted_count: 0 },
       },
       signals: [],
-      pendingHandoffs: [],
       activeTasks: [],
       blockerTasks: [],
       openTasksCount: 0,
@@ -35,7 +34,7 @@ function continuity(overrides: Partial<ContinuityReport> = {}): ContinuityReport
       schema_version: "1.0",
       identity: { present: true, agent_id: "codex", passport_path: "/tmp/codex.json", source: "passport" },
       place: { cwd: "/repo", root: "/repo", root_kind: "git", view_present: true, workspace_id: "demo" },
-      traces: { latest_continuity_at: null, current_run_id: null, current_run_goal: null, latest_run_status: null, pending_handoffs: 0, open_signals: 0 },
+      traces: { latest_continuity_at: null, current_run_id: null, current_run_goal: null, latest_run_status: null, open_signals: 0 },
       coordination: { daemon_reachable: true, inbox_unacked: 0, joined_spaces: [], online_sessions: 0 },
       health: { warnings: [], view_preflight_failed: false, view_success_level: "L4", view_success_required: "L4", view_success_meets_required: true },
       next_action: { kind: "focus", command: "seed run start --goal \"...\"", reason: "fallback", source: "view", risk: "low", requires_human: false },
@@ -170,7 +169,7 @@ describe("BootReport next-action resolver", () => {
     expect(runCandidate?.modifiers).toContainEqual(expect.objectContaining({ rule: "identity_required", effect: "suppress" }));
   });
 
-  it("puts inbox before handoff and active run for a stateless agent", () => {
+  it("puts inbox before the active run for a stateless agent", () => {
     const report = buildBootReportFromContinuity(
       continuity({
         inbox: {
@@ -180,7 +179,6 @@ describe("BootReport next-action resolver", () => {
         view: {
           ...continuity().view,
           currentRun: { run_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent_id: "codex", goal: "work", status: "in_progress" },
-          pendingHandoffs: [{ handoff_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", source_agent: "claude", recipient: "codex", summary: "take this", status: "pending" }],
         },
       }),
       null,
@@ -188,23 +186,7 @@ describe("BootReport next-action resolver", () => {
     );
 
     expect(resolveBootNextAction(report)).toMatchObject({ kind: "inbox", source: "inbox", priority: 30 });
-    expect(report.alternate_actions.map((action) => action.kind)).toEqual(expect.arrayContaining(["handoff", "run"]));
-  });
-
-  it("puts handoff before active run", () => {
-    const report = buildBootReportFromContinuity(
-      continuity({
-        view: {
-          ...continuity().view,
-          currentRun: { run_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", agent_id: "codex", goal: "work", status: "in_progress" },
-          pendingHandoffs: [{ handoff_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", source_agent: "claude", recipient: "codex", summary: "take this", status: "pending" }],
-        },
-      }),
-      null,
-      "2026-06-04T10:00:00.000Z",
-    );
-
-    expect(resolveBootNextAction(report)).toMatchObject({ kind: "handoff", source: "handoff", priority: 40 });
+    expect(report.alternate_actions.map((action) => action.kind)).toEqual(expect.arrayContaining(["run"]));
   });
 
   it("puts active run before stale audit and dirty git safety work", () => {

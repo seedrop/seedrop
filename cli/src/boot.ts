@@ -90,7 +90,6 @@ export interface Situation {
     git: "clean" | "dirty" | "unknown";
     active_run: { run_id: string; goal: string } | null;
     tasks: { assigned: number; open: number; blocked: number };
-    pending_handoffs: number;
     inbox_unacked: number;
     active_signals: number;
     audit: { ok: boolean | null; warnings: number; errors: number };
@@ -237,7 +236,6 @@ export interface BootReport {
   coordination: {
     daemon_reachable: boolean;
     inbox_unacked: number;
-    pending_handoffs: number;
     active_signals: number;
     other_agents: number;
   };
@@ -338,7 +336,6 @@ export function buildBootReportFromContinuity(continuity: ContinuityReport, audi
     coordination: {
       daemon_reachable: continuity.daemon.reachable,
       inbox_unacked: continuity.inbox.unacked.length,
-      pending_handoffs: continuity.view.pendingHandoffs.length,
       active_signals: continuity.view.signals.length,
       other_agents: continuity.view.otherAgents.length,
     },
@@ -435,7 +432,6 @@ function buildSituation(
         open: continuity.view.openTasksCount,
         blocked: continuity.view.blockerTasks.length + continuity.view.activeTasks.filter((task) => task.status === "blocked").length,
       },
-      pending_handoffs: report.coordination.pending_handoffs,
       inbox_unacked: report.coordination.inbox_unacked,
       active_signals: report.coordination.active_signals,
       audit: report.freshness.audit,
@@ -581,11 +577,6 @@ function openThreads(continuity: ContinuityReport): Situation["attention"]["open
   for (const thread of continuity.view.latestRun?.open_threads ?? []) {
     out.push({ summary: thread, ref: continuity.view.latestRun?.run_id, source: "run" });
   }
-  for (const handoff of continuity.view.pendingHandoffs) {
-    for (const thread of handoff.open_threads ?? []) {
-      out.push({ summary: thread, ref: handoff.handoff_id, source: "handoff" });
-    }
-  }
   return dedupeBy(out, (thread) => `${thread.source}:${thread.ref ?? ""}:${thread.summary}`).slice(0, 5);
 }
 
@@ -640,7 +631,7 @@ export function renderBoot(report: BootReport): string {
   lines.push(`  Git: ${situation.current_state.git}${report.safety.git_dirty ? ` (${report.safety.uncommitted_count} uncommitted path(s))` : ""}`);
   lines.push(`  Run: ${situation.current_state.active_run ? situation.current_state.active_run.goal : "none"}`);
   lines.push(`  Tasks: ${situation.current_state.tasks.assigned} assigned, ${situation.current_state.tasks.open} open, ${situation.current_state.tasks.blocked} blocked`);
-  lines.push(`  Coordination: ${situation.current_state.inbox_unacked} inbox, ${situation.current_state.pending_handoffs} handoff(s), ${situation.current_state.active_signals} signal(s)`);
+  lines.push(`  Coordination: ${situation.current_state.inbox_unacked} inbox, ${situation.current_state.active_signals} signal(s)`);
   lines.push("");
   lines.push("Next move:");
   lines.push(`  ${formatSituationAction(situation.next_move)}`);
@@ -799,21 +790,6 @@ function collectBootCandidates(
       base_priority: 30,
       blocks_work: false,
       evidence: [{ source: "inbox", ref: oldest.id, summary: `${continuity.inbox.unacked.length} unacked mention(s), oldest from ${oldest.sender_passport_id}.` }],
-    });
-  }
-  if (continuity.view.pendingHandoffs.length > 0) {
-    const handoff = continuity.view.pendingHandoffs[0]!;
-    push({
-      id: `handoff:${handoff.handoff_id}`,
-      kind: "handoff",
-      command: `seed handoff read ${handoff.handoff_id}`,
-      reason: `Review handoff [${handoff.handoff_id.slice(0, 8)}] from ${handoff.source_agent}: ${handoff.summary}.`,
-      source: "handoff",
-      risk: "medium",
-      requires_human: false,
-      base_priority: 40,
-      blocks_work: false,
-      evidence: [{ source: "handoff", ref: handoff.handoff_id, summary: `Pending handoff from ${handoff.source_agent}.` }],
     });
   }
   if (continuity.view.currentRun) {
@@ -1100,12 +1076,6 @@ function objectiveTermsForCandidate(
   }
   if (candidate.source === "inbox") {
     return [{ term: "coordination_lag", weight: 3, reason: "Unacked inbox mentions may contain coordination updates addressed to this agent." }];
-  }
-  if (candidate.source === "handoff") {
-    return [
-      { term: "coordination_lag", weight: 3, reason: "Pending handoff should be accepted or rejected before independent work proceeds." },
-      { term: "duplicate_exploration", weight: 2, reason: "Handoff content can prevent a fresh agent from rediscovering work already packaged by another agent." },
-    ];
   }
   if (candidate.source === "audit") {
     return [{ term: "stale_assumption", weight: 4, reason: "Audit issues mean the boot context may depend on stale or invalid View evidence." }];

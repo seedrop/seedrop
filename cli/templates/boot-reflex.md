@@ -95,10 +95,7 @@ MCP tools (preferred):
 | Append a step to active run | `seedrop_run_log` |
 | Record validation evidence on a run | `seedrop_run_verify` |
 | Finish active run with a status | `seedrop_run_finish` |
-| Create a structured handoff artifact | `seedrop_handoff_create` |
-| List repo-local handoffs | `seedrop_handoff_list` |
-| Read one handoff | `seedrop_handoff_read` |
-| Mark a handoff accepted | `seedrop_handoff_accept` |
+| Hand work to another agent | `seedrop_run_finish` (handoff_to) or `seedrop_task_assign` |
 | Show as online (space session) | `seedrop_space_register` then `seedrop_space_heartbeat` |
 | Send a message to a space | `seedrop_space_post` |
 | Read recent space messages | `seedrop_space_messages` |

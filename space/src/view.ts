@@ -211,6 +211,10 @@ export interface RunFinishInput {
   agent?: string;
   force?: boolean;
   runId?: string;
+  /** Create a task assigned to this agent carrying the run's evidence (ADR 0001: handoffs are tasks). */
+  handoffTo?: string;
+  /** Optional note for the assigned handoff task; defaults to the run goal. */
+  handoffNote?: string;
 }
 
 export interface RunStartResult {
@@ -453,11 +457,17 @@ export class WorkspaceView {
     await this.writeJson(this.manifestPath, manifest);
 
     // Sync is the natural maintenance moment: sweep long-expired signals into
-    // the archive so audit warnings clear without manual releases.
+    // the archive so audit warnings clear without manual releases, and fold
+    // any legacy pending handoffs into assigned tasks (ADR 0001).
     try {
       await this.gcExpiredSignals();
     } catch {
       // intentional: GC must never fail a sync
+    }
+    try {
+      await this.migratePendingHandoffs();
+    } catch {
+      // intentional: migration must never fail a sync
     }
 
     return manifest;
@@ -793,6 +803,15 @@ export class WorkspaceView {
       await this.releaseRunClaims(run);
     } catch {
       // intentional: claim cleanup must never fail a finish
+    }
+
+    if (input.handoffTo) {
+      await this.createHandoffTask({
+        recipient: input.handoffTo,
+        sourceAgent: run.agent_id,
+        summary: input.handoffNote ?? run.goal,
+        run,
+      });
     }
 
     if (input.status === "completed") {
@@ -1184,35 +1203,64 @@ export class WorkspaceView {
 
   // ─── Handoffs ─────────────────────────────────────────────────────────────
 
-  async createHandoff(input: HandoffCreateInput): Promise<Handoff> {
-    await this.ensureDirs();
-    const sourceAgent = input.agent ?? this.agent;
-    const run = input.runId
-      ? (await this.listRuns()).find((candidate) => candidate.run_id === input.runId)
-      : await this.activeRun(sourceAgent);
-    const now = this.nowIso();
-    const handoff: Handoff = {
-      schema_version: "1.0",
-      handoff_id: randomUUID(),
-      created_at: now,
-      updated_at: now,
-      source_agent: sourceAgent,
-      recipient: input.to,
-      ...(run ? { related_run_id: run.run_id } : {}),
-      summary: input.summary,
-      status: "pending",
-      files_changed: run?.changed_paths ?? [],
-      validation: run?.validation ?? [],
-      blockers: input.blockers ?? [],
-      risks: input.risks ?? [],
-      open_threads: run?.open_threads ?? [],
-      next_actions: input.nextActions ?? run?.next_actions ?? [],
-    };
-    await this.writeJson(this.handoffPath(handoff.handoff_id), handoff);
-    return handoff;
+  /**
+   * ADR 0001: a handoff is a task assigned to the recipient. The run's
+   * evidence (changed paths, validation, open threads, next actions) is
+   * summarized into the task description and linked via related_runs.
+   * Idempotent per run through dedup_key.
+   */
+  private async createHandoffTask(input: {
+    recipient: string;
+    sourceAgent: string;
+    summary: string;
+    run?: RunJournal;
+    dedupKey?: string;
+  }): Promise<Task> {
+    const run = input.run;
+    const lines = [input.summary];
+    if (run) {
+      if (run.changed_paths.length > 0) lines.push(`Changed paths: ${run.changed_paths.join(", ")}`);
+      const lastValidation = run.validation.at(-1);
+      if (lastValidation) lines.push(`Validation: ${lastValidation.command} → ${lastValidation.status}`);
+      if (run.open_threads.length > 0) lines.push(`Open threads: ${run.open_threads.join(" | ")}`);
+      const action = run.next_actions[0];
+      if (action) lines.push(`Next: ${action.command ?? action.reason}`);
+    }
+    const task = await this.createTask({
+      title: `Handoff from ${input.sourceAgent}: ${truncateText(input.summary, 100)}`,
+      description: lines.join("\n"),
+      dedupKey: input.dedupKey ?? (run ? `handoff:${run.run_id}` : undefined),
+    });
+    if (task.owner !== input.recipient) {
+      await this.assignTask({ taskId: task.task_id, to: input.recipient, agent: input.sourceAgent, note: input.summary });
+    }
+    if (run) await this.linkTaskRun(task.task_id, run.run_id);
+    return await this.getTask(task.task_id);
   }
 
-  async listHandoffs(): Promise<Handoff[]> {
+  /**
+   * One-time fold (ADR 0001): convert legacy pending handoffs in handoffs/
+   * into assigned tasks. Runs from sync(); idempotent via dedup_key. The
+   * legacy files stay frozen on disk — nothing reads them as handoffs anymore.
+   */
+  private async migratePendingHandoffs(): Promise<void> {
+    for (const handoff of await this.listHandoffs()) {
+      if (handoff.status !== "pending") continue;
+      const run = handoff.related_run_id
+        ? (await this.listRuns()).find((candidate) => candidate.run_id === handoff.related_run_id)
+        : undefined;
+      await this.createHandoffTask({
+        recipient: handoff.recipient,
+        sourceAgent: handoff.source_agent,
+        summary: handoff.summary,
+        run,
+        dedupKey: `handoff:${handoff.handoff_id}`,
+      });
+    }
+  }
+
+  /** Legacy reader for frozen handoffs/ files; used only by the sync migration. */
+  private async listHandoffs(): Promise<Handoff[]> {
     await this.ensureDirs();
     const entries = await readdir(this.handoffsDir, { withFileTypes: true });
     const handoffs: Handoff[] = [];
@@ -1225,25 +1273,6 @@ export class WorkspaceView {
       }
     }
     return handoffs.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  }
-
-  async readHandoff(id: string): Promise<Handoff> {
-    const handoff = (await this.listHandoffs()).find((candidate) => candidate.handoff_id === id || candidate.handoff_id.startsWith(id));
-    if (!handoff) throw new Error(`Handoff not found: ${id}`);
-    return handoff;
-  }
-
-  async acceptHandoff(id: string, agent = this.agent): Promise<Handoff> {
-    const handoff = await this.readHandoff(id);
-    const updated: Handoff = {
-      ...handoff,
-      status: "accepted",
-      accepted_at: this.nowIso(),
-      accepted_by: agent,
-      updated_at: this.nowIso(),
-    };
-    await this.writeJson(this.handoffPath(updated.handoff_id), updated);
-    return updated;
   }
 
   async listSignals(options: { includeExpired?: boolean } = {}): Promise<Signal[]> {
@@ -1437,7 +1466,6 @@ export class WorkspaceView {
         brief,
         active_signals: [],
         active_runs: [],
-        pending_handoffs: [],
         latest_audit: latestAudit,
         preflight,
         next_actions: uniqueNextActions([...brief.next_actions, ...preflight.next_actions]),
@@ -1452,9 +1480,6 @@ export class WorkspaceView {
     const activeRuns = runs.filter((run) => run.status === "in_progress");
     const currentRun = activeRuns.filter((run) => run.agent_id === this.agent).at(-1) ?? activeRuns.at(-1);
     const latestRun = runs.at(-1);
-    const pendingHandoffs = (await this.safeListHandoffs()).filter(
-      (handoff) => handoff.status === "pending" && handoff.recipient === this.agent,
-    );
     const allTasks = await this.safeListTasks();
     const activeTasks = allTasks.filter(
       (task) =>
@@ -1515,7 +1540,6 @@ export class WorkspaceView {
       ...(currentRun ? { current_run: currentRun } : {}),
       ...(latestRun ? { latest_run: latestRun } : {}),
       active_runs: activeRuns,
-      pending_handoffs: pendingHandoffs,
       ...(activeTasks.length > 0 ? { active_tasks: activeTasks } : {}),
       open_tasks_count: openTasksCount,
       ...(otherAgents.length > 0 ? { other_agents: otherAgents } : {}),
@@ -1523,7 +1547,7 @@ export class WorkspaceView {
       preflight,
       next_actions: uniqueNextActions([...brief.next_actions, ...preflight.next_actions]),
       open_threads: await this.filterResolvedThreads(
-        collectOpenThreads(packets, runs, pendingHandoffs),
+        collectOpenThreads(packets, runs),
       ),
     };
     return applyContextBudget(payload, budgetBytes);
@@ -1535,13 +1559,11 @@ export class WorkspaceView {
    * pending handoffs, the three sources threads can originate from.
    */
   async listThreads(options: { includeResolved?: boolean } = {}): Promise<ThreadList> {
-    const [packets, runs, handoffs] = await Promise.all([
+    const [packets, runs] = await Promise.all([
       this.safeListContinuityPackets(),
       this.safeListRuns(),
-      this.safeListHandoffs(),
     ]);
-    const pendingHandoffs = handoffs.filter((handoff) => handoff.status === "pending");
-    const open = await this.filterResolvedThreads(collectOpenThreads(packets, runs, pendingHandoffs));
+    const open = await this.filterResolvedThreads(collectOpenThreads(packets, runs));
     const resolved = options.includeResolved ? await this.readResolvedThreads() : [];
     return { open, resolved };
   }
@@ -1557,13 +1579,11 @@ export class WorkspaceView {
     if (prefix.length < 4) {
       throw new Error(`Thread id prefix too short (need >=4 chars): ${prefix}`);
     }
-    const [packets, runs, handoffs] = await Promise.all([
+    const [packets, runs] = await Promise.all([
       this.safeListContinuityPackets(),
       this.safeListRuns(),
-      this.safeListHandoffs(),
     ]);
-    const pendingHandoffs = handoffs.filter((handoff) => handoff.status === "pending");
-    const all = collectOpenThreads(packets, runs, pendingHandoffs);
+    const all = collectOpenThreads(packets, runs);
     const matches = all.filter((thread) => thread.id.startsWith(prefix));
     if (matches.length === 0) {
       throw new Error(`No open thread matches id prefix: ${prefix}`);
@@ -1723,19 +1743,19 @@ export class WorkspaceView {
       checks.push({ id: "active_run", status: "pass", summary: `No active run for ${this.agent}.` });
     }
 
-    const pendingHandoffs = (await this.listHandoffs()).filter(
-      (handoff) => handoff.recipient === this.agent && handoff.status === "pending",
-    );
-    if (pendingHandoffs.length > 0) {
+    // ADR 0001: handoffs are tasks. Legacy pending handoff files only linger
+    // until a sync folds them into assigned tasks.
+    const legacyPending = (await this.listHandoffs()).filter((handoff) => handoff.status === "pending");
+    if (legacyPending.length > 0) {
       checks.push({
-        id: "pending_handoffs",
+        id: "legacy_pending_handoffs",
         status: "warn",
-        summary: `${pendingHandoffs.length} pending handoff(s) addressed to ${this.agent}.`,
-        details: { handoff_ids: pendingHandoffs.map((handoff) => handoff.handoff_id) },
+        summary: `${legacyPending.length} legacy pending handoff file(s); a sync will fold them into assigned tasks.`,
+        details: { handoff_ids: legacyPending.map((handoff) => handoff.handoff_id) },
       });
-      nextActions.push(commandAction(`seed handoff read ${pendingHandoffs[0]!.handoff_id} --json`, "low", "Review pending handoff."));
+      nextActions.push(commandAction("seed view sync", "low", "Fold legacy pending handoffs into assigned tasks (ADR 0001)."));
     } else {
-      checks.push({ id: "pending_handoffs", status: "pass", summary: `No pending handoffs for ${this.agent}.` });
+      checks.push({ id: "legacy_pending_handoffs", status: "pass", summary: "No legacy pending handoff files." });
     }
 
     // Lint: a task that says "blocked by <id>" in prose but lacks the matching
@@ -2032,12 +2052,10 @@ export class WorkspaceView {
       summary = "Current work is represented by an active run with resume evidence.";
     }
 
-    const handoffs = input.viewPresent ? await this.safeListHandoffs() : [];
     const packets = input.viewPresent ? await this.safeListContinuityPackets() : [];
     const latestRun = runs.at(-1);
     const handoffReady = Boolean(
-      handoffs.some((handoff) => handoff.status === "pending" && (handoff.validation.length > 0 || handoff.next_actions.length > 0 || handoff.open_threads.length > 0)) ||
-        (latestRun &&
+      (latestRun &&
           latestRun.validation.length > 0 &&
           (latestRun.next_actions.length > 0 || latestRun.open_threads.length > 0)) ||
         packets.some((packet) => packet.validation.status !== "unknown" && (packet.open_threads.length > 0 || packet.changed_paths.length > 0)),
@@ -2223,21 +2241,6 @@ export class WorkspaceView {
       }
     }
     return runs.sort((a, b) => a.started_at.localeCompare(b.started_at));
-  }
-
-  private async safeListHandoffs(): Promise<Handoff[]> {
-    if (!existsSync(this.handoffsDir)) return [];
-    const entries = await readdir(this.handoffsDir, { withFileTypes: true });
-    const handoffs: Handoff[] = [];
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      try {
-        handoffs.push(await this.readJson(path.join(this.handoffsDir, entry.name), HandoffSchema));
-      } catch {
-        continue;
-      }
-    }
-    return handoffs.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   private async safeListTasks(): Promise<Task[]> {
@@ -2818,7 +2821,6 @@ function threadId(packetId: string, thread: string): string {
 function collectOpenThreads(
   packets: ContinuityPacket[],
   runs: RunJournal[],
-  pendingHandoffs: Handoff[],
 ): OpenThread[] {
   return [
     ...packets.flatMap((packet) =>
@@ -2837,15 +2839,6 @@ function collectOpenThreads(
         packet_id: run.run_id,
         created_at: run.updated_at,
         source: "run" as const,
-      })),
-    ),
-    ...pendingHandoffs.flatMap((handoff) =>
-      handoff.open_threads.map((thread) => ({
-        id: threadId(handoff.handoff_id, thread),
-        thread,
-        packet_id: handoff.handoff_id,
-        created_at: handoff.created_at,
-        source: "handoff" as const,
       })),
     ),
   ];

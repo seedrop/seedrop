@@ -19,9 +19,6 @@ export function isMutatingCommand(
   if (namespace === "task") {
     return ["create", "claim", "assign", "accept", "decline", "start", "pause", "done", "drop"].includes(command);
   }
-  if (namespace === "handoff") {
-    return ["create", "accept"].includes(command);
-  }
   return ["log", "sync", "init", "claim", "release"].includes(command);
 }
 

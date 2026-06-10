@@ -453,26 +453,62 @@ describe("WorkspaceView", () => {
     expect(await view().listRuns()).toHaveLength(2);
   });
 
-  it("creates, lists, reads, and accepts structured handoffs", async () => {
-    await view().startRun({ goal: "handoff test" });
+  it("run finish --handoff-to creates an assigned task carrying the run's evidence", async () => {
+    const { run } = await view().startRun({ goal: "handoff test" });
     await view().logRun({ summary: "Touched view.", changedPaths: ["src/view.ts"] });
     await view().threadRun("Recipient should run tests.");
     await view().verifyRun({ command: "npm test", status: "passed" });
 
-    const handoff = await view().createHandoff({
-      to: "claude",
-      summary: "Continue validation.",
-      risks: ["One route remains untested."],
-    });
+    await view().finishRun({ status: "completed", handoffTo: "claude", handoffNote: "Continue validation." });
 
-    expect(handoff.files_changed).toEqual(["src/view.ts"]);
-    expect(handoff.validation[0]?.command).toBe("npm test");
-    expect((await view().listHandoffs()).map((item) => item.handoff_id)).toEqual([handoff.handoff_id]);
-    expect((await view().readHandoff(handoff.handoff_id.slice(0, 8))).summary).toBe("Continue validation.");
+    const tasks = await view().listTasks();
+    const handoffTask = tasks.find((task) => task.dedup_key === `handoff:${run.run_id}`);
+    expect(handoffTask).toBeDefined();
+    expect(handoffTask).toMatchObject({ owner: "claude", assigned_by: "codex", status: "claimed" });
+    expect(handoffTask?.title).toContain("Handoff from codex");
+    expect(handoffTask?.description).toContain("src/view.ts");
+    expect(handoffTask?.description).toContain("npm test → passed");
+    expect(handoffTask?.related_runs).toContain(run.run_id);
 
-    const accepted = await view().acceptHandoff(handoff.handoff_id, "claude");
-    expect(accepted.status).toBe("accepted");
-    expect(accepted.accepted_by).toBe("claude");
+    // Idempotent: finishing again (forced) does not duplicate the task.
+    await view().startRun({ goal: "noop" });
+    await view().finishRun({ status: "completed" });
+    expect((await view().listTasks()).filter((task) => task.dedup_key === `handoff:${run.run_id}`)).toHaveLength(1);
+  });
+
+  it("sync folds legacy pending handoff files into assigned tasks", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+    const legacy = {
+      schema_version: "1.0",
+      handoff_id: "9f8e7d6c-5b4a-4321-8abc-001122334455",
+      created_at: "2026-05-01T10:00:00.000Z",
+      updated_at: "2026-05-01T10:00:00.000Z",
+      source_agent: "codex",
+      recipient: "claude",
+      summary: "Legacy relay: finish the docs.",
+      status: "pending",
+      files_changed: [],
+      validation: [],
+      blockers: [],
+      risks: [],
+      open_threads: [],
+      next_actions: [],
+    };
+    await mkdir(path.join(root, ".seedrop", "view", "handoffs"), { recursive: true });
+    await writeFile(
+      path.join(root, ".seedrop", "view", "handoffs", `${legacy.handoff_id}.json`),
+      JSON.stringify(legacy, null, 2),
+    );
+
+    await view().sync();
+    const tasks = await view().listTasks();
+    const folded = tasks.find((task) => task.dedup_key === `handoff:${legacy.handoff_id}`);
+    expect(folded).toMatchObject({ owner: "claude", assigned_by: "codex", status: "claimed" });
+
+    // Idempotent across repeated syncs.
+    await view().sync();
+    expect((await view().listTasks()).filter((task) => task.dedup_key === `handoff:${legacy.handoff_id}`)).toHaveLength(1);
   });
 
   it("preflight surfaces prose-only blockers with a seed task update recovery", async () => {
@@ -556,14 +592,13 @@ describe("WorkspaceView", () => {
     await view().sync();
     await writeFile(path.join(root, "README.md"), "# Changed\n");
     await view().startRun({ goal: "preflight check" });
-    await view().createHandoff({ to: "codex", summary: "Review me." });
     await writeFile(path.join(root, ".seedrop", "view", "policy.json"), "{bad json");
 
     const report = await view().preflight();
 
     expect(report.ok).toBe(false);
     expect(report.checks.map((check) => check.id)).toEqual(
-      expect.arrayContaining(["manifest_freshness", "active_run", "pending_handoffs", "policy"]),
+      expect.arrayContaining(["manifest_freshness", "active_run", "legacy_pending_handoffs", "policy"]),
     );
     expect(report.issues.map((issue) => issue.code)).toEqual(
       expect.arrayContaining(["manifest_stale", "active_run", "policy_invalid"]),

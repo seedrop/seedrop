@@ -8,7 +8,7 @@ import { SpaceHttpClient } from "./client.js";
 import { startSpaceServer } from "./serve.js";
 import { readPassportIdentity } from "./serve.js";
 import { WorkspaceView } from "./view.js";
-import type { AuditReport, Handoff, ThreadList, ViewBrief, ViewPreflightReport, WorkspaceContext } from "./view.js";
+import type { AuditReport, ThreadList, ViewBrief, ViewPreflightReport, WorkspaceContext } from "./view.js";
 
 const DEFAULT_SPACE_PORT = 18791;
 const DEFAULT_SPACE_URL = `http://127.0.0.1:${DEFAULT_SPACE_PORT}`;
@@ -139,11 +139,6 @@ async function run(args: ParsedArgs): Promise<void> {
 
   if (args.namespace === "run") {
     await runJournalCommand(command, args, view);
-    return;
-  }
-
-  if (args.namespace === "handoff") {
-    await handoffCommand(command, args, view);
     return;
   }
 
@@ -543,6 +538,8 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
         status: runFinishStatus(args.flags.get("status")?.[0] ?? args.values[0]),
         force: args.flags.has("force"),
         runId: args.flags.get("run-id")?.[0],
+        handoffTo: args.flags.get("handoff-to")?.[0],
+        handoffNote: args.flags.get("handoff-note")?.[0],
       }),
     );
     return;
@@ -656,41 +653,10 @@ async function taskCommand(command: string | undefined, args: ParsedArgs, view: 
   throw new Error(`Unknown task command: ${command ?? ""}`);
 }
 
-async function handoffCommand(command: string | undefined, args: ParsedArgs, view: WorkspaceView): Promise<void> {
-  if (command === "create") {
-    printJson(
-      await view.createHandoff({
-        to: requireFlag(args, "to"),
-        summary: requireFlag(args, "summary"),
-        runId: args.flags.get("run-id")?.[0],
-        blockers: args.flags.get("blocker") ?? [],
-        risks: args.flags.get("risk") ?? [],
-      }),
-    );
-    return;
-  }
-  if (command === "list") {
-    const handoffs = await view.listHandoffs();
-    if (args.flags.has("json")) printJson(handoffs);
-    else for (const handoff of handoffs) console.log(`${handoff.handoff_id}\t${handoff.status}\t${handoff.recipient}\t${handoff.summary}`);
-    return;
-  }
-  if (command === "read") {
-    const handoff = await view.readHandoff(requireValue(args, 0, "handoff id"));
-    if (args.flags.has("json")) printJson(handoff);
-    else printHandoff(handoff);
-    return;
-  }
-  if (command === "accept") {
-    printJson(await view.acceptHandoff(requireValue(args, 0, "handoff id")));
-    return;
-  }
-  throw new Error(`Unknown handoff command: ${command ?? ""}`);
-}
 
 function parseArgs(argv: string[]): ParsedArgs {
   const [first, second, ...remaining] = argv;
-  const isNamespace = first === "view" || first === "run" || first === "handoff" || first === "task";
+  const isNamespace = first === "view" || first === "run" || first === "task";
   const namespace = isNamespace ? first : undefined;
   const command = isNamespace ? second : first;
   const rest = isNamespace ? remaining : argv.slice(1);
@@ -886,7 +852,6 @@ function printContext(context: WorkspaceContext): void {
   console.log(`active signals: ${context.active_signals.length}`);
   console.log(`open threads: ${context.open_threads.length}`);
   if (context.current_run) console.log(`current run: ${context.current_run.run_id} (${context.current_run.goal})`);
-  if (context.pending_handoffs?.length) console.log(`pending handoffs: ${context.pending_handoffs.length}`);
   printNextActions(context.next_actions ?? []);
 }
 
@@ -919,18 +884,6 @@ function printPreflight(report: ViewPreflightReport | AuditReport): void {
   printNextActions(report.next_actions ?? []);
 }
 
-function printHandoff(handoff: Handoff): void {
-  console.log(`handoff: ${handoff.handoff_id}`);
-  console.log(`from: ${handoff.source_agent}`);
-  console.log(`to: ${handoff.recipient}`);
-  console.log(`status: ${handoff.status}`);
-  console.log(`summary: ${handoff.summary}`);
-  if (handoff.open_threads.length > 0) {
-    console.log("open threads:");
-    for (const thread of handoff.open_threads) console.log(`  - ${thread}`);
-  }
-  printNextActions(handoff.next_actions);
-}
 
 function printNextActions(actions: Array<{ kind: string; command?: string; reason: string }>): void {
   if (actions.length === 0) return;
@@ -948,7 +901,6 @@ function printHelp(): void {
   seed-space messages <space> --passport <path> [--url <url>]
   seed-space view <command> [options]
   seed-space run <command> [options]
-  seed-space handoff <command> [options]
 
 Commands:
   serve                        Run the HTTP coordination server
@@ -979,8 +931,6 @@ Commands:
   run thread TEXT              Record an open thread
   run verify --command C --status passed|failed|skipped
   run finish --status completed|blocked|failed [--force]
-  handoff create --to A --summary S
-  handoff list|read|accept
   task update <id> [--description TEXT] [--assigned-note TEXT] [--from-knowledge REF] [--blocked-by ID] [--replace-blocked-by]
   claim <target> <intent>      Create a claim signal lease
   lock <target> <intent>       Create a lock signal lease

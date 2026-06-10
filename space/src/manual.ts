@@ -45,16 +45,16 @@ const CONCEPTS = `## Concepts (the 4 primitives, the 5 layers)
 | Space     | \`~/.seedrop/space/\`      | daemon, machine | Async chat + presence + mentions             |
 | Run       | \`view/runs/<id>.json\`    | session         | An agent's active episode of work            |
 
-**5 layers** (each maps to a distinct failure mode if absent):
+**4 layers** (each maps to a distinct failure mode if absent):
 
 1. **Space messages** — async discussion, real-time-ish.
 2. **Knowledge** (\`view/knowledge/*.md\`) — durable rationale, designs, sprints.
-3. **Tasks** (\`view/tasks/*.json\`) — queryable, claimable units of work.
+3. **Tasks** (\`view/tasks/*.json\`) — queryable, claimable units of work. A
+   handoff is a task assigned to the recipient (ADR 0001).
 4. **Runs** (\`view/runs/*.json\`) — execution episodes with validation evidence.
-5. **Handoffs** (\`view/handoffs/*.json\`) — structured relays between agents.
 
-Discussion → knowledge → tasks → runs → handoffs. Tasks reference knowledge
-via \`from_knowledge\`; runs reference tasks via \`--task\`. The chain is
+Discussion → knowledge → tasks → runs. Tasks reference knowledge via
+\`from_knowledge\`; runs reference tasks via \`--task\`. The chain is
 deliberate.`;
 
 const WORKFLOWS = `## Common workflows
@@ -121,9 +121,10 @@ seed task done <task-id>        # refuses if blocked_by tasks are open
 ### Handoff to another agent
 
 \`\`\`
-seed handoff create --to codex --summary "auth model done, impl is yours" \\
-  --run-id <current-run-id> --risk "schema is locked once shipped"
-# The handoff captures changed_paths + validation + open_threads from the run.
+seed run finish --status completed --handoff-to codex \\
+  --handoff-note "auth model done, impl is yours"
+# Creates a task assigned to codex carrying the run's changed_paths,
+# validation, and open threads (ADR 0001: handoffs are tasks).
 \`\`\`
 
 ### Coordinate via the space (talk before commits)

@@ -31,10 +31,6 @@ export const CLI_COMMAND_SURFACE = [
   "seed diff",
   "seed doctor",
   "seed focus",
-  "seed handoff accept",
-  "seed handoff create",
-  "seed handoff list",
-  "seed handoff read",
   "seed id <command>",
   "seed id list",
   "seed inbox",
@@ -109,10 +105,6 @@ export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "seed diff", status: "covered", tools: ["seedrop_diff"], reason: "View diff is wrapped with optional since support." },
   { command: "seed doctor", status: "cli_only", reason: "Local setup diagnosis and fixes are operator/admin workflows." },
   { command: "seed focus", status: "covered", tools: ["seedrop_focus"], reason: "Focus pre-flight is wrapped with json/passport/url; always peeks (never advances the watermark)." },
-  { command: "seed handoff accept", status: "covered", tools: ["seedrop_handoff_accept"], reason: "Handoff accept is exposed directly." },
-  { command: "seed handoff create", status: "covered", tools: ["seedrop_handoff_create"], reason: "Handoff create is exposed with summary, recipient, run, blocker, and risk fields." },
-  { command: "seed handoff list", status: "covered", tools: ["seedrop_handoff_list"], reason: "Handoff list is exposed directly." },
-  { command: "seed handoff read", status: "covered", tools: ["seedrop_handoff_read"], reason: "Handoff read is exposed directly." },
   { command: "seed id <command>", status: "cli_only", reason: "Passport mutation/repair is identity administration, not repo coordination." },
   { command: "seed id list", status: "cli_only", reason: "Identity inventory is an operator/admin workflow." },
   { command: "seed inbox", status: "covered", tools: ["seedrop_inbox"], reason: "Inbox read is wrapped with explicit url/passport support." },
@@ -125,7 +117,7 @@ export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "seed migrate-acorn", status: "cli_only", reason: "Legacy AcornKit migration is operator-controlled and not part of normal MCP flow." },
   { command: "seed print-boot-protocol", status: "cli_only", reason: "Static protocol text is CLI documentation rather than live coordination state." },
   { command: "seed run decision", status: "covered", tools: ["seedrop_run_decision"], reason: "Run decision is exposed directly." },
-  { command: "seed run finish", status: "covered", tools: ["seedrop_run_finish"], reason: "Run finish is wrapped with status, force, and explicit run-id support." },
+  { command: "seed run finish", status: "covered", tools: ["seedrop_run_finish"], reason: "Run finish is wrapped with status, force, run-id, and handoff-to support (handoffs are assigned tasks per ADR 0001)." },
   { command: "seed run log", status: "covered", tools: ["seedrop_run_log"], reason: "Run log is wrapped with summary, changed paths, and explicit run-id support." },
   { command: "seed run start", status: "covered", tools: ["seedrop_run_start"], reason: "Run start is wrapped with goal, new, task, claim, and force support." },
   { command: "seed run thread", status: "covered", tools: ["seedrop_run_thread"], reason: "Run thread is exposed directly." },
@@ -171,7 +163,7 @@ export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "seed whoami", status: "cli_only", reason: "Local shell identity inspection is intentionally CLI-only." },
 ];
 
-const DOMAINS = ["view", "run", "task", "handoff", "space", "daemon", "inbox", "id"] as const;
+const DOMAINS = ["view", "run", "task", "space", "daemon", "inbox", "id"] as const;
 const GROUP_ORDER = ["core", ...DOMAINS] as const;
 
 function domainOf(command: string): string {

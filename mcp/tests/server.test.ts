@@ -13,10 +13,6 @@ describe("tools registry", () => {
         "seedrop_daemon_status",
         "seedrop_diff",
         "seedrop_focus",
-        "seedrop_handoff_accept",
-        "seedrop_handoff_create",
-        "seedrop_handoff_list",
-        "seedrop_handoff_read",
         "seedrop_inbox",
         "seedrop_inbox_ack",
         "seedrop_index",
@@ -88,7 +84,6 @@ describe("tools registry", () => {
     expect(parsed.run.map((entry) => entry.tool)).toContain("seedrop_run_decision");
     expect(parsed.signal.map((entry) => entry.tool)).toContain("seedrop_signal_claim");
     expect(parsed.signal.map((entry) => entry.tool)).toContain("seedrop_signal_release");
-    expect(parsed.handoff.map((entry) => entry.tool)).toContain("seedrop_handoff_create");
     expect(parsed.space.map((entry) => entry.tool)).toContain("seedrop_space_post");
     expect(parsed.daemon.map((entry) => entry.tool)).toContain("seedrop_daemon_status");
     expect(parsed.task.map((entry) => entry.tool)).toContain("seedrop_task_create");
@@ -119,8 +114,6 @@ describe("tools registry", () => {
     expect(signalClaim?.inputSchema).toMatchObject({ required: ["target", "intent"] });
     const signalLock = tools.find((t) => t.name === "seedrop_signal_lock");
     expect(signalLock?.inputSchema).toMatchObject({ required: ["target", "intent"] });
-    const handoffRead = tools.find((t) => t.name === "seedrop_handoff_read");
-    expect(handoffRead?.inputSchema).toMatchObject({ required: ["id"] });
     const taskCreate = tools.find((t) => t.name === "seedrop_task_create");
     expect(taskCreate?.inputSchema).toMatchObject({ required: ["title"] });
     const taskShow = tools.find((t) => t.name === "seedrop_task_show");

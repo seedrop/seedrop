@@ -77,14 +77,10 @@ describe("resolveCommand", () => {
     });
   });
 
-  it("routes run and handoff commands through seed-space", () => {
+  it("routes run commands through seed-space", () => {
     expect(resolveCommand(["run", "start", "--goal", "ship"])).toEqual({
       command: "seed-space",
       args: ["run", "start", "--goal", "ship"],
-    });
-    expect(resolveCommand(["handoff", "list", "--json"])).toEqual({
-      command: "seed-space",
-      args: ["handoff", "list", "--json"],
     });
   });
 
@@ -472,7 +468,7 @@ describe("continuity", () => {
     expect(parsed.orientation.place.view_present).toBe(true);
   });
 
-  it("prioritizes pending handoffs for cold-start recovery", async () => {
+  it("folds a legacy pending handoff into an assigned task that continuity routes (ADR 0001)", async () => {
     await writePassport("codex");
     await writeManifest(scratch, "handoff-demo");
     await writeFile(
@@ -495,13 +491,17 @@ describe("continuity", () => {
       }),
       "utf8",
     );
+
+    // Sync performs the one-time fold.
+    await WorkspaceView.open({ root: scratch, agent: "codex" }).sync();
+
     const io = createIo();
     const code = await runCli(["continuity", "--json", "--cwd", scratch], io, fakeRunner());
     expect(code).toBe(0);
     const parsed = JSON.parse(io.stdoutText());
-    expect(parsed.orientation.next_action.kind).toBe("handoff");
-    expect(parsed.orientation.next_action.command).toContain("seed handoff read");
-    expect(parsed.orientation.traces.pending_handoffs).toBe(1);
+    expect(parsed.orientation.next_action.kind).toBe("run");
+    expect(parsed.orientation.next_action.command).toContain("seed task start");
+    expect(parsed.orientation.next_action.reason).toContain("assigned by claude");
   });
 
   async function writeTask(root: string, task: {

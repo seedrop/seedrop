@@ -128,7 +128,6 @@ export interface WorkspaceContext {
   current_run?: RunJournal;
   latest_run?: RunJournal;
   active_runs?: RunJournal[];
-  pending_handoffs?: Handoff[];
   active_tasks?: import("./schema.js").Task[];
   open_tasks_count?: number;
   other_agents?: Array<{
