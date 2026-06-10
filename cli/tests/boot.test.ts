@@ -23,7 +23,6 @@ function continuity(overrides: Partial<ContinuityReport> = {}): ContinuityReport
       activeTasks: [],
       blockerTasks: [],
       openTasksCount: 0,
-      openThreads: [],
       otherAgents: [],
     },
     daemon: { url: "http://127.0.0.1:18791", reachable: true, presence: [] },
@@ -501,70 +500,3 @@ describe("boot byte budget (fc8b8b30)", () => {
   });
 });
 
-describe("stale-thread escalation (1eeadcf3)", () => {
-  const staleThread = {
-    id: "abcdef123456",
-    thread: "Validate MCP config paths against official docs.",
-    packet_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    created_at: "2026-05-01T10:00:00.000Z", // >14d before generated_at
-    source: "legacy_continuity",
-  };
-
-  it("boot escalates threads stale for more than 14 days", () => {
-    const report = buildBootReportFromContinuity(
-      continuity({ view: { ...continuity().view, openThreads: [staleThread] } }),
-      null,
-      "2026-06-04T10:00:00.000Z",
-    );
-
-    expect(report.next_action.candidate_id).toBe(`thread:stale:${staleThread.id}`);
-    expect(report.next_action.command).toBe("seed view threads");
-  });
-
-  it("boot lets queued tasks outrank stale threads", () => {
-    const openTask = { task_id: "11111111-1111-4111-8111-111111111111", title: "Real work", status: "open" as const };
-    const report = buildBootReportFromContinuity(
-      continuity({ view: { ...continuity().view, openThreads: [staleThread], activeTasks: [openTask] } }),
-      null,
-      "2026-06-04T10:00:00.000Z",
-    );
-
-    expect(report.next_action.candidate_id).toBe(`task:${openTask.task_id}`);
-    expect(report.decision_trace.candidates.some((c) => c.candidate_id === `thread:stale:${staleThread.id}`)).toBe(true);
-  });
-
-  it("boot ignores threads younger than 14 days", () => {
-    const fresh = { ...staleThread, created_at: "2026-06-01T10:00:00.000Z" };
-    const report = buildBootReportFromContinuity(
-      continuity({ view: { ...continuity().view, openThreads: [fresh] } }),
-      null,
-      "2026-06-04T10:00:00.000Z",
-    );
-
-    expect(report.next_action.candidate_id).toBe("focus:start");
-  });
-
-  it("continuity next-move escalates stale threads ahead of the focus fallback", () => {
-    const action = selectNextAction(
-      continuity({ view: { ...continuity().view, openThreads: [{ ...staleThread, created_at: "2020-01-01T00:00:00.000Z" }] } }),
-    );
-
-    expect(action.command).toBe("seed view threads");
-    expect(action.reason).toContain("stale >14d");
-  });
-
-  it("continuity next-move ranks the unclaimed task queue above stale threads", () => {
-    const openTask = { task_id: "11111111-1111-4111-8111-111111111111", title: "Real work", status: "open" as const };
-    const action = selectNextAction(
-      continuity({
-        view: {
-          ...continuity().view,
-          activeTasks: [openTask],
-          openThreads: [{ ...staleThread, created_at: "2020-01-01T00:00:00.000Z" }],
-        },
-      }),
-    );
-
-    expect(action.command).toBe("seed task claim 11111111");
-  });
-});

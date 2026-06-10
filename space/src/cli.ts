@@ -8,7 +8,7 @@ import { SpaceHttpClient } from "./client.js";
 import { startSpaceServer } from "./serve.js";
 import { readPassportIdentity } from "./serve.js";
 import { WorkspaceView } from "./view.js";
-import type { AuditReport, ThreadList, ViewBrief, ViewPreflightReport, WorkspaceContext } from "./view.js";
+import type { AuditReport, ViewBrief, ViewPreflightReport, WorkspaceContext } from "./view.js";
 
 const DEFAULT_SPACE_PORT = 18791;
 const DEFAULT_SPACE_URL = `http://127.0.0.1:${DEFAULT_SPACE_PORT}`;
@@ -216,29 +216,6 @@ async function run(args: ParsedArgs): Promise<void> {
     if (args.flags.has("json")) printJson(report);
     else printPreflight(report);
     process.exitCode = report.ok ? 0 : 1;
-    return;
-  }
-
-  if (command === "threads") {
-    const list = await view.listThreads({ includeResolved: args.flags.has("all") });
-    if (args.flags.has("json")) printJson(list);
-    else printThreads(list);
-    return;
-  }
-
-  if (command === "thread") {
-    const sub = args.values[0];
-    if (sub !== "resolve") {
-      throw new Error("seed view thread requires a subcommand: resolve <id>");
-    }
-    const id = args.values[1];
-    if (!id) throw new Error("seed view thread resolve requires an open-thread id (>=4 chars)");
-    const note = args.flags.get("note")?.[0];
-    const result = await view.resolveThread({ idPrefix: id, ...(note ? { note } : {}) });
-    if (args.flags.has("json")) printJson(result);
-    else {
-      for (const entry of result.resolved) console.log(`resolved ${entry.id}: ${entry.thread}`);
-    }
     return;
   }
 
@@ -850,28 +827,10 @@ function printBrief(brief: ViewBrief): void {
 function printContext(context: WorkspaceContext): void {
   if (context.brief) printBrief(context.brief);
   console.log(`active signals: ${context.active_signals.length}`);
-  console.log(`open threads: ${context.open_threads.length}`);
   if (context.current_run) console.log(`current run: ${context.current_run.run_id} (${context.current_run.goal})`);
   printNextActions(context.next_actions ?? []);
 }
 
-function printThreads(list: ThreadList): void {
-  if (list.open.length === 0) console.log("open threads: 0");
-  else {
-    console.log(`open threads: ${list.open.length}`);
-    for (const thread of list.open) {
-      const age = thread.created_at ? thread.created_at.slice(0, 10) : "";
-      const src = thread.source ? ` [${thread.source}]` : "";
-      console.log(`  ${thread.id}${age ? ` (${age})` : ""}${src} ${thread.thread}`);
-    }
-  }
-  if (list.resolved.length > 0) {
-    console.log(`\nresolved threads: ${list.resolved.length}`);
-    for (const entry of list.resolved) {
-      console.log(`  ${entry.id} ${entry.thread}${entry.note ? ` — ${entry.note}` : ""}`);
-    }
-  }
-}
 
 function printPreflight(report: ViewPreflightReport | AuditReport): void {
   console.log(`ok: ${report.ok ? "yes" : "no"}`);
@@ -922,8 +881,6 @@ Commands:
   context                      Print full repo operating packet
   preflight                    Check whether it is safe to start work
   audit                        Check manifest drift and expired signals
-  threads [--all]              List open threads (--all also shows resolved)
-  thread resolve <id> [--note] Resolve an open thread by id prefix (>=4 chars)
   log --mission M --summary S  Write a continuity packet
   run start --goal G           Start a repo-local run journal
   run log --summary S          Append a run journal step

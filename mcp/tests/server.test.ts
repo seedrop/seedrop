@@ -51,8 +51,6 @@ describe("tools registry", () => {
         "seedrop_view_log",
         "seedrop_view_preflight",
         "seedrop_view_sync",
-        "seedrop_view_threads",
-        "seedrop_view_thread_resolve",
       ].sort(),
     );
   });

@@ -217,15 +217,10 @@ describe("WorkspaceView", () => {
 
     expect(context.brief?.workspace?.id).toBe(path.basename(root));
     expect(context.latest_continuity?.id).toBe(packet.id);
-    expect(context.open_threads).toEqual([
-      {
-        id: expect.stringMatching(/^[0-9a-f]{12}$/),
-        thread: "Add MCP adapter later.",
-        packet_id: packet.id,
-        created_at: "2026-05-14T10:00:00.000Z",
-        source: "legacy_continuity",
-      },
-    ]);
+    // ADR 0001: the open thread materialized as an ownerless open task.
+    const threadTask = context.active_tasks?.find((task) => task.title === "Add MCP adapter later.");
+    expect(threadTask).toMatchObject({ status: "open" });
+    expect(threadTask?.dedup_key).toMatch(/^thread:[0-9a-f]{12}$/);
     expect(context.active_signals).toEqual([]);
     expect(existsSync(path.join(root, ".seedrop", "view", "audit.json"))).toBe(false);
   });
@@ -886,52 +881,46 @@ describe("WorkspaceView", () => {
     expect(reasons.some((r) => /uncommitted file/i.test(r))).toBe(true);
   });
 
-  describe("open threads list/resolve", () => {
-    it("lists open threads from continuity packets with stable ids", async () => {
-      await view().log({ mission: "m", summary: "s", openThreads: ["alpha thread", "beta thread"] });
-      const list = await view().listThreads();
-      expect(list.open).toHaveLength(2);
-      const ids = list.open.map((t) => t.id);
-      expect(ids.every((id) => /^[0-9a-f]{12}$/.test(id))).toBe(true);
-      expect(new Set(ids).size).toBe(2);
-      // ids are deterministic across reads
-      const again = await view().listThreads();
-      expect(again.open.map((t) => t.id)).toEqual(ids);
+  describe("threads are ownerless tasks (ADR 0001)", () => {
+    it("run thread materializes an ownerless open task", async () => {
+      await writeFile(path.join(root, "README.md"), "# Demo\n");
+      await view().sync();
+      await view().startRun({ goal: "thread test" });
+      await view().threadRun("Recipient should run tests.");
+
+      const task = (await view().listTasks()).find((t) => t.title === "Recipient should run tests.");
+      expect(task).toMatchObject({ status: "open" });
+      expect(task?.owner).toBeUndefined();
+      expect(task?.dedup_key).toMatch(/^thread:/);
+      expect(task?.description).toContain("Open thread from run");
     });
 
-    it("resolves a thread by id prefix and suppresses it from open threads", async () => {
-      await view().log({ mission: "m", summary: "s", openThreads: ["keep me", "resolve me"] });
-      const before = await view().listThreads();
-      const target = before.open.find((t) => t.thread === "resolve me");
-      expect(target).toBeDefined();
-      const result = await view().resolveThread({ idPrefix: target!.id.slice(0, 6), note: "done" });
-      expect(result.resolved).toHaveLength(1);
-      expect(result.resolved[0].thread).toBe("resolve me");
+    it("materialization is idempotent across repeated logs and syncs", async () => {
+      await writeFile(path.join(root, "README.md"), "# Demo\n");
+      await view().sync();
+      await view().log({ mission: "m", summary: "s", openThreads: ["One loose end."] });
+      await view().sync();
+      await view().sync();
 
-      const after = await view().listThreads({ includeResolved: true });
-      expect(after.open.map((t) => t.thread)).toEqual(["keep me"]);
-      expect(after.resolved.map((t) => t.thread)).toEqual(["resolve me"]);
-      expect(after.resolved[0].note).toBe("done");
-
-      // context() reflects the suppression too
-      const context = await view().context();
-      expect(context.open_threads.map((t) => t.thread)).toEqual(["keep me"]);
+      const matches = (await view().listTasks()).filter((t) => t.title === "One loose end.");
+      expect(matches).toHaveLength(1);
     });
 
-    it("rejects short prefixes, no-match, and ambiguous prefixes", async () => {
-      await view().log({ mission: "m", summary: "s", openThreads: ["x"] });
-      await expect(view().resolveThread({ idPrefix: "ab" })).rejects.toThrow(/too short/i);
-      await expect(view().resolveThread({ idPrefix: "ffffffff" })).rejects.toThrow(/No open thread/i);
-    });
+    it("threads already in the legacy resolution ledger are not rematerialized", async () => {
+      await writeFile(path.join(root, "README.md"), "# Demo\n");
+      await view().sync();
+      const packet = await view().log({ mission: "m", summary: "s", openThreads: ["Already handled."] });
+      // The packet log materialized it once; resolve via task drop, then write
+      // a legacy ledger entry and confirm sync does not recreate the task.
+      const task = (await view().listTasks()).find((t) => t.title === "Already handled.");
+      expect(task).toBeDefined();
+      await view().dropTask({ taskId: task!.task_id, reason: "handled elsewhere" });
 
-    it("is idempotent — resolving an already-resolved thread does not duplicate the ledger", async () => {
-      await view().log({ mission: "m", summary: "s", openThreads: ["only"] });
-      const { open } = await view().listThreads();
-      const id = open[0].id;
-      await view().resolveThread({ idPrefix: id });
-      await view().resolveThread({ idPrefix: id });
-      const after = await view().listThreads({ includeResolved: true });
-      expect(after.resolved).toHaveLength(1);
+      await view().sync();
+      const after = (await view().listTasks()).filter((t) => t.title === "Already handled.");
+      expect(after).toHaveLength(1);
+      expect(after[0]?.status).toBe("dropped");
+      expect(packet.open_threads).toEqual(["Already handled."]);
     });
   });
 });

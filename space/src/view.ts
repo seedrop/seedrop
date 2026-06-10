@@ -469,6 +469,11 @@ export class WorkspaceView {
     } catch {
       // intentional: migration must never fail a sync
     }
+    try {
+      await this.migrateOpenThreads();
+    } catch {
+      // intentional: migration must never fail a sync
+    }
 
     return manifest;
   }
@@ -501,6 +506,9 @@ export class WorkspaceView {
     const filename = `${compactTimestamp(packet.created_at)}_${sanitizeFilename(input.mission)}.json`;
     await this.writeJson(path.join(this.continuityDir, filename), packet);
     await this.writeAgentsMd(packet);
+    for (const thread of packet.open_threads) {
+      await this.materializeThreadTask(packet.id, thread, "packet");
+    }
     return packet;
   }
 
@@ -760,7 +768,25 @@ export class WorkspaceView {
   }
 
   async threadRun(thread: string, input: { agent?: string } = {}): Promise<RunJournal> {
-    return await this.logRun({ thread, agent: input.agent });
+    const run = await this.logRun({ thread, agent: input.agent });
+    await this.materializeThreadTask(run.run_id, thread, "run");
+    return run;
+  }
+
+  /**
+   * ADR 0001: a thread is an ownerless open task. Materialization is
+   * idempotent via dedup_key thread:<derived-id> and skips threads already
+   * resolved in the legacy ledger.
+   */
+  private async materializeThreadTask(sourceId: string, thread: string, source: string): Promise<Task | null> {
+    const id = threadId(sourceId, thread);
+    const resolved = new Set((await this.readResolvedThreads()).map((entry) => entry.id));
+    if (resolved.has(id)) return null;
+    return await this.createTask({
+      title: truncateText(thread, 100),
+      description: `Open thread from ${source} ${sourceId}: ${thread}`,
+      dedupKey: `thread:${id}`,
+    });
   }
 
   async verifyRun(input: RunVerifyInput): Promise<RunJournal> {
@@ -1469,7 +1495,6 @@ export class WorkspaceView {
         latest_audit: latestAudit,
         preflight,
         next_actions: uniqueNextActions([...brief.next_actions, ...preflight.next_actions]),
-        open_threads: [],
       };
     }
 
@@ -1546,9 +1571,6 @@ export class WorkspaceView {
       latest_audit: latestAudit,
       preflight,
       next_actions: uniqueNextActions([...brief.next_actions, ...preflight.next_actions]),
-      open_threads: await this.filterResolvedThreads(
-        collectOpenThreads(packets, runs),
-      ),
     };
     return applyContextBudget(payload, budgetBytes);
   }
@@ -1558,67 +1580,19 @@ export class WorkspaceView {
    * ledger. Lighter than `context()` — reads only continuity packets, runs, and
    * pending handoffs, the three sources threads can originate from.
    */
-  async listThreads(options: { includeResolved?: boolean } = {}): Promise<ThreadList> {
-    const [packets, runs] = await Promise.all([
-      this.safeListContinuityPackets(),
-      this.safeListRuns(),
-    ]);
-    const open = await this.filterResolvedThreads(collectOpenThreads(packets, runs));
-    const resolved = options.includeResolved ? await this.readResolvedThreads() : [];
-    return { open, resolved };
-  }
-
   /**
-   * Resolve open threads by id prefix (>=4 chars), suppressing them from future
-   * counts via the resolution ledger. Continuity packets stay untouched — they
-   * are append-only evidence; resolution is a derived overlay. Throws on no match
-   * or an ambiguous prefix that spans multiple distinct threads.
+   * One-time fold (ADR 0001): materialize historical unresolved threads from
+   * packets and runs into ownerless tasks. Idempotent via dedup_key; entries
+   * in the legacy resolution ledger are skipped, not recreated.
    */
-  async resolveThread(options: { idPrefix: string; note?: string }): Promise<{ resolved: ResolvedThreadEntry[] }> {
-    const prefix = options.idPrefix.trim();
-    if (prefix.length < 4) {
-      throw new Error(`Thread id prefix too short (need >=4 chars): ${prefix}`);
-    }
+  private async migrateOpenThreads(): Promise<void> {
     const [packets, runs] = await Promise.all([
       this.safeListContinuityPackets(),
       this.safeListRuns(),
     ]);
-    const all = collectOpenThreads(packets, runs);
-    const matches = all.filter((thread) => thread.id.startsWith(prefix));
-    if (matches.length === 0) {
-      throw new Error(`No open thread matches id prefix: ${prefix}`);
+    for (const thread of collectOpenThreads(packets, runs)) {
+      await this.materializeThreadTask(thread.packet_id, thread.thread, thread.source ?? "packet");
     }
-    const distinctIds = new Set(matches.map((thread) => thread.id));
-    if (distinctIds.size > 1) {
-      throw new Error(
-        `Ambiguous thread id prefix '${prefix}' matches ${distinctIds.size} threads: ${[...distinctIds].join(", ")}`,
-      );
-    }
-    const ledger = await this.readResolvedThreads();
-    const already = new Set(ledger.map((entry) => entry.id));
-    const resolvedAt = this.now().toISOString();
-    const added: ResolvedThreadEntry[] = [];
-    for (const thread of matches) {
-      if (already.has(thread.id)) continue;
-      already.add(thread.id);
-      const entry: ResolvedThreadEntry = {
-        id: thread.id,
-        packet_id: thread.packet_id,
-        thread: thread.thread,
-        resolved_at: resolvedAt,
-        ...(options.note ? { note: options.note } : {}),
-      };
-      ledger.push(entry);
-      added.push(entry);
-    }
-    if (added.length > 0) await this.writeResolvedThreads(ledger);
-    return { resolved: added.length > 0 ? added : matches.map((thread) => ({
-      id: thread.id,
-      packet_id: thread.packet_id,
-      thread: thread.thread,
-      resolved_at: resolvedAt,
-      ...(options.note ? { note: options.note } : {}),
-    })) };
   }
 
   private async readResolvedThreads(): Promise<ResolvedThreadEntry[]> {
@@ -1637,11 +1611,6 @@ export class WorkspaceView {
 
   private async writeResolvedThreads(entries: ResolvedThreadEntry[]): Promise<void> {
     await this.writeJson(this.resolvedThreadsPath, { schema_version: "1.0", resolved: entries });
-  }
-
-  private async filterResolvedThreads(threads: OpenThread[]): Promise<OpenThread[]> {
-    const resolved = new Set((await this.readResolvedThreads()).map((entry) => entry.id));
-    return threads.filter((thread) => !resolved.has(thread.id));
   }
 
   async preflight(options: ViewPreflightOptions = {}): Promise<ViewPreflightReport> {
@@ -3018,15 +2987,6 @@ function applyContextBudget(payload: WorkspaceContext, limitBytes: number): Work
       },
     },
     {
-      id: "open_threads_capped",
-      apply: () => {
-        const capped = capArray(out.open_threads, 5);
-        if (!capped) return false;
-        out.open_threads = capped;
-        return true;
-      },
-    },
-    {
       id: "active_tasks_capped",
       apply: () => {
         const capped = capArray(out.active_tasks, 8);
@@ -3132,15 +3092,6 @@ function applyContextBudget(payload: WorkspaceContext, limitBytes: number): Work
           }
         }
         return touched;
-      },
-    },
-    {
-      id: "open_threads_capped_hard",
-      apply: () => {
-        const capped = capArray(out.open_threads, 2);
-        if (!capped) return false;
-        out.open_threads = capped;
-        return true;
       },
     },
     {

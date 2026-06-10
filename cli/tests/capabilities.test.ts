@@ -45,8 +45,8 @@ describe("capabilities map", () => {
     const out = renderCapabilities();
     expect(out).toContain("Seedrop capabilities");
     expect(out).toContain("VIEW");
-    expect(out).toContain("seed view threads");
-    expect(out).toContain("-> seedrop_view_threads");
+    expect(out).toContain("seed view sync");
+    expect(out).toContain("-> seedrop_view_sync");
     expect(out).toContain("(CLI only)");
   });
 });

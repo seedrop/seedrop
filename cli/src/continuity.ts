@@ -81,14 +81,6 @@ interface ViewTask {
   blocked_by?: string[];
 }
 
-interface ViewOpenThread {
-  id: string;
-  thread: string;
-  packet_id?: string;
-  created_at?: string;
-  source?: string;
-}
-
 type ContinuityPacket = Partial<SpaceContinuityPacket> & {
   // cli reads this extra field on packets surfaced by the daemon; not in the wire schema yet.
   next_actions?: string[];
@@ -222,7 +214,6 @@ export interface ContinuityReport {
     activeTasks: ViewTask[];
     blockerTasks: ViewTask[];
     openTasksCount: number;
-    openThreads: ViewOpenThread[];
     otherAgents: Array<{
       agent_id: string;
       active_runs: Array<{ run_id: string; goal: string; started_at: string; changed_paths: string[] }>;
@@ -278,7 +269,6 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   const activeTasks = (viewContext.active_tasks ?? []) as ViewTask[];
   const blockerTasks = await loadReferencedBlockerTasks(root, activeTasks);
   const openTasksCount = typeof viewContext.open_tasks_count === "number" ? viewContext.open_tasks_count : 0;
-  const openThreads = (viewContext.open_threads ?? []) as ViewOpenThread[];
   const otherAgents = (viewContext.other_agents ?? []) as ContinuityReport["view"]["otherAgents"];
   if (!viewPresent) {
     warnings.push(`No .seedrop/view in ${root}. Run \`seed bootstrap\` to link this root to your passport.`);
@@ -379,7 +369,6 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
       activeTasks,
       blockerTasks,
       openTasksCount,
-      openThreads,
       otherAgents,
     },
     daemon: {
@@ -1032,23 +1021,6 @@ export function selectNextAction(report: Omit<ContinuityReport, "orientation">):
     };
   }
 
-  // Stale open threads: queued questions rot quietly. Escalate after 14 days
-  // so they get resolved or converted to tasks instead of accumulating.
-  const staleThreads = report.view.openThreads.filter(
-    (t) => t.created_at && Date.now() - Date.parse(t.created_at) > STALE_THREAD_MS,
-  );
-  if (staleThreads.length > 0) {
-    const oldest = staleThreads[0]!;
-    return {
-      kind: "run",
-      command: "seed view threads",
-      reason: `${staleThreads.length} open thread(s) stale >14d. Start with [${oldest.id}] "${truncate(oldest.thread, 60)}" — resolve or convert to a task.`,
-      source: "view",
-      risk: "low",
-      requires_human: false,
-    };
-  }
-
   const pkt = report.view.latestPacket;
   if (pkt?.next_actions?.length) {
     return {
@@ -1081,9 +1053,6 @@ export function selectNextAction(report: Omit<ContinuityReport, "orientation">):
     requires_human: false,
   };
 }
-
-/** Open threads older than this escalate into next_move. */
-const STALE_THREAD_MS = 14 * 24 * 60 * 60 * 1000;
 
 function openTaskBlockers(task: ViewTask, lookup: ViewTask[]): string[] {
   return (task.blocked_by ?? []).filter((blockerId) => {

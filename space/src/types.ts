@@ -139,7 +139,6 @@ export interface WorkspaceContext {
   latest_audit?: AuditReport;
   preflight?: ViewPreflightReport;
   next_actions?: NextAction[];
-  open_threads: OpenThread[];
   budget?: ContextBudget;
 }
 
