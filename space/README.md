@@ -109,7 +109,7 @@ The serve command accepts `X-Seedrop-Passport` values matching the configured pa
 
 ## Experimental View API
 
-`WorkspaceView` is not part of the stable root API. Import it from the explicit subpath:
+`WorkspaceView` is available from the package root or the explicit `./view` subpath:
 
 ```typescript
 import { WorkspaceView } from "@seedrop/space/view";
@@ -183,7 +183,7 @@ seed-space view claim src/view.ts "Refactor signal storage"
 seed-space view log --mission "Add workspace view" --summary "Implemented the first substrate."
 ```
 
-The eventual top-level Seedrop CLI should route these as `seed view ...`. Until that package exists, `seed-space view ...` keeps ownership clear.
+The top-level [`@seedrop/cli`](https://www.npmjs.com/package/@seedrop/cli) routes these as `seed view ...`; `seed-space view ...` remains the package-local equivalent.
 
 ## Verification
 
@@ -210,9 +210,11 @@ By default, `WorkspaceView` writes to:
   policy.json
   continuity/
   signals/
+  signals-archive.json   # GC'd expired signals, kept as an audit ledger
   runs/
-  handoffs/
+  tasks/                 # queued work, assigned handoffs, and ownerless threads (ADR 0001)
   knowledge/
+  handoffs/              # legacy; folded into tasks on sync (ADR 0001)
 ```
 
 The `.seedrop` directory is excluded from manifest scans by default so the workspace view describes the project rather than its own generated state.

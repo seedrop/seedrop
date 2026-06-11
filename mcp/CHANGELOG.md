@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.2.0-alpha.4] — 2026-06-11
+
+### Fixed
+- README: manual `mcpServers` wire-in now shows the published `npx -y @seedrop/mcp` command instead of a local `dist/cli.js` path.
+
 ## [0.2.0-alpha.3] — 2026-06-11
 
 ### Fixed

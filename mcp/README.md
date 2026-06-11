@@ -23,15 +23,15 @@ node ./dist/cli.js < /dev/null
 
 ## Wire into Claude Code / Desktop
 
-Add an entry under `mcpServers` in `~/.claude.json`:
+Usually `seed install claude --to claude-code` writes this for you. To do it by hand, add an entry under `mcpServers` in `~/.claude.json` — the published package runs via `npx`:
 
 ```json
 {
   "mcpServers": {
     "seedrop": {
       "type": "stdio",
-      "command": "/path/to/node",
-      "args": ["/path/to/seedrop/mcp/dist/cli.js"]
+      "command": "npx",
+      "args": ["-y", "@seedrop/mcp"]
     }
   }
 }

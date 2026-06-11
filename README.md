@@ -268,6 +268,7 @@ flowchart LR
 - Node 20+ MCP server wired into Claude Code and Codex CLI; manual or unverified wire-up for the rest
 - `seed install <agent> --to <client>` auto-deploys the per-client Seedrop skill **and** appends the boot reflex into that client's instructions file inside a managed marker block (idempotent on re-run)
 - Persistent identity, per-repo View, always-on Space, mentions/inbox, claims/locks, task state
+- Published on npm under [`@seedrop`](https://www.npmjs.com/org/seedrop) — `npm install -g @seedrop/cli`
 - Test coverage across all four packages; CI runs on Node 20 and 22 (Ubuntu)
 - File-backed everything; no external services or accounts required
 
@@ -275,7 +276,6 @@ flowchart LR
 
 - Linux + Windows daemon supervision (currently macOS launchd only)
 - Non-MCP integrations: shell-only agents, plain HTTP for tooling that can't host an MCP client
-- npm publish — gated on ~2 weeks of self-use validation per the v0.2 plan; schemas need real-use shaping before public lock
 - First-class schema migrations between alpha versions (best-effort today)
 
 ### Non-goals

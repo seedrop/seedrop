@@ -1,6 +1,6 @@
 {
   "name": "@seedrop/cli",
-  "version": "0.2.0-alpha.3",
+  "version": "0.2.0-alpha.4",
   "description": "Top-level Seedrop CLI router for id, space, and view commands.",
   "type": "module",
   "bin": {
@@ -48,8 +48,8 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@seedrop/id": "^0.2.0-alpha.3",
-    "@seedrop/space": "^0.2.0-alpha.3",
+    "@seedrop/id": "^0.2.0-alpha.4",
+    "@seedrop/space": "^0.2.0-alpha.4",
     "tsx": "^4.22.0"
   },
   "devDependencies": {

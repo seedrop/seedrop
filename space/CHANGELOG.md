@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.2.0-alpha.4] — 2026-06-11
+
+### Fixed
+- README: `WorkspaceView` is documented as available from the package root (not just `./view`); storage layout updated for ADR 0001 (`tasks/`, `signals-archive.json`; `handoffs/` marked legacy); `seed view ...` routing note corrected now that `@seedrop/cli` exists.
+
 ## [0.2.0-alpha.3] — 2026-06-11
 
 ### Changed
