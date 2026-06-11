@@ -72,7 +72,7 @@ seed-id init --name codex --purpose "Help build Seedrop"
 seed-id validate --passport ./.seedrop/id/passport.json
 seed-id show --passport ./.seedrop/id/passport.json
 seed-id audit --passport ./.seedrop/id/passport.json
-seed-id project link --passport ./.seedrop/id/passport.json --id seedrop --root /Users/mc/Projects/seedrop --view .seedrop/view
+seed-id project link --passport ./.seedrop/id/passport.json --id seedrop --root ~/Projects/your-app --view .seedrop/view
 seed-id status --passport ./passport.json
 seed-id repair --passport ./passport.json
 ```
@@ -104,7 +104,7 @@ A `passport.json` looks like:
   "active_projects": [
     {
       "id": "seedrop-space",
-      "root": "/Users/mc/Projects/seedrop/space",
+      "root": "~/Projects/your-app",
       "role": "implementation and review",
       "current_focus": "Alpha readiness sweep",
       "space": "seedrop-team",
@@ -133,7 +133,7 @@ See [examples/passport.self-state.json](./examples/passport.self-state.json) for
 
 ## Install
 
-Not yet published. Source is at `/Users/mc/Projects/seedrop/id/` during scaffolding.
+`@seedrop/id` is a dependency of [`@seedrop/cli`](https://www.npmjs.com/package/@seedrop/cli) — most users get it transitively via `npm install -g @seedrop/cli` and never install it directly. Install it standalone only to use the `seed-id` binary or the library on its own:
 
 ```bash
 npm install @seedrop/id

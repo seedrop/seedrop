@@ -1,6 +1,6 @@
 # @seedrop/mcp
 
-> Model Context Protocol server for Seedrop. Exposes `seed continuity`, `bootstrap`, `view`, and `space` as native MCP tools so agents (Claude Desktop, Claude Code, Codex, etc.) can call them directly without shelling out.
+> Model Context Protocol server for Seedrop. Exposes `seed boot`, `bootstrap`, `view`, and `space` as native MCP tools so agents (Claude Desktop, Claude Code, Codex, etc.) can call them directly without shelling out.
 
 ## Status
 
@@ -8,9 +8,10 @@ Alpha. The server is a stdio MCP server that shells out to the bundled `@seedrop
 
 ## Install
 
+Most users don't install this directly — `seed install <client>` wires clients to launch the server via `npx -y @seedrop/mcp`, which fetches it on demand. Install it explicitly only for a pinned global copy:
+
 ```bash
 npm install -g @seedrop/mcp
-# or, in a monorepo: npm install in the workspace root
 ```
 
 Verify:

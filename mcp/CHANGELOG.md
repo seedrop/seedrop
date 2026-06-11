@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.2.0-alpha.3] — 2026-06-11
+
+### Fixed
+- README: `seed continuity` → `seed boot` in the description; clarified the server is normally launched via `npx` by `seed install`, not installed directly.
+
 ## [0.2.0-alpha.2] — 2026-06-10
 _Supersedes 0.2.0-alpha.1 (first public cut)._
 
