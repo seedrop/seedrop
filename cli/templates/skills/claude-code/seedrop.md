@@ -16,7 +16,7 @@ documentation lives in **one tool call**:
 ```
 seedrop_manual({section: "all"})       # ≈3KB, the cheat sheet
 seedrop_manual({section: "workflows"}) # ≈1KB, just the recipes
-seedrop_manual({section: "concepts"})  # the 4 primitives + 5 layers
+seedrop_manual({section: "concepts"})  # the 4 primitives + 4 layers
 ```
 
 **First move when working with seedrop**:

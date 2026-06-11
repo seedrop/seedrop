@@ -34,7 +34,7 @@ If anything below conflicts with what \`seed view explain\` reports, trust
 \`seed view explain\` — the manual is documentation, the explain commands
 are derivations from live state.`;
 
-const CONCEPTS = `## Concepts (the 4 primitives, the 5 layers)
+const CONCEPTS = `## Concepts (the 4 primitives, the 4 layers)
 
 **4 primitives** (each has its own storage location and lifecycle):
 

@@ -1,9 +1,11 @@
 # ADR 0001 — Collapse the coordination ontology before npm publish
 
-- **Status:** accepted
+- **Status:** accepted — **implemented 2026-06-11**
 - **Date:** 2026-06-10
 - **Deciders:** mc (operator), claude (author)
 - **Tracking:** task `dcb76555`; blocks ship task `2cb887f3`
+
+> **Outcome (realized).** Shipped in v0.2.0-alpha.1. The three folds landed: handoffs → assigned tasks, threads → ownerless tasks, orientation tiers (boot/focus/budgeted context). The surface went from **72 CLI / 54 MCP → 66 CLI / 45 MCP** (run `seed capabilities` for the live count). The further reduction toward ~34 MCP tools via Space/Meta verb-grouping is **deferred** per the follow-up note below; everything in this document below the metadata describes the design as decided, not a pending state.
 
 ## Context
 
