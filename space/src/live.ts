@@ -1,7 +1,32 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import Database from "better-sqlite3";
 import type { Database as DatabaseType } from "better-sqlite3";
+
+// better-sqlite3 is a native module and an *optional* dependency: it backs only
+// the live Space store (sessions/presence/mentions), i.e. the daemon. The CLI
+// core (identity, View, bootstrap, `seed`) never opens a LiveStore, so it must
+// not pay a top-level native import — that would crash the whole CLI on any
+// platform where better-sqlite3 isn't built (e.g. Linux without build tools or
+// a prebuilt binary). We load it lazily, only when a connection is actually
+// opened, and surface an actionable error if it's missing.
+type DatabaseCtor = new (filename: string) => DatabaseType;
+let cachedDatabase: DatabaseCtor | null = null;
+
+async function loadDatabaseCtor(): Promise<DatabaseCtor> {
+  if (cachedDatabase) return cachedDatabase;
+  try {
+    const mod = (await import("better-sqlite3")) as unknown as { default: DatabaseCtor };
+    cachedDatabase = mod.default;
+    return cachedDatabase;
+  } catch (cause) {
+    throw new Error(
+      "The Seedrop Space live store requires the native module 'better-sqlite3', which is not installed or failed to build. "
+        + "It is an optional dependency: the CLI and per-repo View work without it, but the always-on Space daemon (presence, mentions, inbox) does not. "
+        + "To enable it, ensure build tools are present and run `npm rebuild better-sqlite3` (Linux: install python3/make/g++ first).",
+      { cause },
+    );
+  }
+}
 
 export interface LiveStoreOptions {
   root?: string;
@@ -77,6 +102,7 @@ export class LiveStore {
     }
 
     await mkdir(this.paths.dataDir, { recursive: true });
+    const Database = await loadDatabaseCtor();
     const db = new Database(this.paths.liveDb);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");

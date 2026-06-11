@@ -1,6 +1,6 @@
 {
   "name": "@seedrop/space",
-  "version": "0.2.0-alpha.4",
+  "version": "0.2.0-alpha.5",
   "description": "Coordination space for LLM agents — workspaces, presence, and pointer-based notifications over a file-backed durability substrate.",
   "type": "module",
   "main": "./dist/index.js",
@@ -60,7 +60,6 @@
     "vitest": "^4.1.6"
   },
   "dependencies": {
-    "better-sqlite3": "^12.10.0",
     "tsx": "^4.21.1",
     "zod": "^3.25.76"
   },
@@ -70,5 +69,8 @@
     "directory": "space"
   },
   "homepage": "https://github.com/seedrop/seedrop#readme",
-  "bugs": "https://github.com/seedrop/seedrop/issues"
+  "bugs": "https://github.com/seedrop/seedrop/issues",
+  "optionalDependencies": {
+    "better-sqlite3": "^12.10.0"
+  }
 }

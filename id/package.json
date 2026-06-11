@@ -1,6 +1,6 @@
 {
   "name": "@seedrop/id",
-  "version": "0.2.0-alpha.4",
+  "version": "0.2.0-alpha.5",
   "description": "Portable self-state for LLM agents — passport.json, active projects, continuity, and audited writes.",
   "type": "module",
   "main": "./dist/index.js",

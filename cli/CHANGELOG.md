@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.2.0-alpha.5] — 2026-06-11
+
+### Fixed
+- `npm install -g @seedrop/cli` no longer fails on Linux without build tools: its native transitive dependency (`better-sqlite3`) is now optional and lazily loaded by `@seedrop/space`. Bootstrap, `seed`, and `seed view` work without it; only the always-on daemon needs it.
+
 ## [0.2.0-alpha.4] — 2026-06-11
 
 ### Changed

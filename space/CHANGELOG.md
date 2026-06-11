@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.2.0-alpha.5] — 2026-06-11
+
+### Fixed
+- **`better-sqlite3` is now an optional dependency, loaded lazily.** It backs only the live Space store (daemon: presence, mentions, inbox), but a top-level native import in `live.ts` meant importing `@seedrop/space` at all pulled it in — so on any platform without a prebuilt binary or build tools (e.g. a clean Linux box), the whole CLI crashed on load and `npm install` failed during the native build. The import is now lazy (only when a `LiveStore` connection is opened) with an actionable error, and the dependency is optional so installs always succeed. The CLI core, identity, and per-repo View never touch it.
+
 ## [0.2.0-alpha.4] — 2026-06-11
 
 ### Fixed
