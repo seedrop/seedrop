@@ -6,7 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [Unreleased]
+## [0.2.0-alpha.2] — 2026-06-10
+_Supersedes 0.2.0-alpha.1 (first public cut; undocumented)._
+
+### Changed
+- **ADR 0001 ontology collapse.** Handoffs are tasks — `finishRun --handoff-to` creates a task assigned to the recipient; legacy pending handoffs fold into assigned tasks on `sync()`. Threads are ownerless tasks — materialized on `run thread` / `view log` and migrated on `sync()`; `view threads` and `thread resolve` removed.
+- `context()` always summarizes the manifest (no inline file list) and trims to a byte budget (default 8 KB) with an auditable `budget` record.
+### Added
+- Signal GC: expired signals archive to `signals-archive.json` on `sync()` after a 24h grace; `finishRun` releases the run's own claims into the archive.
+- Presence flags duplicate online sessions per passport (`duplicate_sessions`).
+- npm metadata: `repository`, `homepage`, `bugs`.
+
 
 ### Added
 - `seed-space register` and `seed-space heartbeat` CLI commands for live presence. `register` calls `POST /sessions` and caches the returned session id at `~/.seedrop/space/sessions/<passportId>.json`; `heartbeat` reads the cached id (or accepts `--session-id`) and calls `POST /presence/heartbeat`.

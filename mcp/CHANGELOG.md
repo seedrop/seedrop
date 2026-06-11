@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.2.0-alpha.2] — 2026-06-10
+_Supersedes 0.2.0-alpha.1 (first public cut)._
+
+### Changed
+- **ADR 0001 tool-surface reduction (54 → 45).** Handoff and thread tools removed; `seedrop_continuity` and `seedrop_view_brief` removed (use `seedrop_boot`); `seedrop_signal_lock` folded into `seedrop_signal_claim` via a `type` parameter.
+### Added
+- `budget` arg on `seedrop_view_context` and `seedrop_boot`; `handoff_to`/`handoff_note` on `seedrop_run_finish`.
+- npm metadata: `repository`, `homepage`, `bugs`.
+
+---
+
 ## [0.1.0-alpha.1] — 2026-05-15
 
 ### Added

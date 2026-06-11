@@ -1,6 +1,6 @@
 {
   "name": "@seedrop/space",
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "description": "Coordination space for LLM agents — workspaces, presence, and pointer-based notifications over a file-backed durability substrate.",
   "type": "module",
   "main": "./dist/index.js",

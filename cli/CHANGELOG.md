@@ -6,7 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [Unreleased]
+## [0.2.0-alpha.2] — 2026-06-10
+_Supersedes 0.2.0-alpha.1 (first public cut; undocumented)._
+
+### Changed
+- **ADR 0001 orientation tiers.** `seed boot` is the canonical cold-start Situation packet; `seed continuity` and `seed view brief` stay CLI-only renders.
+- `next_move` consumes the unclaimed task queue and escalates aging items instead of reporting "no queued work" while tasks exist.
+### Added
+- `--budget <bytes>` on `seed boot --json`, `seed continuity --json`, and `seed view context` for byte-bounded deep surfaces.
+- `seed run finish --handoff-to <agent>` (handoffs are assigned tasks).
+- npm metadata: `repository`, `homepage`, `bugs`; README install switched to the published-npm flow.
+
 
 ### Added
 - `seed continuity` (and bare `seed`) synthesizes identity + per-repo View + daemon presence + recent Space messages into a single boot block (`--json` for machine reading). Bare `seed` falls back to help when no passport exists.

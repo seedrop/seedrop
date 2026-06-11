@@ -6,7 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
-## [Unreleased]
+## [0.2.0-alpha.2] — 2026-06-10
+_Supersedes 0.2.0-alpha.1 (first public cut; undocumented)._
+
+### Added
+- npm metadata: `repository`, `homepage`, `bugs` fields linking back to the GitHub monorepo.
+
 
 ### Changed
 - All `seed-id` subcommands now default the passport path to `$SEEDROP_PASSPORT` or `~/.seedrop/id/passport.json` when `--passport` is omitted. Per-repo passports are no longer the implicit default; identity is per-agent, machine-wide.
