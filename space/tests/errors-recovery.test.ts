@@ -23,12 +23,17 @@ describe("structured recovery on every WorkspaceViewError subclass", () => {
     expect(err.recovery.find((r) => r.command?.includes("force"))?.risk).toBe("medium");
   });
 
-  it("WorkspaceRunUnloggedChangesError suggests log / blocked / force", () => {
+  it("WorkspaceRunUnloggedChangesError suggests inspect / log / blocked / force for validation-only runs", () => {
     const err = new WorkspaceRunUnloggedChangesError(["README.md"]);
     const commands = err.recovery.map((r) => r.command);
+    expect(err.message).toContain("validation-only runs");
+    expect(err.message).toContain("pre-existing dirty tree");
+    expect(commands).toContain("git status --short");
     expect(commands.some((c) => c?.includes("seed run log"))).toBe(true);
     expect(commands).toContain("seed run finish --status blocked");
     expect(commands).toContain("seed run finish --status completed --force");
+    expect(err.recovery.find((r) => r.command?.includes("seed run log"))?.reason).toContain("only files this run actually changed");
+    expect(err.recovery.find((r) => r.command?.includes("force"))?.reason).toContain("pre-existed");
   });
 
   it("TaskConflictError with owner != actor suggests seed login + reassign", () => {

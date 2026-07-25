@@ -53,7 +53,7 @@ export class WorkspaceRunDirtyTreeError extends WorkspaceViewError {
         recovery: [
           { kind: "command", command: `git add ${sample}${dirtyChangedPaths.length > 3 ? " ..." : ""} && git commit`, risk: "low", requires_human: true, reason: "Commit the work the run claimed before finishing." },
           { kind: "command", command: "seed run finish --status blocked", risk: "low", requires_human: false, reason: "Mark blocked instead of completed if the work isn't done." },
-          { kind: "command", command: "seed run finish --status completed --force", risk: "medium", requires_human: true, reason: "Bypass the gate (intentionally leaving changes uncommitted)." },
+          { kind: "command", command: "seed run finish --status completed --force", risk: "medium", requires_human: true, reason: "Bypass the gate only when you intentionally leave this run's changed paths uncommitted." },
         ],
       },
     );
@@ -67,12 +67,13 @@ export class WorkspaceRunUnloggedChangesError extends WorkspaceViewError {
     const bullets = sample.map((p) => `  - ${p}`).join("\n");
     const more = dirtyPaths.length > sample.length ? `\n  ...and ${dirtyPaths.length - sample.length} more` : "";
     super(
-      `Cannot mark run completed: the run logged no changed_paths but git has ${dirtyPaths.length} uncommitted file(s):\n${bullets}${more}\nLog them with \`seed run log --summary "..." --changed-path <file>\`, mark the run blocked/failed, or pass force=true to override.`,
+      `Cannot mark run completed: the run logged no changed_paths but git has ${dirtyPaths.length} uncommitted file(s):\n${bullets}${more}\nThis is common for validation-only runs in a pre-existing dirty tree. Inspect the tree, log only files this run actually changed, mark the run blocked/failed, or pass force=true only when the dirty files pre-existed or are unrelated.`,
       {
         recovery: [
-          { kind: "command", command: `seed run log --summary "..." --changed-path ${sample[0] ?? "<file>"}`, risk: "low", requires_human: true, reason: "Record what you changed so the run journal reflects the work." },
+          { kind: "command", command: "git status --short", risk: "low", requires_human: false, reason: "Inspect whether the dirty files pre-existed this run or belong to the current work." },
+          { kind: "command", command: `seed run log --summary "..." --changed-path ${sample[0] ?? "<file>"}`, risk: "low", requires_human: true, reason: "Record only files this run actually changed so the run journal reflects the work." },
           { kind: "command", command: "seed run finish --status blocked", risk: "low", requires_human: false, reason: "Mark blocked if the work isn't ready." },
-          { kind: "command", command: "seed run finish --status completed --force", risk: "medium", requires_human: true, reason: "Override (only if the dirty files are intentionally unrelated to this run)." },
+          { kind: "command", command: "seed run finish --status completed --force", risk: "medium", requires_human: true, reason: "Override only if the dirty files pre-existed this run or are unrelated to it." },
         ],
       },
     );
