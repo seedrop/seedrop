@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import type { ZodType } from "zod";
 import {
@@ -13,6 +14,7 @@ import {
   WorkspaceRunOwnershipError,
   WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
+  WorkspaceViewError,
   WorkspaceViewParseError,
   WorkspaceViewValidationError,
 } from "./errors.js";
@@ -132,6 +134,8 @@ export interface WorkspaceViewOptions {
 export interface SyncOptions {
   ignore?: string[];
   workspaceId?: string;
+  /** Override the pathological-root guard (home dir / filesystem root). */
+  force?: boolean;
 }
 
 export interface LogInput {
@@ -298,6 +302,9 @@ export interface ViewAuditOptions {
 const DEFAULT_DATA_DIR = ".seedrop/view";
 const DEFAULT_IGNORE = new Set([".git", "node_modules", "dist", "coverage", ".seedrop", ".DS_Store"]);
 const MAX_HASHED_FILE_BYTES = 50 * 1024 * 1024;
+const VIEW_FILE_LOCK_RETRY_MS = 25;
+const VIEW_FILE_LOCK_TIMEOUT_MS = 30_000;
+const VIEW_FILE_LOCK_STALE_MS = 5 * 60_000;
 const SUCCESS_LEVELS = ["L0", "L1", "L2", "L3", "L4"] as const;
 type ViewSuccessLevel = (typeof SUCCESS_LEVELS)[number];
 type ManifestFreshness = NonNullable<ViewBrief["manifest"]>["freshness"];
@@ -384,6 +391,7 @@ export class WorkspaceView {
   }
 
   async sync(options: SyncOptions = {}): Promise<WorkspaceManifest> {
+    if (!options.force) this.assertSafeWorkspaceRoot();
     await this.ensureDirs();
     const previous = await this.readManifestIfPresent();
     const policyResult = await this.readPolicyResult();
@@ -744,23 +752,26 @@ export class WorkspaceView {
   }
 
   async logRun(input: RunUpdateInput): Promise<RunJournal> {
-    const run = await this.resolveTargetRun(input);
+    const selected = await this.resolveTargetRun(input);
+    const resolvedAgent = input.agent ?? this.agent;
     // Relativize once at the input boundary so we cannot store a path the
     // RelativePath schema would reject on the next read.
     const relativeChangedPaths = this.toWorkspaceRelativeMany(input.changedPaths ?? []);
-    if (input.summary) {
-      run.steps.push({
-        summary: input.summary,
-        recorded_at: this.nowIso(),
-        changed_paths: relativeChangedPaths,
-      });
-    }
-    if (input.decision) run.decisions.push(input.decision);
-    if (input.assumption) run.assumptions.push(input.assumption);
-    if (input.thread) run.open_threads.push(input.thread);
-    run.changed_paths = uniqueStrings([...run.changed_paths, ...relativeChangedPaths]);
-    if (input.nextActions) run.next_actions = input.nextActions;
-    return await this.updateRun(run);
+    return await this.mutateRun(selected.run_id, async (run) => {
+      this.assertRunOwner(run, resolvedAgent);
+      if (input.summary) {
+        run.steps.push({
+          summary: input.summary,
+          recorded_at: this.nowIso(),
+          changed_paths: relativeChangedPaths,
+        });
+      }
+      if (input.decision) run.decisions.push(input.decision);
+      if (input.assumption) run.assumptions.push(input.assumption);
+      if (input.thread) run.open_threads.push(input.thread);
+      run.changed_paths = uniqueStrings([...run.changed_paths, ...relativeChangedPaths]);
+      if (input.nextActions) run.next_actions = input.nextActions;
+    });
   }
 
   async decideRun(decision: string, input: { agent?: string } = {}): Promise<RunJournal> {
@@ -790,90 +801,95 @@ export class WorkspaceView {
   }
 
   async verifyRun(input: RunVerifyInput): Promise<RunJournal> {
-    const run = await this.resolveTargetRun(input);
-    run.validation.push({
-      command: input.command,
-      status: input.status,
-      recorded_at: this.nowIso(),
-      ...(input.notes ? { notes: input.notes } : {}),
+    const selected = await this.resolveTargetRun(input);
+    const resolvedAgent = input.agent ?? this.agent;
+    return await this.mutateRun(selected.run_id, async (run) => {
+      this.assertRunOwner(run, resolvedAgent);
+      run.validation.push({
+        command: input.command,
+        status: input.status,
+        recorded_at: this.nowIso(),
+        ...(input.notes ? { notes: input.notes } : {}),
+      });
     });
-    return await this.updateRun(run);
   }
 
   async finishRun(input: RunFinishInput): Promise<RunJournal> {
-    const run = await this.resolveTargetRun(input);
-    if (input.status === "completed" && !input.force) {
-      const gitDirty = this.gitDirtyState();
-      // Gate only on tracked changes. Untracked files are usually scratch
-      // notes or build artifacts; another agent can still resume from HEAD
-      // without them. Splitting tracked vs untracked closes task f3fc8250.
-      if (gitDirty.inside && gitDirty.tracked.length > 0) {
-        if (run.changed_paths.length > 0) {
-          const dirtySet = new Set(gitDirty.tracked);
-          const dirtyChanged = run.changed_paths.filter((p) => dirtySet.has(p));
-          if (dirtyChanged.length > 0) {
-            throw new WorkspaceRunDirtyTreeError(dirtyChanged, run.changed_paths);
+    const selected = await this.resolveTargetRun(input);
+    const resolvedAgent = input.agent ?? this.agent;
+    return await this.mutateRun(selected.run_id, async (run) => {
+      this.assertRunOwner(run, resolvedAgent);
+      if (input.status === "completed" && !input.force) {
+        const gitDirty = this.gitDirtyState();
+        // Gate only on tracked changes. Untracked files are usually scratch
+        // notes or build artifacts; another agent can still resume from HEAD
+        // without them. Splitting tracked vs untracked closes task f3fc8250.
+        if (gitDirty.inside && gitDirty.tracked.length > 0) {
+          if (run.changed_paths.length > 0) {
+            const dirtySet = new Set(gitDirty.tracked);
+            const dirtyChanged = run.changed_paths.filter((p) => dirtySet.has(p));
+            if (dirtyChanged.length > 0) {
+              throw new WorkspaceRunDirtyTreeError(dirtyChanged, run.changed_paths);
+            }
+          } else {
+            throw new WorkspaceRunUnloggedChangesError(gitDirty.tracked);
           }
-        } else {
-          throw new WorkspaceRunUnloggedChangesError(gitDirty.tracked);
         }
       }
-    }
-    run.status = input.status;
-    run.finished_at = this.nowIso();
-    if (input.nextActions) run.next_actions = input.nextActions;
+      run.status = input.status;
+      run.finished_at = this.nowIso();
+      if (input.nextActions) run.next_actions = input.nextActions;
 
-    // A finished run's claims are residue, not active collision warnings —
-    // archive them on every terminal status (completed, blocked, failed).
-    try {
-      await this.releaseRunClaims(run);
-    } catch {
-      // intentional: claim cleanup must never fail a finish
-    }
-
-    if (input.handoffTo) {
-      await this.createHandoffTask({
-        recipient: input.handoffTo,
-        sourceAgent: run.agent_id,
-        summary: input.handoffNote ?? run.goal,
-        run,
-      });
-    }
-
-    if (input.status === "completed") {
-      // Auto-sync the manifest so the View reflects the post-run state.
-      // Swallowed if policy is invalid — `seed view sync` will surface the error explicitly.
+      // A finished run's claims are residue, not active collision warnings —
+      // archive them on every terminal status (completed, blocked, failed).
       try {
-        await this.sync();
+        await this.releaseRunClaims(run);
       } catch {
-        // intentional: dedicated sync command surfaces policy errors
+        // intentional: claim cleanup must never fail a finish
       }
 
-      // Suggest a continuity packet if this run had non-trivial activity
-      // and no packet has been written since the run started.
-      const nonTrivial =
-        run.changed_paths.length > 0 ||
-        run.validation.length > 0 ||
-        run.decisions.length > 0 ||
-        run.open_threads.length > 0 ||
-        run.steps.length > 1;
-      if (nonTrivial) {
-        const packets = await this.safeListContinuityPackets();
-        const hasRecentPacket = packets.some((p) => p.created_at >= run.started_at);
-        if (!hasRecentPacket) {
-          const suggestion = commandAction(
-            'seed view log --mission "..." --summary "..."',
-            "low",
-            "Log a continuity packet to capture this run's outcome — no packet has been written since the run started.",
-          );
-          if (!run.next_actions.some((existing) => existing.command === suggestion.command)) {
-            run.next_actions = [...run.next_actions, suggestion];
+      if (input.handoffTo) {
+        await this.createHandoffTask({
+          recipient: input.handoffTo,
+          sourceAgent: run.agent_id,
+          summary: input.handoffNote ?? run.goal,
+          run,
+        });
+      }
+
+      if (input.status === "completed") {
+        // Auto-sync the manifest so the View reflects the post-run state.
+        // Swallowed if policy is invalid — `seed view sync` will surface the error explicitly.
+        try {
+          await this.sync();
+        } catch {
+          // intentional: dedicated sync command surfaces policy errors
+        }
+
+        // Suggest a continuity packet if this run had non-trivial activity
+        // and no packet has been written since the run started.
+        const nonTrivial =
+          run.changed_paths.length > 0 ||
+          run.validation.length > 0 ||
+          run.decisions.length > 0 ||
+          run.open_threads.length > 0 ||
+          run.steps.length > 1;
+        if (nonTrivial) {
+          const packets = await this.safeListContinuityPackets();
+          const hasRecentPacket = packets.some((p) => p.created_at >= run.started_at);
+          if (!hasRecentPacket) {
+            const suggestion = commandAction(
+              'seed view log --mission "..." --summary "..."',
+              "low",
+              "Log a continuity packet to capture this run's outcome — no packet has been written since the run started.",
+            );
+            if (!run.next_actions.some((existing) => existing.command === suggestion.command)) {
+              run.next_actions = [...run.next_actions, suggestion];
+            }
           }
         }
       }
-    }
-
-    return await this.updateRun(run);
+    });
   }
 
   async listRuns(): Promise<RunJournal[]> {
@@ -2112,6 +2128,32 @@ export class WorkspaceView {
     };
   }
 
+  /**
+   * Refuse to treat the user's home directory or the filesystem root as a
+   * workspace. Syncing those walks and hashes the entire tree, producing a
+   * giant manifest that makes every later orientation (boot/continuity/audit)
+   * pathologically slow — the exact failure that wedged boot for 60s+. A repo
+   * is the right granularity; pass `force: true` only if you really mean it.
+   */
+  private assertSafeWorkspaceRoot(): void {
+    const root = path.resolve(this.root);
+    const home = path.resolve(homedir());
+    const fsRoot = path.parse(root).root;
+    if (root === home) {
+      throw new WorkspaceViewError(
+        `Refusing to sync a Workspace View at your home directory (${root}). ` +
+          "This would scan and hash every file under $HOME. Run `seed bootstrap` / `seed view sync` " +
+          "from inside a specific project instead. Use force only if you truly intend a $HOME-wide View.",
+      );
+    }
+    if (root === fsRoot) {
+      throw new WorkspaceViewError(
+        `Refusing to sync a Workspace View at the filesystem root (${root}). ` +
+          "Run from inside a specific project directory instead.",
+      );
+    }
+  }
+
   private async scanFiles(extraIgnore: string[]): Promise<string[]> {
     const ignored = new Set([...DEFAULT_IGNORE, ...extraIgnore]);
     const out: string[] = [];
@@ -2313,6 +2355,24 @@ export class WorkspaceView {
     run.updated_at = this.nowIso();
     await this.writeRun(run);
     return run;
+  }
+
+  private async mutateRun(
+    runId: string,
+    mutate: (run: RunJournal) => Promise<void> | void,
+  ): Promise<RunJournal> {
+    const filePath = this.runPath(runId);
+    return await this.withFileLock(filePath, async () => {
+      const run = await this.readJsonMigrated(filePath, RunJournalMigrationChain, RunJournalSchema);
+      await mutate(run);
+      return await this.updateRun(run);
+    });
+  }
+
+  private assertRunOwner(run: RunJournal, agent: string): void {
+    if (run.agent_id !== agent) {
+      throw new WorkspaceRunOwnershipError(run.run_id, run.agent_id, agent);
+    }
   }
 
   private async writeRun(run: RunJournal): Promise<void> {
@@ -2559,7 +2619,58 @@ export class WorkspaceView {
   }
 
   private async writeJson(filePath: string, value: unknown): Promise<void> {
-    await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    const tempPath = path.join(
+      path.dirname(filePath),
+      `.${path.basename(filePath)}.${process.pid}.${randomUUID()}.tmp`,
+    );
+    try {
+      await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+      await rename(tempPath, filePath);
+    } catch (error) {
+      await rm(tempPath, { force: true });
+      throw error;
+    }
+  }
+
+  private async withFileLock<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
+    const lockPath = `${filePath}.lock`;
+    const started = Date.now();
+    while (true) {
+      try {
+        const handle = await open(lockPath, "wx");
+        try {
+          await handle.writeFile(JSON.stringify({
+            pid: process.pid,
+            created_at: this.nowIso(),
+            target: path.basename(filePath),
+          }));
+          return await fn();
+        } finally {
+          await handle.close().catch(() => undefined);
+          await rm(lockPath, { force: true });
+        }
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code !== "EEXIST") throw error;
+        await this.removeStaleLock(lockPath);
+        if (Date.now() - started > VIEW_FILE_LOCK_TIMEOUT_MS) {
+          throw new Error(`Timed out waiting for Seedrop View lock: ${lockPath}`);
+        }
+        await delay(VIEW_FILE_LOCK_RETRY_MS);
+      }
+    }
+  }
+
+  private async removeStaleLock(lockPath: string): Promise<void> {
+    try {
+      const lockStat = await stat(lockPath);
+      if (Date.now() - lockStat.mtimeMs > VIEW_FILE_LOCK_STALE_MS) {
+        await rm(lockPath, { force: true });
+      }
+    } catch {
+      // Missing or unreadable locks are handled by the next acquire attempt.
+    }
   }
 
   private async readJson<T>(filePath: string, schema: ZodType<T>): Promise<T> {
@@ -2644,6 +2755,10 @@ function matchesSignal(signal: Signal, input: ReleaseSignalInput): boolean {
     return false;
   }
   return Boolean(input.id || input.type || input.target || input.owner);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function listMarkdownFiles(dir: string): Promise<string[]> {

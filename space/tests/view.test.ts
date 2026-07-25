@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -433,6 +433,38 @@ describe("WorkspaceView", () => {
     const finished = await view().finishRun({ status: "completed" });
     expect(finished.status).toBe("completed");
     expect(finished.finished_at).toBe("2026-05-14T10:00:00.000Z");
+  });
+
+  it("serializes concurrent run log and verification writes", async () => {
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await view().sync();
+
+    const { run } = await view().startRun({ goal: "parallel evidence" });
+    const commands = Array.from({ length: 8 }, (_, index) => `npm test -- --shard=${index}`);
+    const summaries = Array.from({ length: 8 }, (_, index) => `Logged parallel step ${index}`);
+    const changedPaths = summaries.map((_, index) => `src/parallel-${index}.ts`);
+
+    await Promise.all([
+      ...commands.map((command) =>
+        view().verifyRun({ runId: run.run_id, command, status: "passed" })
+      ),
+      ...summaries.map((summary, index) =>
+        view().logRun({ runId: run.run_id, summary, changedPaths: [changedPaths[index]!] })
+      ),
+    ]);
+
+    const runPath = path.join(root, ".seedrop", "view", "runs", `${run.run_id}.json`);
+    const raw = await readFile(runPath, "utf8");
+    expect(() => JSON.parse(raw)).not.toThrow();
+
+    const stored = (await view().listRuns()).find((candidate) => candidate.run_id === run.run_id);
+    expect(stored?.validation.map((entry) => entry.command).sort()).toEqual([...commands].sort());
+    expect(stored?.steps.map((step) => step.summary).sort()).toEqual([...summaries].sort());
+    expect(stored?.changed_paths.sort()).toEqual([...changedPaths].sort());
+
+    const runDirEntries = await readdir(path.dirname(runPath));
+    expect(runDirEntries.filter((entry) => entry.endsWith(".lock"))).toEqual([]);
+    expect(runDirEntries.filter((entry) => entry.includes(".tmp"))).toEqual([]);
   });
 
   it("warns instead of starting a second active run for the same agent", async () => {
