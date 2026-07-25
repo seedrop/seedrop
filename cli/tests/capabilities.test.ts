@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CLI_COMMAND_SURFACE,
+  DEPRECATED_CAPABILITY_ALIASES,
   MCP_CLI_COVERAGE,
   buildCapabilities,
   renderCapabilities,
@@ -41,6 +42,21 @@ describe("capabilities map", () => {
     expect(entry?.tools).toEqual(["seedrop_capabilities"]);
   });
 
+  it("includes replacement guidance for removed/deprecated MCP aliases", () => {
+    const catalog = buildCapabilities();
+    expect(catalog.deprecated_aliases).toEqual(DEPRECATED_CAPABILITY_ALIASES);
+    expect(catalog.deprecated_aliases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ alias: "seedrop_continuity", replacement: "seedrop_boot" }),
+        expect.objectContaining({ alias: "seedrop_view_brief" }),
+      ]),
+    );
+    for (const alias of catalog.deprecated_aliases) {
+      expect(alias.replacement.length, `missing replacement for ${alias.alias}`).toBeGreaterThan(5);
+      expect(alias.reason.length, `missing reason for ${alias.alias}`).toBeGreaterThan(20);
+    }
+  });
+
   it("renders a grouped human view with the command -> tool mapping", () => {
     const out = renderCapabilities();
     expect(out).toContain("Seedrop capabilities");
@@ -48,5 +64,7 @@ describe("capabilities map", () => {
     expect(out).toContain("seed view sync");
     expect(out).toContain("-> seedrop_view_sync");
     expect(out).toContain("(CLI only)");
+    expect(out).toContain("DEPRECATED ALIASES");
+    expect(out).toContain("seedrop_continuity -> seedrop_boot");
   });
 });

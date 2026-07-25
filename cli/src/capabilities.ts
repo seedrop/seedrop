@@ -18,9 +18,16 @@ export interface CliCommandCoverage {
   reason: string;
 }
 
+export interface DeprecatedCapabilityAlias {
+  alias: string;
+  replacement: string;
+  reason: string;
+}
+
 export const CLI_COMMAND_SURFACE = [
   "seed",
   "seed boot",
+  "seed bench",
   "seed bootstrap",
   "seed capabilities",
   "seed clients scan",
@@ -89,9 +96,23 @@ export const CLI_COMMAND_SURFACE = [
 
 export const MCP_ONLY_COMMANDS = ["MCP-only: seedrop_index"] as const;
 
+export const DEPRECATED_CAPABILITY_ALIASES: DeprecatedCapabilityAlias[] = [
+  {
+    alias: "seedrop_continuity",
+    replacement: "seedrop_boot",
+    reason: "ADR 0001 made the Situation boot packet the canonical MCP cold-start surface; `seed continuity` remains CLI-only for humans.",
+  },
+  {
+    alias: "seedrop_view_brief",
+    replacement: "seedrop_focus or seedrop_view_context",
+    reason: "The brief tier collapsed into cheap mission focus plus full budgeted View context.",
+  },
+];
+
 export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "MCP-only: seedrop_index", status: "mcp_only", tools: ["seedrop_index"], reason: "Local MCP catalog for routing tool choice; no CLI equivalent by design." },
   { command: "seed", status: "covered", tools: ["seedrop_boot"], reason: "Bare seed now renders the Situation brief, and MCP exposes the same Situation packet directly." },
+  { command: "seed bench", status: "cli_only", reason: "Bench starts a local read-only workbench server and is an operator-facing desktop/browser surface." },
   { command: "seed boot", status: "covered", tools: ["seedrop_boot"], reason: "Boot is wrapped with Situation JSON, messages, passport/url, peek, and since options." },
   { command: "seed bootstrap", status: "covered", tools: ["seedrop_bootstrap"], reason: "Setup/link flow is wrapped with agent, autonomous, passport, identity, and space-root flags." },
   { command: "seed capabilities", status: "covered", tools: ["seedrop_capabilities"], reason: "Full capability map (command -> MCP tool -> status) is exposed for at-a-glance agent orientation." },
@@ -159,7 +180,7 @@ export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "seed whoami", status: "cli_only", reason: "Local shell identity inspection is intentionally CLI-only." },
 ];
 
-const DOMAINS = ["view", "run", "task", "space", "daemon", "inbox", "id"] as const;
+const DOMAINS = ["bench", "view", "run", "task", "space", "daemon", "inbox", "id"] as const;
 const GROUP_ORDER = ["core", ...DOMAINS] as const;
 
 function domainOf(command: string): string {
@@ -186,6 +207,8 @@ export interface CapabilityCatalog {
   cli_only: number;
   /** Tools exposed only over MCP, with no CLI command (e.g. seedrop_index). */
   mcp_only: number;
+  /** Removed/deprecated tool aliases and the current command/tool to use instead. */
+  deprecated_aliases: DeprecatedCapabilityAlias[];
   groups: Record<string, CapabilityEntry[]>;
 }
 
@@ -209,6 +232,7 @@ export function buildCapabilities(): CapabilityCatalog {
     via_mcp: viaMcp,
     cli_only: cliOnly,
     mcp_only: mcpOnly,
+    deprecated_aliases: DEPRECATED_CAPABILITY_ALIASES,
     groups,
   };
 }
@@ -240,6 +264,13 @@ export function renderCapabilities(catalog: CapabilityCatalog = buildCapabilitie
       const cmd = entry.command.padEnd(cmdWidth);
       const tool = toolCell(entry).padEnd(30);
       lines.push(`  ${cmd}${tool}${truncate(entry.reason, 64)}`);
+    }
+    lines.push("");
+  }
+  if (catalog.deprecated_aliases.length > 0) {
+    lines.push("DEPRECATED ALIASES");
+    for (const alias of catalog.deprecated_aliases) {
+      lines.push(`  ${alias.alias} -> ${alias.replacement}`);
     }
     lines.push("");
   }

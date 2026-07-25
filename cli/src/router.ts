@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { existsSync, realpathSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import { homedir, platform } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -82,6 +82,12 @@ interface DoctorCheck {
   docs_url: string | null;
 }
 
+interface DoctorReadiness {
+  status: "ready" | "action_required";
+  summary: string;
+  next_command: string | null;
+}
+
 type DaemonErrorKind = "sandbox_denied" | "timeout" | "http_error" | "bad_health" | "fetch_failed";
 
 interface DaemonCheckResult {
@@ -101,6 +107,17 @@ interface ClientScanRow {
   default_agent: string;
   verification: string;
   next_command: string | null;
+}
+
+interface ClientGuidanceIssue {
+  client_id: string;
+  label: string;
+  artifact: "skill" | "boot_reflex";
+  issue: "missing" | "stale" | "template_missing" | "malformed";
+  path: string;
+  expected_hash?: string;
+  actual_hash?: string | null;
+  next_command: string;
 }
 
 interface SpaceHealthResponse {
@@ -233,6 +250,7 @@ async function runLogin(argv: readonly string[], io: RunCliIO): Promise<number> 
         io.stdout.write(
           `already authenticated as ${passport.agent_id} via $SEEDROP_PASSPORT (process-scoped).\n` +
             `not writing global active-passport state — that would silently change identity for other shells.\n` +
+            `MCP clients read SEEDROP_PASSPORT from their config; use \`seed install ${passport.agent_id} --to <client>\` to update a client identity.\n` +
             `re-run with --force if you intended to set the global default too.\n`,
         );
       }
@@ -240,7 +258,8 @@ async function runLogin(argv: readonly string[], io: RunCliIO): Promise<number> 
     }
     io.stdout.write(
       `⚠ this process is pinned to ${envPassport} via $SEEDROP_PASSPORT and will not change.\n` +
-        `  writing active-passport will only affect other shells (those without SEEDROP_PASSPORT set).\n\n`,
+        `  writing active-passport will only affect other shells (those without SEEDROP_PASSPORT set).\n` +
+        `  MCP clients read SEEDROP_PASSPORT from their config; use \`seed install ${passport.agent_id} --to <client>\` to update a client identity.\n\n`,
     );
   }
 
@@ -488,6 +507,7 @@ const usage = `Usage:
   seed continuity [--brief|--medium|--full] [--json] [--messages N]
   seed focus [--json]           (~400-token mission-scoped pre-flight; does not advance the watermark)
   seed capabilities [--json]    (full command -> MCP-tool map; what seed can do at a glance)
+  seed bench [--open]           (local read-only project workbench)
   seed doctor [--fix]           (diagnose local setup + exact next commands)
   seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]
   seed bootstrap --as <agent> --name <human-name> --purpose "<mission>"
@@ -571,6 +591,10 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
 
   if (domain === "capabilities") {
     return "capabilities";
+  }
+
+  if (domain === "bench") {
+    return { command: "seed-bench", args: [...rest] };
   }
 
   if (domain === "login") return "login";
@@ -1398,6 +1422,9 @@ function setupStepOutputPath(id: SetupStepId): string | undefined {
 async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandRunner): Promise<number> {
   const json = argv.includes("--json");
   const fix = argv.includes("--fix");
+  const readinessAgent = flagValue(argv, "agent");
+  const readinessClientId = flagValue(argv, "to");
+  const readinessRequested = Boolean(readinessAgent || readinessClientId);
   const { registry, diagnostics } = await loadClientRegistryWithDiagnostics(import.meta.url);
   const checks: DoctorCheck[] = [];
   const add = (
@@ -1425,6 +1452,16 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
   } else {
     add("agent_passports", "fail", `no agent passports`, { path: agentsDir }, `seed bootstrap --as <agent> --name <agent> --purpose "<mission>"`);
   }
+  if (readinessAgent) {
+    const agentPath = agentPassportPath(readinessAgent);
+    add(
+      "requested_agent_passport",
+      existsSync(agentPath) ? "pass" : "fail",
+      existsSync(agentPath) ? `requested agent passport exists` : `requested agent passport missing`,
+      { agent: readinessAgent, path: agentPath },
+      existsSync(agentPath) ? null : `seed bootstrap --as ${readinessAgent} --name ${readinessAgent} --purpose "<mission>"`,
+    );
+  }
 
   if (diagnostics.length > 0) {
     add("client_registry", "fail", `client registry has invalid entries`, { diagnostics }, `edit ${userClientsPath()}`);
@@ -1434,10 +1471,23 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
     });
   }
 
-  const detected = await detectClients(registry);
+  let detected = await detectClients(registry);
+  if (readinessClientId) {
+    const requestedDef = registry[readinessClientId];
+    const requestedClient = requestedDef ? resolveClientDefinition(readinessClientId, requestedDef) : null;
+    detected = requestedClient && existsSync(requestedClient.configPath) ? [requestedClient] : [];
+  }
   const clientConfigIssues: Array<Record<string, unknown>> = [];
   if (detected.length === 0) {
-    clientConfigIssues.push({ issue: "none_detected" });
+    const requestedDef = readinessClientId ? registry[readinessClientId] : undefined;
+    const agent = readinessAgent ?? requestedDef?.default_agent ?? "<agent>";
+    clientConfigIssues.push({
+      issue: "none_detected",
+      ...(readinessClientId ? { client_id: readinessClientId } : {}),
+      next_command: readinessClientId
+        ? `seed install ${agent} --to ${readinessClientId} --create-config`
+        : undefined,
+    });
   }
   for (const client of detected) {
     const registryDef = registry[client.id]!;
@@ -1470,6 +1520,29 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
     add("client_configs", "fail", `client config issues found`, { issues: clientConfigIssues }, next ?? `seed install <agent> --manual`);
   } else {
     add("client_configs", "warn", `client is wired to operator passport`, { issues: clientConfigIssues }, `seed install <agent> --to <client>`);
+  }
+
+  const guidanceChecks = await checkClientGuidance(detected);
+  if (guidanceChecks.issues.length > 0) {
+    add(
+      "client_guidance",
+      "warn",
+      `installed Seedrop skill or boot reflex is stale`,
+      {
+        checked: guidanceChecks.checked,
+        issues: guidanceChecks.issues,
+      },
+      guidanceChecks.issues[0]?.next_command ?? "seed install <agent> --to <client>",
+    );
+  } else {
+    add(
+      "client_guidance",
+      "pass",
+      guidanceChecks.checked.length > 0
+        ? `installed Seedrop skill and boot reflex are current`
+        : `no installed client guidance to check`,
+      { checked: guidanceChecks.checked },
+    );
   }
 
   const daemon = await checkDaemon(defaultSpaceUrl());
@@ -1549,11 +1622,24 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
   const command = resolveMcpServerCommand();
   const localScript = command.command === process.execPath ? command.args[0] : undefined;
   const commandOk = localScript ? existsSync(localScript) : command.command.length > 0;
+  const mcpServerDetails: Record<string, unknown> = {
+    command,
+    restart_guidance: detected.map((client) => ({
+      client_id: client.id,
+      label: client.label,
+      restart: client.restart ?? `Restart ${client.label} to reload Seedrop MCP.`,
+    })),
+  };
+  if (localScript && existsSync(localScript)) {
+    const distStat = statSync(localScript);
+    mcpServerDetails.dist_path = localScript;
+    mcpServerDetails.dist_mtime = new Date(distStat.mtimeMs).toISOString();
+  }
   add(
     "mcp_server_command",
     commandOk ? "pass" : "fail",
     commandOk ? `MCP server command resolved` : `MCP server command missing`,
-    { command },
+    mcpServerDetails,
     commandOk ? null : "npm run build",
   );
 
@@ -1581,12 +1667,20 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
     return 0;
   }
 
+  const readiness = readinessRequested
+    ? buildDoctorReadiness(checks, {
+        agent: readinessAgent,
+        client: detected[0],
+      })
+    : null;
+
   if (json) {
     const payload = {
       schema_version: DOCTOR_SCHEMA_VERSION,
       ok: !checks.some((check) => check.status === "fail"),
       generated_at: new Date().toISOString(),
       checks,
+      ...(readiness ? { readiness } : {}),
     };
     io.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
     return payload.ok ? 0 : 1;
@@ -1597,7 +1691,46 @@ async function runDoctor(argv: readonly string[], io: RunCliIO, runner: CommandR
     io.stdout.write(`${symbol} ${check.summary}\n`);
     if (check.status !== "pass" && check.next_command) io.stdout.write(`  → run: ${check.next_command}\n`);
   }
+  if (readiness) {
+    io.stdout.write(`\nNext: ${readiness.next_command ?? readiness.summary}\n`);
+  }
   return checks.some((check) => check.status === "fail") ? 1 : 0;
+}
+
+function buildDoctorReadiness(
+  checks: readonly DoctorCheck[],
+  target: { agent?: string; client?: ResolvedClientDefinition },
+): DoctorReadiness {
+  const relevantIds = new Set([
+    "requested_agent_passport",
+    "client_configs",
+    "client_guidance",
+    "daemon_reachable",
+    "daemon_health",
+    "daemon_registered_passports",
+    "mcp_server_command",
+  ]);
+  const actionable = checks.find((check) =>
+    relevantIds.has(check.id) &&
+    check.status !== "pass" &&
+    typeof check.next_command === "string" &&
+    check.next_command.length > 0
+  );
+  if (actionable) {
+    return {
+      status: "action_required",
+      summary: actionable.summary,
+      next_command: actionable.next_command,
+    };
+  }
+  const clientLabel = target.client?.label;
+  return {
+    status: "ready",
+    summary: target.agent && clientLabel
+      ? `${target.agent} is ready in ${clientLabel}.`
+      : "Seedrop agent path is ready.",
+    next_command: clientLabel ? `call seedrop_boot in ${clientLabel}` : "call seedrop_boot",
+  };
 }
 
 function resolveMcpServerCommand(): McpServerCommand {
@@ -1790,6 +1923,19 @@ function templatesRoot(): string {
   return join(workspaceRoot, "templates");
 }
 
+function clientSkillTemplatePath(client: ResolvedClientDefinition): string | null {
+  if (!client.skill) return null;
+  const primary = join(templatesRoot(), "skills", client.id, client.skill.filename);
+  if (existsSync(primary)) return primary;
+  // Claude Code and Claude Desktop share the same Claude skill loader path.
+  // Keep one canonical template and let both registry entries refresh from it.
+  if (client.id === "claude-desktop") {
+    const sharedClaudeTemplate = join(templatesRoot(), "skills", "claude-code", client.skill.filename);
+    if (existsSync(sharedClaudeTemplate)) return sharedClaudeTemplate;
+  }
+  return primary;
+}
+
 /**
  * Deploy the Seedrop skill for a client that declares `skill` metadata.
  * Flat layout writes `<dir>/<filename>`; folder layout writes
@@ -1802,8 +1948,8 @@ async function writeClientSkill(
   if (!client.skill) {
     return { wrote: false, reason: `${client.label} has no skill loader configured` };
   }
-  const templatePath = join(templatesRoot(), "skills", client.id, client.skill.filename);
-  if (!existsSync(templatePath)) {
+  const templatePath = clientSkillTemplatePath(client);
+  if (!templatePath || !existsSync(templatePath)) {
     return { wrote: false, reason: `template missing at ${templatePath}` };
   }
   const expandedDir = expandPath(client.skill.dir);
@@ -1868,6 +2014,152 @@ async function writeBootReflex(
     io.stderr.write(`(boot reflex write failed for ${client.id}: ${(error as Error).message})\n`);
     return { wrote: false, reason: (error as Error).message };
   }
+}
+
+async function checkClientGuidance(
+  clients: readonly ResolvedClientDefinition[],
+): Promise<{ checked: Array<Record<string, unknown>>; issues: ClientGuidanceIssue[] }> {
+  const checked: Array<Record<string, unknown>> = [];
+  const issues: ClientGuidanceIssue[] = [];
+  const expectedReflexBlock = await expectedBootReflexBlock();
+  for (const client of clients) {
+    const nextCommand = clientGuidanceRefreshCommand(client);
+    if (client.skill) {
+      const targetPath = clientSkillTargetPath(client);
+      const expected = await readClientSkillTemplate(client);
+      if (!expected) {
+        issues.push({
+          client_id: client.id,
+          label: client.label,
+          artifact: "skill",
+          issue: "template_missing",
+          path: join(templatesRoot(), "skills", client.id, client.skill.filename),
+          next_command: nextCommand,
+        });
+      } else if (!existsSync(targetPath)) {
+        issues.push({
+          client_id: client.id,
+          label: client.label,
+          artifact: "skill",
+          issue: "missing",
+          path: targetPath,
+          expected_hash: contentHash(expected),
+          actual_hash: null,
+          next_command: nextCommand,
+        });
+      } else {
+        const actual = await readFile(targetPath, "utf8");
+        const expectedHash = contentHash(expected);
+        const actualHash = contentHash(actual);
+        checked.push({ client_id: client.id, artifact: "skill", path: targetPath, expected_hash: expectedHash, actual_hash: actualHash });
+        if (actual !== expected) {
+          issues.push({
+            client_id: client.id,
+            label: client.label,
+            artifact: "skill",
+            issue: "stale",
+            path: targetPath,
+            expected_hash: expectedHash,
+            actual_hash: actualHash,
+            next_command: nextCommand,
+          });
+        }
+      }
+    }
+
+    if (client.instructions_path) {
+      const targetPath = expandPath(client.instructions_path);
+      const expectedHash = contentHash(expectedReflexBlock);
+      if (!existsSync(targetPath)) {
+        issues.push({
+          client_id: client.id,
+          label: client.label,
+          artifact: "boot_reflex",
+          issue: "missing",
+          path: targetPath,
+          expected_hash: expectedHash,
+          actual_hash: null,
+          next_command: nextCommand,
+        });
+        continue;
+      }
+      const actual = await readFile(targetPath, "utf8");
+      const extracted = extractManagedBootReflex(actual);
+      if (extracted.status !== "present") {
+        issues.push({
+          client_id: client.id,
+          label: client.label,
+          artifact: "boot_reflex",
+          issue: extracted.status === "malformed" ? "malformed" : "missing",
+          path: targetPath,
+          expected_hash: expectedHash,
+          actual_hash: extracted.block ? contentHash(extracted.block) : null,
+          next_command: nextCommand,
+        });
+        continue;
+      }
+      const actualBlock = extracted.block;
+      if (actualBlock === undefined) {
+        continue;
+      }
+      const actualHash = contentHash(actualBlock);
+      checked.push({ client_id: client.id, artifact: "boot_reflex", path: targetPath, expected_hash: expectedHash, actual_hash: actualHash });
+      if (actualBlock !== expectedReflexBlock) {
+        issues.push({
+          client_id: client.id,
+          label: client.label,
+          artifact: "boot_reflex",
+          issue: "stale",
+          path: targetPath,
+          expected_hash: expectedHash,
+          actual_hash: actualHash,
+          next_command: nextCommand,
+        });
+      }
+    }
+  }
+  return { checked, issues };
+}
+
+function clientSkillTargetPath(client: ResolvedClientDefinition): string {
+  if (!client.skill) throw new Error(`${client.id} has no skill definition`);
+  const expandedDir = expandPath(client.skill.dir);
+  const targetDir = client.skill.layout === "folder" ? join(expandedDir, "seedrop") : expandedDir;
+  return join(targetDir, client.skill.filename);
+}
+
+async function readClientSkillTemplate(client: ResolvedClientDefinition): Promise<string | null> {
+  if (!client.skill) return null;
+  const templatePath = clientSkillTemplatePath(client);
+  if (!templatePath) return null;
+  if (!existsSync(templatePath)) return null;
+  return await readFile(templatePath, "utf8");
+}
+
+async function expectedBootReflexBlock(): Promise<string> {
+  const template = (await loadBootReflexTemplate()).trim();
+  return `${BOOT_REFLEX_MARKER_START}\n${template}\n${BOOT_REFLEX_MARKER_END}`;
+}
+
+function extractManagedBootReflex(content: string): { status: "present" | "missing" | "malformed"; block?: string } {
+  const startIdx = content.indexOf(BOOT_REFLEX_MARKER_START);
+  const endIdx = content.indexOf(BOOT_REFLEX_MARKER_END);
+  if (startIdx < 0 && endIdx < 0) return { status: "missing" };
+  if (startIdx < 0 || endIdx <= startIdx) {
+    return {
+      status: "malformed",
+      block: startIdx >= 0 ? content.slice(startIdx) : content.slice(0, endIdx + BOOT_REFLEX_MARKER_END.length),
+    };
+  }
+  return { status: "present", block: content.slice(startIdx, endIdx + BOOT_REFLEX_MARKER_END.length) };
+}
+
+function clientGuidanceRefreshCommand(client: ResolvedClientDefinition): string {
+  return `seed install ${client.default_agent ?? client.id} --to ${client.id}`;
+}
+
+function contentHash(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
 }
 
 async function installCodexCli(
@@ -2234,7 +2526,9 @@ function resolveBundledScript(command: string): string | null {
     ? "@seedrop/id"
     : command === "seed-space"
       ? "@seedrop/space"
-      : null;
+      : command === "seed-bench"
+        ? "@seedrop/bench"
+        : null;
   if (!pkg) return null;
   try {
     const entryUrl = import.meta.resolve(pkg);

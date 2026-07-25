@@ -9,7 +9,7 @@ description: Use when Codex needs to operate Seedrop-native continuity, View con
 
 Use Seedrop MCP tools first. Prefer the `mcp__seedrop__` namespace over shelling out to `seed`. Use CLI commands only when the matching MCP tool is unavailable, when inspecting CLI-specific behavior, or when the user explicitly asks for CLI output.
 
-To see the full surface at a glance, call `seedrop_capabilities` once and cache it — it returns the complete command → MCP-tool map (what exists, what is MCP-exposed vs CLI-only). Route tool choices from that map instead of guessing.
+To see the full surface at a glance, call `seedrop_capabilities` once (CLI equivalent: `seed capabilities`) and cache it — it returns the complete command → MCP-tool map (what exists, what is MCP-exposed vs CLI-only). Route tool choices from that map instead of guessing.
 
 ## Startup Reflex
 

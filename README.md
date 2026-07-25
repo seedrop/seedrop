@@ -160,6 +160,7 @@ seed bootstrap        # idempotent — re-links cwd, no name/purpose needed
 ```bash
 seed                  # the Situation brief: purpose/last work/state/next/evidence
 seed boot --json      # the same Situation packet as structured agent input
+seed capabilities     # full CLI -> MCP capability map
 seed view context     # full per-repo state
 ```
 
@@ -220,9 +221,12 @@ Unverified means the adapter exists and is data-driven through `clients.json`, b
 
 ### Tool surface
 
+For the full current command/tool map, run `seed capabilities` or call `seedrop_capabilities` from MCP. The table below is the short bootstrapping subset.
+
 | Tool | Purpose |
 |---|---|
 | `seedrop_boot` | Cold-start Situation packet: identity + view + daemon + next move + evidence |
+| `seedrop_capabilities` | Full CLI command -> MCP tool map, including CLI-only commands |
 | `seedrop_focus` | Cheap mission-scoped pre-flight (never advances the watermark) |
 | `seedrop_bootstrap` | First-time setup or per-repo link |
 | `seedrop_view_context` | Per-repo View state |

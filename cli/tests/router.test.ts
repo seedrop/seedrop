@@ -84,6 +84,13 @@ describe("resolveCommand", () => {
     });
   });
 
+  it("routes bench commands to seed-bench", () => {
+    expect(resolveCommand(["bench", "--open", "--port", "0"])).toEqual({
+      command: "seed-bench",
+      args: ["--open", "--port", "0"],
+    });
+  });
+
   it("composes view init with passport project linking", () => {
     expect(
       resolveCommand([
@@ -185,6 +192,7 @@ describe("resolveCommand", () => {
     expect(resolveCommand(["continuity"])).toBe("continuity");
     expect(resolveCommand(["focus"])).toBe("focus");
     expect(resolveCommand(["print-boot-protocol"])).toBe("boot-protocol");
+    expect(resolveCommand(["bench"])).toMatchObject({ command: "seed-bench" });
     expect(resolveCommand(["id", "list"])).toBe("id-list");
     expect(resolveCommand(["clients", "scan"])).toBe("clients");
     expect(resolveCommand(["id", "show"])).toMatchObject({ command: "seed-id" });
@@ -839,6 +847,8 @@ describe("seed login / logout / whoami", () => {
     expect(code).toBe(0);
     expect(io.stdoutText()).toContain("already authenticated as codex");
     expect(io.stdoutText()).toContain("--force");
+    expect(io.stdoutText()).toContain("MCP clients read SEEDROP_PASSPORT from their config");
+    expect(io.stdoutText()).toContain("seed install codex --to <client>");
     expect(io.stdoutText()).not.toContain("identity ready");
     // active-passport.json must NOT have been written
     const statePath = join(process.env.HOME!, ".seedrop", "state", "active-passport.json");
@@ -865,6 +875,8 @@ describe("seed login / logout / whoami", () => {
     expect(code).toBe(0);
     expect(io.stdoutText()).toContain("pinned to");
     expect(io.stdoutText()).toContain("SEEDROP_PASSPORT");
+    expect(io.stdoutText()).toContain("MCP clients read SEEDROP_PASSPORT from their config");
+    expect(io.stdoutText()).toContain("seed install claude --to <client>");
     expect(io.stdoutText()).toContain("identity ready: claude");
     const statePath = join(process.env.HOME!, ".seedrop", "state", "active-passport.json");
     expect(existsSync(statePath)).toBe(true);
@@ -1118,6 +1130,28 @@ describe("seed init / doctor", () => {
     await rm(scratch, { recursive: true, force: true });
   });
 
+  async function makeAgentPassport(agent: string): Promise<string> {
+    const dir = join(process.env.HOME!, ".seedrop", "id", "agents");
+    await mkdir(dir, { recursive: true });
+    const path = join(dir, `${agent}.json`);
+    await writeFile(
+      path,
+      JSON.stringify({ schema_version: "1.0", agent_id: agent, name: agent, purpose: "test" }),
+      "utf8",
+    );
+    return path;
+  }
+
+  async function installCodexClient(): Promise<void> {
+    await makeAgentPassport("codex");
+    const codexDir = join(process.env.HOME!, ".codex");
+    await mkdir(codexDir, { recursive: true });
+    await writeFile(join(codexDir, "config.toml"), `model = "x"\n`, "utf8");
+    const io = createIo();
+    const code = await runCli(["install", "codex", "--to", "codex-cli"], io, fakeRunner());
+    expect(code).toBe(0);
+  }
+
   it("init can run non-interactively without installing clients or daemon", async () => {
     const seen: CommandDispatch[] = [];
     const io = createIo();
@@ -1211,6 +1245,58 @@ describe("seed init / doctor", () => {
     }
   });
 
+  it("doctor includes MCP server restart guidance for detected clients", async () => {
+    await installCodexClient();
+    const io = createIo();
+    await runCli(["doctor", "--json"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+    const check = parsed.checks.find((c: { id: string }) => c.id === "mcp_server_command");
+
+    expect(check.status).toBe("pass");
+    expect(check.details.restart_guidance).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          client_id: "codex-cli",
+          restart: expect.stringContaining("Restart Codex"),
+        }),
+      ]),
+    );
+    if (check.details.dist_mtime) {
+      expect(check.details.dist_path).toMatch(/mcp\/dist\/cli\.js$/);
+      expect(check.details.dist_mtime).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    }
+  });
+
+  it("focused doctor readiness returns one crisp next action", async () => {
+    const io = createIo();
+    await runCli(["doctor", "--json", "--agent", "codex", "--to", "codex-cli"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+
+    expect(parsed.readiness.status).toBe("action_required");
+    expect(parsed.readiness.next_command).toBe('seed bootstrap --as codex --name codex --purpose "<mission>"');
+  });
+
+  it("focused doctor readiness reports ready when the requested agent/client path is green", async () => {
+    await installCodexClient();
+    const agentPath = join(process.env.HOME!, ".seedrop", "id", "agents", "codex.json");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        registered_passports: [{ agent_id: "codex", path: agentPath }],
+      }),
+    }));
+
+    const io = createIo();
+    await runCli(["doctor", "--json", "--agent", "codex", "--to", "codex-cli"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+
+    expect(parsed.readiness).toMatchObject({
+      status: "ready",
+      next_command: "call seedrop_boot in Codex CLI",
+    });
+  });
+
   it("doctor reports invalid user client registry entries", async () => {
     await mkdir(join(process.env.HOME!, ".seedrop"), { recursive: true });
     await writeFile(
@@ -1225,6 +1311,55 @@ describe("seed init / doctor", () => {
     const registry = parsed.checks.find((check: { id: string }) => check.id === "client_registry");
     expect(registry.status).toBe("fail");
     expect(JSON.stringify(registry.details)).toContain("broken");
+  });
+
+  it("doctor detects stale installed Seedrop skill and boot reflex guidance", async () => {
+    await installCodexClient();
+    const skillPath = join(process.env.HOME!, ".codex", "skills", "seedrop", "SKILL.md");
+    const agentsPath = join(process.env.HOME!, ".codex", "AGENTS.md");
+    await writeFile(skillPath, (await readFile(skillPath, "utf8")).replace("seedrop_boot", "seedrop_continuity"), "utf8");
+    await writeFile(
+      agentsPath,
+      "<!-- seedrop:boot-reflex:start -->\nstale boot reflex with seedrop_continuity\n<!-- seedrop:boot-reflex:end -->\n",
+      "utf8",
+    );
+
+    const io = createIo();
+    await runCli(["doctor", "--json"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+    const guidance = parsed.checks.find((check: { id: string }) => check.id === "client_guidance");
+
+    expect(guidance.status).toBe("warn");
+    expect(guidance.next_command).toBe("seed install codex --to codex-cli");
+    expect(guidance.details.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ client_id: "codex-cli", artifact: "skill", issue: "stale" }),
+        expect.objectContaining({ client_id: "codex-cli", artifact: "boot_reflex", issue: "stale" }),
+      ]),
+    );
+    expect(guidance.details.issues[0].expected_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(guidance.details.issues[0].actual_hash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("doctor reports generated Seedrop guidance current after install refresh", async () => {
+    await installCodexClient();
+    const staleSkillPath = join(process.env.HOME!, ".codex", "skills", "seedrop", "SKILL.md");
+    await writeFile(staleSkillPath, "old seedrop_continuity instructions\n", "utf8");
+    const refresh = createIo();
+    expect(await runCli(["install", "codex", "--to", "codex-cli"], refresh, fakeRunner())).toBe(0);
+
+    const io = createIo();
+    await runCli(["doctor", "--json"], io, fakeRunner());
+    const parsed = JSON.parse(io.stdoutText());
+    const guidance = parsed.checks.find((check: { id: string }) => check.id === "client_guidance");
+
+    expect(guidance.status).toBe("pass");
+    expect(guidance.details.checked).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ client_id: "codex-cli", artifact: "skill" }),
+        expect.objectContaining({ client_id: "codex-cli", artifact: "boot_reflex" }),
+      ]),
+    );
   });
 
   it("plain init detects an incomplete setup journal and suggests resume", async () => {

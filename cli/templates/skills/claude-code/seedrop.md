@@ -21,7 +21,7 @@ seedrop_manual({section: "concepts"})  # the 4 primitives + 4 layers
 
 **First move when working with seedrop**:
 
-1. Call `seedrop_continuity` (or `seed continuity`) to orient — identity,
+1. Call `seedrop_boot` (or `seed`) to orient — identity,
    active runs, claimed tasks, daemon health, next move.
 2. If this is your first seedrop interaction in the session, also call
    `seedrop_manual()` and cache it. Every subsequent "how do I X in
@@ -67,9 +67,9 @@ signal you're authenticated correctly before the action lands.
 
 | Question | Tool |
 |---|---|
-| Where am I? | `seedrop_continuity` |
-| What's the project's current focus? | `seedrop_continuity` (focus line) |
-| Is the view useful? | `seedrop_view_brief` or `seed view explain success` |
+| Where am I? | `seedrop_boot` |
+| What's the project's current focus? | `seedrop_focus` or `seedrop_boot` |
+| Is the view useful? | `seedrop_view_context` or `seed view explain success` |
 | Why isn't file X in the boot block? | `seed view explain <path>` |
 | What changed since last session? | `seed diff --since last-session` |
 | Daemon health / online agents | `seedrop_daemon_status` or `http://127.0.0.1:18791/status` |

@@ -17,6 +17,7 @@ export {
 export type { CommandDispatch, CommandRunner, RunCliIO } from "./router.js";
 export {
   CLI_COMMAND_SURFACE,
+  DEPRECATED_CAPABILITY_ALIASES,
   MCP_CLI_COVERAGE,
   MCP_ONLY_COMMANDS,
   buildCapabilities,
@@ -25,4 +26,5 @@ export {
   type CapabilityEntry,
   type CliCommandCoverage,
   type CliCoverageStatus,
+  type DeprecatedCapabilityAlias,
 } from "./capabilities.js";

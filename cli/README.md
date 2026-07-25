@@ -14,6 +14,8 @@ seed doctor
 
 `seed doctor` checks the whole local deployment and prints the exact next command for anything missing. `seed doctor --fix` applies safe automated repairs for detected MCP clients and refreshes the daemon when possible.
 
+Run `seed capabilities` in the shell, or call `seedrop_capabilities` from MCP, to see the full current CLI command -> MCP tool map.
+
 ## Install Clients
 
 Known clients are data-driven through `clients.json` plus optional local overrides at `~/.seedrop/clients.json`.
