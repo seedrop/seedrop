@@ -3,7 +3,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { WorkspaceView, type ContinuityPacket as SpaceContinuityPacket, type ViewBrief as SpaceViewBrief, type ViewCheck } from "@seedrop/space";
+import { WorkspaceView, type AuditReport, type ContinuityPacket as SpaceContinuityPacket, type ViewBrief as SpaceViewBrief, type ViewCheck } from "@seedrop/space";
 import type { PassportSource } from "./active-passport.js";
 import { readContinuityState, writeContinuityState } from "./continuity-state.js";
 import type { RunCliIO } from "./router.js";
@@ -221,6 +221,13 @@ export interface ContinuityReport {
       in_progress_tasks: Array<{ task_id: string; title: string }>;
     }>;
   };
+  /**
+   * Cached View audit snapshot (from `.seedrop/view/audit.json`), or null when
+   * no View is present. This is the same cached report `context()` surfaces — it
+   * is NOT a fresh full-tree re-hash. Callers that need deep, current drift
+   * detection must run `seed view audit` explicitly.
+   */
+  cachedAudit: AuditReport | null;
   daemon: {
     url: string;
     reachable: boolean;
@@ -270,6 +277,10 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   const blockerTasks = await loadReferencedBlockerTasks(root, activeTasks);
   const openTasksCount = typeof viewContext.open_tasks_count === "number" ? viewContext.open_tasks_count : 0;
   const otherAgents = (viewContext.other_agents ?? []) as ContinuityReport["view"]["otherAgents"];
+  // Reuse the cached audit context() already loaded. Boot consumes this instead
+  // of running a fresh full-tree hash audit, which on large roots (worst case a
+  // stray $HOME View) takes tens of seconds and made boot unusable.
+  const cachedAudit: AuditReport | null = viewPresent ? (viewContext.latest_audit ?? null) : null;
   if (!viewPresent) {
     warnings.push(`No .seedrop/view in ${root}. Run \`seed bootstrap\` to link this root to your passport.`);
   }
@@ -371,6 +382,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
       openTasksCount,
       otherAgents,
     },
+    cachedAudit,
     daemon: {
       url: opts.spaceUrl,
       reachable: daemonReachable,

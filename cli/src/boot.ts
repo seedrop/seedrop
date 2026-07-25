@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-import { WorkspaceView, type AuditReport } from "@seedrop/space";
+import type { AuditReport } from "@seedrop/space";
 import type { PassportSource } from "./active-passport.js";
 import { buildContinuity, type ContinuityReport } from "./continuity.js";
 import type { RunCliIO } from "./router.js";
@@ -282,10 +282,12 @@ export async function buildBootReport(opts: {
     since: opts.since,
     peek: opts.peek,
   });
-  const audit = continuity.view.present
-    ? await WorkspaceView.open({ root: continuity.root, agent: continuity.passport?.agent_id ?? "agent" }).audit({ writeCache: false })
-    : null;
-  return buildBootReportFromContinuity(continuity, audit);
+  // Boot must stay fast and always-reachable: reuse the cached audit snapshot
+  // that continuity already loaded rather than running a fresh full-tree hash
+  // audit on every boot (which scans and SHA-256s every tracked file). A stale
+  // or absent snapshot degrades gracefully; `seed view audit` is the explicit
+  // path for deep, current drift detection.
+  return buildBootReportFromContinuity(continuity, continuity.cachedAudit);
 }
 
 export function buildBootReportFromContinuity(continuity: ContinuityReport, audit: AuditReport | null, generatedAt = new Date().toISOString()): BootReport {
