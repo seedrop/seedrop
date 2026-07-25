@@ -6,8 +6,10 @@
  */
 export {
   CLI_COMMAND_SURFACE,
+  DEPRECATED_CAPABILITY_ALIASES,
   MCP_CLI_COVERAGE,
   MCP_ONLY_COMMANDS,
   type CliCommandCoverage,
   type CliCoverageStatus,
+  type DeprecatedCapabilityAlias,
 } from "@seedrop/cli";

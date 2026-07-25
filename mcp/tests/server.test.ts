@@ -174,6 +174,8 @@ describe("staleness detection", () => {
     const result = computeStaleness({ loadedAtMs, distMTimeMs });
     expect(result.stale).toBe(true);
     expect(result.minutes).toBe(2);
+    expect(result.loaded_at).toBe(new Date(loadedAtMs).toISOString());
+    expect(result.dist_mtime).toBe(new Date(distMTimeMs).toISOString());
   });
 
   it("reports not stale when dist mtime equals load time", async () => {
@@ -181,6 +183,8 @@ describe("staleness detection", () => {
     const loadedAtMs = Date.now();
     const result = computeStaleness({ loadedAtMs, distMTimeMs: loadedAtMs });
     expect(result.stale).toBe(false);
+    expect(result.loaded_at).toBe(new Date(loadedAtMs).toISOString());
+    expect(result.dist_mtime).toBe(new Date(loadedAtMs).toISOString());
   });
 
   it("ignores sub-second mtime differences (build flicker tolerance)", async () => {
@@ -188,5 +192,33 @@ describe("staleness detection", () => {
     const loadedAtMs = Date.now();
     const result = computeStaleness({ loadedAtMs, distMTimeMs: loadedAtMs + 500 });
     expect(result.stale).toBe(false);
+  });
+
+  it("formats stale recovery guidance with timestamps and client restart hints", async () => {
+    const { computeStaleness, formatStalenessWarning } = await import("../src/server.js");
+    const loadedAtMs = Date.UTC(2026, 5, 11, 8, 0, 0);
+    const distMTimeMs = loadedAtMs + 3 * 60_000;
+    const warning = formatStalenessWarning(computeStaleness({ loadedAtMs, distMTimeMs }), "tool_call");
+    expect(warning).toContain("loaded_at=2026-06-11T08:00:00.000Z");
+    expect(warning).toContain("dist_mtime=2026-06-11T08:03:00.000Z");
+    expect(warning).toContain("dist is ~3m newer");
+    expect(warning).toContain("Codex: restart Codex");
+    expect(warning).toContain("Claude Code/Desktop: restart Claude");
+  });
+});
+
+describe("unknown tool recovery", () => {
+  it("points removed MCP aliases at their replacement tool", async () => {
+    const { unknownToolMessage } = await import("../src/server.js");
+    const message = unknownToolMessage("seedrop_continuity");
+    expect(message).toContain("seedrop_continuity was removed");
+    expect(message).toContain("use seedrop_boot");
+  });
+
+  it("points truly unknown MCP tools at the live capabilities catalog", async () => {
+    const { unknownToolMessage } = await import("../src/server.js");
+    const message = unknownToolMessage("seedrop_not_real");
+    expect(message).toContain("Unknown tool: seedrop_not_real");
+    expect(message).toContain("seedrop_capabilities");
   });
 });

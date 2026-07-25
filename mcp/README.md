@@ -37,11 +37,12 @@ Usually `seed install claude --to claude-code` writes this for you. To do it by 
 }
 ```
 
-Restart the client. The tools below will appear in the tool list:
+Restart the client. Call `seedrop_capabilities` or run `seed capabilities` for the full current command/tool map. The tools below are the bootstrapping subset:
 
 | Tool | Purpose |
 |---|---|
 | `seedrop_boot` | Boot block: identity + view + daemon + recent messages + next move. |
+| `seedrop_capabilities` | Full CLI command -> MCP tool map, including CLI-only commands. |
 | `seedrop_bootstrap` | First-time setup or per-repo link. |
 | `seedrop_view_context` | Per-repo View state. |
 | `seedrop_view_log` | Write a continuity packet. |

@@ -92,26 +92,26 @@ async function main() {
 
     const list = await client.request("tools/list", {});
     const names = (list.tools ?? []).map((t) => t.name).sort();
-    if (!names.includes("seedrop_continuity")) throw new Error("seedrop_continuity missing");
+    if (!names.includes("seedrop_boot")) throw new Error("seedrop_boot missing");
     if (!names.includes("seedrop_bootstrap")) throw new Error("seedrop_bootstrap missing");
     record("tools/list", "pass", `${names.length} tools`);
 
     const call = await client.request("tools/call", {
-      name: "seedrop_continuity",
-      arguments: {},
+      name: "seedrop_boot",
+      arguments: { json: false },
     });
     const text = (call.content ?? [])[0]?.text ?? "";
-    if (!text.includes("Continuity")) throw new Error("continuity output missing header");
-    record("call seedrop_continuity", "pass");
+    if (!text.includes("Seedrop Situation")) throw new Error("boot output missing Situation header");
+    record("call seedrop_boot", "pass");
 
     const callJson = await client.request("tools/call", {
-      name: "seedrop_continuity",
+      name: "seedrop_boot",
       arguments: { json: true },
     });
     const jsonText = (callJson.content ?? [])[0]?.text ?? "";
     const parsed = JSON.parse(jsonText);
-    if (typeof parsed.daemon?.url !== "string") throw new Error("json output missing daemon.url");
-    record("call seedrop_continuity --json", "pass", `daemon=${parsed.daemon.url}`);
+    if (typeof parsed.coordination?.daemon_reachable !== "boolean") throw new Error("json output missing coordination.daemon_reachable");
+    record("call seedrop_boot --json", "pass", `daemon_reachable=${parsed.coordination.daemon_reachable}`);
 
     const bad = await client.request("tools/call", {
       name: "seedrop_view_log",
