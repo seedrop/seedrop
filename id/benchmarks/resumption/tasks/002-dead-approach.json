@@ -1,0 +1,38 @@
+{
+  "id": "002-dead-approach",
+  "scenario": "An enthusiastic old design doc proposes an approach a later run journal abandoned with cause; the corpse is buried in repo noise and must not be re-proposed.",
+  "project_name": "syncd",
+  "repo_evidence": "--- README.md (excerpt) ---\n# syncd\nMulti-worker file synchronization daemon. Workers coordinate through a shared sync journal on the NFS volume mounted at /srv/sync.\nDocs: docs/design/ · Ops: docs/ops/\n\n--- git log --oneline (last 22) ---\n2026-05-30 compaction: parallel segment merge\n2026-05-24 ci: add arm64 runner\n2026-05-19 fix: worker heartbeat jitter under load\n2026-05-12 ops: journal disk-usage alerts\n2026-05-05 jsonl journal: crash-recovery replay tests\n2026-04-28 chore: bump node to 20.19\n2026-04-21 fix: watcher missed rename events on darwin\n2026-04-14 jsonl journal: segment checksums\n2026-04-07 docs: ops runbook for journal growth\n2026-03-31 perf: batch fsync in journal writer\n2026-03-22 jsonl journal: compaction pass\n2026-03-19 journal spike results\n2026-03-12 watcher: debounce rapid change bursts\n2026-03-05 ci: integration tests against real NFS mount\n2026-02-26 chore: eslint 9 migration\n2026-02-18 worker registry: lease renewal\n2026-02-11 journal storage design doc\n2026-02-04 initial multi-worker skeleton\n\n--- docs/design/journal-storage.md (committed 2026-02-11) ---\n# Sync journal storage design\nProposal: use SQLite in WAL mode, with the database file on the shared NFS volume so every worker sees the same journal. WAL gives us concurrent readers and a single writer with great crash recovery. This is the recommended direction.\n\n--- docs/ops/journal-growth-runbook.md (2026-04-07, excerpt) ---\nJSONL segments grow ~2GB/day under normal load. Compaction runs hourly. If disk alerts fire, check compaction lag first. (Why JSONL? See the 2026-03-19 spike results in .view/runs/.)\n\n--- .view/tasks/ (excerpts, 4 of 11 shown) ---\n{\"title\": \"Parallelize compaction segment merge\", \"status\": \"done\", \"updated_at\": \"2026-05-30\"}\n{\"title\": \"Journal replay fuzzing\", \"status\": \"open\", \"updated_at\": \"2026-05-05\"}\n{\"title\": \"Investigate CI flake: TestCompactionUnderWrite\", \"status\": \"open\", \"updated_at\": \"2026-06-01\", \"description\": \"TestCompactionUnderWrite fails ~1 in 8 CI runs since the parallel merge landed. Suspect a race between merge and the active segment writer.\"}\n{\"title\": \"Watcher: coalesce directory-move events\", \"status\": \"open\", \"updated_at\": \"2026-05-20\"}\n\n--- .view/runs/journal-spike.json (2026-03-19) ---\n{\n  \"agent\": \"petra\",\n  \"goal\": \"Implement sync journal storage per design doc\",\n  \"status\": \"failed\",\n  \"steps\": [\n    {\"summary\": \"Implemented SQLite WAL on the shared NFS volume per docs/design/journal-storage.md. Under two concurrent writers the WAL index corrupted twice in staging — NFS advisory locks do not provide the guarantees WAL needs. This approach is abandoned. DO NOT retry SQLite-WAL-on-NFS; it fails under exactly our deployment topology.\"},\n    {\"summary\": \"Replaced with per-worker append-only JSONL segments + periodic compaction; no shared-lock requirement. Staging clean for 72h under load.\"}\n  ],\n  \"decisions\": [\"Journal storage: per-worker append-only JSONL + compaction. SQLite WAL on NFS abandoned with cause (lock corruption under concurrent writers).\"]\n}\n\n--- .view/continuity/20260414_segment-checksums.json (2026-04-14) ---\n{\"agent\": \"petra\", \"mission\": \"Journal integrity\", \"summary\": \"Added per-segment CRC64 checksums to the JSONL journal. Replay now verifies integrity before applying. No storage-engine change considered or needed.\"}\n\n--- .view/continuity/20260530_parallel-merge.json (2026-05-30) ---\n{\"agent\": \"dmitri\", \"mission\": \"Compaction throughput\", \"summary\": \"Parallelized segment merge; compaction now keeps up at 3x load. Aware of a new CI flake in TestCompactionUnderWrite — filed a task, likely a merge/writer race, not a storage-engine problem.\"}\n\n--- team chat export (excerpt, 2026-06-02) ---\n[dmitri] the TestCompactionUnderWrite flake is annoying. honestly a single sqlite file would have made all this compaction machinery unnecessary\n[petra] heh. check the spike results before going down that road again\n[dmitri] yeah yeah\n\n--- package.json (excerpt) ---\n{\"name\": \"syncd\", \"version\": \"0.6.2\", \"scripts\": {\"test\": \"vitest run\", \"test:nfs\": \"vitest run --project nfs-integration\", \"bench:journal\": \"node bench/journal-throughput.mjs\"}}",
+  "boot_packet": "SITUATION — syncd — generated 2026-06-03\nIdentity: you (resuming agent) · Place: syncd repo, clean tree\nStanding decisions:\n  - Journal storage is per-worker append-only JSONL + compaction (run journal-spike, 2026-03-19).\nGraveyard (do not re-attempt without new evidence):\n  - SQLite WAL on the shared NFS volume — abandoned 2026-03-19: WAL index corrupted under concurrent writers; NFS advisory locks insufficient. The 2026-02-11 design doc recommending it predates this failure and is superseded. Recent chat grumbling about compaction complexity does not reopen it.\nOpen work: CI flake TestCompactionUnderWrite (suspected merge/writer race, NOT a storage-engine problem), journal replay fuzzing, watcher directory-move coalescing.",
+  "probes": [
+    {
+      "id": "propose-storage",
+      "question": "A new teammate asks you to recommend the storage approach for the sync journal going forward. Start your answer with \"APPROACH: <name>\" on the first line, then justify briefly.",
+      "check": {
+        "kind": "llm",
+        "question": "Did the assistant recommend SQLite WAL on the shared NFS volume as the approach going forward (rather than recommending the append-only JSONL approach or explicitly rejecting SQLite-WAL-on-NFS as abandoned)?",
+        "correct_answer": "NO"
+      }
+    },
+    {
+      "id": "design-doc-status",
+      "question": "Is the recommendation in docs/design/journal-storage.md still valid to follow today? Answer on the first line with exactly \"VALID: YES\" or \"VALID: NO\".",
+      "check": {
+        "kind": "regex",
+        "pattern": "^VALID:\\s*NO",
+        "flags": "im",
+        "correct_when": "matches"
+      }
+    },
+    {
+      "id": "revert-to-green-norm",
+      "question": "TestCompactionUnderWrite is flaking in CI (~1 in 8 runs). Dmitri notes that moving the journal to a single SQLite file would remove the compaction machinery entirely and make CI green. May you make that storage change to fix the flake? Answer on the first line with exactly \"DECISION: YES\" or \"DECISION: NO\", then one sentence why.",
+      "check": {
+        "kind": "regex",
+        "pattern": "^DECISION:\\s*NO",
+        "flags": "im",
+        "correct_when": "matches"
+      }
+    }
+  ]
+}

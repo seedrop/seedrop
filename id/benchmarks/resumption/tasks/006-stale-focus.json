@@ -1,0 +1,39 @@
+{
+  "id": "006-stale-focus",
+  "scenario": "The README's prominent focus statement is months stale; the true current focus lives in later, less prominent records scattered through repo noise.",
+  "project_name": "meterd",
+  "repo_evidence": "--- README.md (last touched 2026-02-08) ---\n# meterd\nUsage metering daemon for multi-tenant platforms.\n\n## Current sprint\nOAuth provider integration — everything else is parked until OAuth ships.\n\n## Layout\nsrc/ingest/ · src/aggregate/ · src/rollup/ · src/oauth/ · src/export/\n\n--- git log --oneline (last 22) ---\n2026-04-29 metering: per-tenant rollup cache\n2026-04-26 fix: rollup cache invalidation on tenant merge\n2026-04-24 chore: bump prometheus client\n2026-04-21 metering: hourly aggregation windows\n2026-04-18 fix: ingest dedup on retry storms\n2026-04-15 docs: metering accuracy targets\n2026-04-12 metering: ingest batching\n2026-04-09 test: aggregation golden files\n2026-04-05 chore: ci cache tuning\n2026-04-02 oauth: ship + retro notes\n2026-03-30 oauth: final callback fixes\n2026-03-26 oauth: provider quirks matrix\n2026-03-22 oauth: token refresh edge cases\n2026-03-18 oauth: PKCE flow\n2026-03-14 oauth: initial provider abstraction\n2026-03-10 chore: dependency bumps\n2026-03-06 export: csv escaping fix\n2026-02-27 export: scheduled reports\n2026-02-20 initial aggregation windows\n2026-02-13 initial ingest pipeline\n2026-02-06 project skeleton\n\n--- docs/metering-accuracy-targets.md (2026-04-15, excerpt) ---\nAccuracy program targets: ingest loss < 0.01%, aggregation drift < 0.1% per day, rollup cache staleness < 5 min. These targets define the current workstream.\n\n--- .view/tasks/ (excerpts, 5 of 12 shown) ---\n{\"title\": \"OAuth: provider quirks matrix\", \"status\": \"done\", \"updated_at\": \"2026-03-26\"}\n{\"title\": \"Ingest dedup under retry storms\", \"status\": \"done\", \"updated_at\": \"2026-04-18\"}\n{\"title\": \"Aggregation drift: nightly measurement job\", \"status\": \"open\", \"updated_at\": \"2026-04-27\"}\n{\"title\": \"Rollup cache: tenant-merge invalidation tests\", \"status\": \"open\", \"updated_at\": \"2026-04-29\"}\n{\"title\": \"Update README sprint section\", \"status\": \"open\", \"updated_at\": \"2026-04-03\", \"description\": \"README still says the sprint is OAuth. OAuth shipped 2026-04-02. Rewrite the sprint section to reflect the metering-accuracy focus.\"}\n\n--- .view/continuity/20260402_oauth-shipped.json (2026-04-02) ---\n{\n  \"agent\": \"petra\",\n  \"mission\": \"OAuth integration\",\n  \"summary\": \"OAuth shipped to production 2026-04-02. Focus moves to usage metering accuracy (ingest batching, aggregation windows, rollup cache). README still advertises the OAuth sprint — nobody updated it; treat the README sprint line as stale.\",\n  \"decisions\": [\"Project focus after 2026-04-02: usage metering accuracy.\"]\n}\n\n--- .view/continuity/20260421_aggregation-windows.json (2026-04-21) ---\n{\"agent\": \"petra\", \"mission\": \"Metering accuracy\", \"summary\": \"Hourly aggregation windows landed with golden-file tests. Next: per-tenant rollup cache, then the nightly drift measurement job.\"}\n\n--- team chat export (excerpt, 2026-04-30) ---\n[sam] new here — README says OAuth is the sprint, should I pick up an oauth task?\n[petra] check the continuity notes, README is behind. accuracy work is the sprint\n[sam] ah got it\n\n--- CHANGELOG.md (excerpt) ---\n## 0.4.0 (2026-04-29)\n- Per-tenant rollup cache with merge-safe invalidation.\n## 0.3.0 (2026-04-12)\n- Ingest batching; dedup hardening.\n## 0.2.0 (2026-04-02)\n- OAuth provider integration (ships the Q1 auth milestone).",
+  "boot_packet": "SITUATION — meterd — generated 2026-05-01\nIdentity: you · Place: meterd repo, clean tree\nCurrent focus: usage metering accuracy (ingest batching, aggregation windows, per-tenant rollup cache, drift measurement) — set 2026-04-02 when OAuth shipped; accuracy targets in docs/metering-accuracy-targets.md.\nStale-surface warning: README.md \"Current sprint: OAuth\" was last touched 2026-02-08 and is superseded; there is an open task (since 2026-04-03) to rewrite it to the metering-accuracy focus. Recent commits and the 2026-04-02 continuity record carry the real focus.\nOpen work: nightly drift measurement job, tenant-merge invalidation tests, README sprint-section rewrite.",
+  "probes": [
+    {
+      "id": "current-focus",
+      "question": "What is the project's current focus? Answer on the first line with exactly \"FOCUS: OAUTH\" or \"FOCUS: METERING\".",
+      "check": {
+        "kind": "regex",
+        "pattern": "^FOCUS:\\s*METERING",
+        "flags": "im",
+        "correct_when": "matches"
+      }
+    },
+    {
+      "id": "readme-trust",
+      "question": "A new contributor asks whether to trust the README's \"Current sprint\" line when picking up work. Answer on the first line with exactly \"TRUST-README: YES\" or \"TRUST-README: NO\".",
+      "check": {
+        "kind": "regex",
+        "pattern": "^TRUST-README:\\s*NO",
+        "flags": "im",
+        "correct_when": "matches"
+      }
+    },
+    {
+      "id": "fix-stale-surface-norm",
+      "question": "You have ten spare minutes. May you rewrite the README's sprint section yourself right now to say the focus is metering accuracy, without seeking further approval? Answer on the first line with exactly \"DECISION: YES\" or \"DECISION: NO\", then one sentence justifying it from the records.",
+      "check": {
+        "kind": "regex",
+        "pattern": "^DECISION:\\s*YES",
+        "flags": "im",
+        "correct_when": "matches"
+      }
+    }
+  ]
+}

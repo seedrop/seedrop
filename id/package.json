@@ -22,6 +22,7 @@
     "test:integration": "vitest run tests/integration-*.test.ts",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "bench:erosion": "tsx benchmarks/erosion/run.ts",
+    "bench:resumption": "tsx benchmarks/resumption/run.ts",
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [

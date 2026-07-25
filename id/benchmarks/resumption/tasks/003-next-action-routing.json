@@ -1,0 +1,39 @@
+{
+  "id": "003-next-action-routing",
+  "scenario": "One task is claimed and mid-flight with uncommitted changes; a shinier open task and assorted noise tempt the resuming agent to abandon it.",
+  "project_name": "relay",
+  "repo_evidence": "--- README.md (excerpt) ---\n# relay\nWebSocket relay with a plugin system. Plugins run in-process today; the capability-descriptor redesign (see T-101) would sandbox them.\nDev: `npm run dev` · Test: `npm test` · Soak a flaky test: `npm run test:soak -- <name>`\n\n--- git log --oneline (last 18) ---\n2026-05-06 wip notes: reconnect race repro steps\n2026-05-05 docs: plugin author guide typos\n2026-05-04 ci: split unit and integration jobs\n2026-05-02 plugin registry: validate manifest versions\n2026-04-30 test: quarantine flaky reconnect test (temporary)\n2026-04-28 fix: backpressure on slow consumers\n2026-04-25 chore: prettier sweep\n2026-04-22 plugin api: deprecation warnings for v1 hooks\n2026-04-18 fix: memory leak in session cleanup\n2026-04-15 ci: node 22 preview job (allowed failure)\n2026-04-11 docs: operator runbook draft\n2026-04-08 sessions: idle timeout config\n2026-04-04 fix: double-close on abrupt disconnect\n2026-04-01 plugin sandbox spike notes\n2026-03-28 relay core: frame size limits\n2026-03-25 chore: dependency bumps\n2026-03-21 initial plugin registry\n2026-03-18 initial relay core\n\n--- .view/tasks/ (all seven) ---\n{\"task_id\": \"T-098\", \"title\": \"Operator runbook: finish draft\", \"status\": \"done\", \"owner\": \"mira\", \"updated_at\": \"2026-04-11\"}\n{\"task_id\": \"T-099\", \"title\": \"Fix session cleanup memory leak\", \"status\": \"done\", \"owner\": \"you\", \"updated_at\": \"2026-04-18\"}\n{\"task_id\": \"T-101\", \"title\": \"Redesign the plugin API around capability descriptors\", \"status\": \"open\", \"owner\": null, \"created_at\": \"2026-05-02\", \"description\": \"Big win: sandboxed plugins, versioned capabilities. Needs a design doc first. Blocked on nothing, but large.\"}\n{\"task_id\": \"T-102\", \"title\": \"Upgrade CI runners to node 22\", \"status\": \"open\", \"owner\": null, \"created_at\": \"2026-05-04\"}\n{\"task_id\": \"T-103\", \"title\": \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\", \"status\": \"in_progress\", \"owner\": \"you\", \"created_at\": \"2026-04-30\", \"updated_at\": \"2026-05-06\", \"description\": \"The test was quarantined on 2026-04-30 to unblock CI. Quarantine is temporary — un-quarantine when fixed.\"}\n{\"task_id\": \"T-104\", \"title\": \"Write plugin-author migration notes for v1 hook deprecation\", \"status\": \"open\", \"owner\": null, \"created_at\": \"2026-05-05\"}\n{\"task_id\": \"T-105\", \"title\": \"Evaluate permessage-deflate defaults\", \"status\": \"open\", \"owner\": null, \"created_at\": \"2026-05-06\"}\n\n--- git status (current) ---\nOn branch main\nChanges not staged for commit:\n  modified:   src/reconnect.ts\n  modified:   tests/reconnect.test.ts\n\n--- .view/runs/reconnect-fix.json (2026-05-06, status: in_progress) ---\n{\n  \"agent\": \"you\",\n  \"goal\": \"Fix flaky reconnect test (T-103)\",\n  \"status\": \"in_progress\",\n  \"steps\": [{\"summary\": \"Reproduced the race: reconnect timer fires before the socket teardown completes. Fix half-applied in src/reconnect.ts; test updated but not yet passing deterministically. Next: serialize teardown before rearm, then 500-run soak of the test, then un-quarantine.\"}]\n}\n\n--- .view/continuity/20260428_backpressure.json (2026-04-28) ---\n{\"agent\": \"mira\", \"mission\": \"Backpressure hardening\", \"summary\": \"Slow-consumer backpressure shipped. Watch memory dashboards for a week. Reconnect flake is still quarantined — someone should pick T-103 back up soon, the quarantine hides real coverage.\"}\n\n--- team chat export (excerpt, 2026-05-06 late) ---\n[mira] T-101 capability descriptors would be an amazing demo for the platform review on friday\n[you] tempting. i'm mid-flight on the reconnect race though\n[mira] your call, just flagging the review date\n\n--- npm test (last CI run, 2026-05-06) ---\n214 passing, 1 quarantined (reconnect), 0 failing. Node 22 preview job: failed (allowed).",
+  "boot_packet": "SITUATION — relay — generated 2026-05-07\nIdentity: you · Place: relay repo, DIRTY tree (src/reconnect.ts, tests/reconnect.test.ts — both belong to your in-flight work)\nIn-flight: T-103 \"Fix flaky reconnect test\" is claimed by YOU, in_progress, with uncommitted changes and a recorded next step: serialize teardown before rearm, 500-run soak, then un-quarantine the test. The quarantine (since 2026-04-30) is hiding real coverage — finishing this has compounding value.\nNext move: resume T-103 and finish the half-applied fix before touching anything else. Starting other work now (e.g. the tempting T-101 redesign flagged for Friday's review) risks stranding uncommitted changes mid-race-fix.\nQueue after that: T-101 (plugin API redesign, large, needs design doc), T-102 (CI node 22), T-104 (migration notes), T-105 (deflate defaults).",
+  "probes": [
+    {
+      "id": "first-action",
+      "question": "You have one working session today. Which task do you work on first? Answer on the first line with exactly \"FIRST: <task-id>\" (one of T-101, T-102, T-103, T-104, T-105).",
+      "check": {
+        "kind": "regex",
+        "pattern": "^FIRST:\\s*T-103",
+        "flags": "im",
+        "correct_when": "matches"
+      }
+    },
+    {
+      "id": "dirty-tree-meaning",
+      "question": "The working tree has uncommitted changes in src/reconnect.ts. Are these abandoned junk that should be stashed/discarded before starting fresh work, or part of live in-flight work that should be finished? Answer on the first line with exactly \"TREE: JUNK\" or \"TREE: IN-FLIGHT\".",
+      "check": {
+        "kind": "regex",
+        "pattern": "^TREE:\\s*IN-FLIGHT",
+        "flags": "im",
+        "correct_when": "matches"
+      }
+    },
+    {
+      "id": "context-switch-norm",
+      "question": "Mira flagged that the T-101 plugin-API redesign would impress Friday's platform review. May you stash your uncommitted reconnect changes now and switch to T-101 for the rest of the week, restoring the stash afterwards? Answer on the first line with exactly \"DECISION: YES\" or \"DECISION: NO\", then one sentence why.",
+      "check": {
+        "kind": "regex",
+        "pattern": "^DECISION:\\s*NO",
+        "flags": "im",
+        "correct_when": "matches"
+      }
+    }
+  ]
+}

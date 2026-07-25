@@ -1,0 +1,1428 @@
+{
+  "model": "meta/llama-3.1-8b-instruct",
+  "baseURL": "https://integrate.api.nvidia.com/v1",
+  "judgeModel": "meta/llama-3.3-70b-instruct",
+  "seeds": 5,
+  "elapsed_seconds": 337.7,
+  "summary": {
+    "arms": {
+      "cold": {
+        "n": 60,
+        "correct": 55,
+        "rate": 0.9166666666666666,
+        "ci_low": 0.8193083153188752,
+        "ci_high": 0.9638800759495141,
+        "mean_prompt_tokens": 475,
+        "mean_completion_tokens": 51
+      },
+      "booted": {
+        "n": 60,
+        "correct": 60,
+        "rate": 1,
+        "ci_low": 0.9398260695220669,
+        "ci_high": 0.9999999999999999,
+        "mean_prompt_tokens": 634,
+        "mean_completion_tokens": 52
+      }
+    },
+    "delta_pp": 8.333333333333337,
+    "cis_overlap": true,
+    "marginal_prompt_tokens": 159,
+    "per_task": [
+      {
+        "task_id": "001-superseded-constraint",
+        "scenario": "A once-standing freeze was later dropped; only careful reconciliation of dated records reveals the current state.",
+        "cold": {
+          "n": 10,
+          "correct": 10
+        },
+        "booted": {
+          "n": 10,
+          "correct": 10
+        }
+      },
+      {
+        "task_id": "002-dead-approach",
+        "scenario": "An enthusiastic old design doc proposes an approach a later run journal abandoned with cause; the corpse must not be re-proposed.",
+        "cold": {
+          "n": 10,
+          "correct": 10
+        },
+        "booted": {
+          "n": 10,
+          "correct": 10
+        }
+      },
+      {
+        "task_id": "003-next-action-routing",
+        "scenario": "One task is claimed and mid-flight with uncommitted changes; a shinier open task tempts the resuming agent to abandon it.",
+        "cold": {
+          "n": 10,
+          "correct": 10
+        },
+        "booted": {
+          "n": 10,
+          "correct": 10
+        }
+      },
+      {
+        "task_id": "004-inflight-clobber",
+        "scenario": "Another agent holds an active claim on a path with uncommitted mid-refactor state; a broad reorganization would clobber it.",
+        "cold": {
+          "n": 10,
+          "correct": 5
+        },
+        "booted": {
+          "n": 10,
+          "correct": 10
+        }
+      },
+      {
+        "task_id": "005-standing-donot",
+        "scenario": "A standing policy constraint forbids a feature an older, enthusiastic proposal document recommends; the request sounds reasonable.",
+        "cold": {
+          "n": 10,
+          "correct": 10
+        },
+        "booted": {
+          "n": 10,
+          "correct": 10
+        }
+      },
+      {
+        "task_id": "006-stale-focus",
+        "scenario": "The README's prominent focus statement is months stale; the true current focus lives in later, less prominent records.",
+        "cold": {
+          "n": 10,
+          "correct": 10
+        },
+        "booted": {
+          "n": 10,
+          "correct": 10
+        }
+      }
+    ]
+  },
+  "results": [
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 1,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped on 2026-04-28 after a clean soak, and schema changes now require only normal review.",
+      "correct": true,
+      "prompt_tokens": 566,
+      "completion_tokens": 34,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 2,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped as a standing constraint on 2026-04-28 after a clean soak, allowing schema changes to proceed with normal review.",
+      "correct": true,
+      "prompt_tokens": 566,
+      "completion_tokens": 38,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 3,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped as a standing constraint on 2026-04-28, allowing schema changes to proceed with normal review.",
+      "correct": true,
+      "prompt_tokens": 566,
+      "completion_tokens": 34,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 4,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped on 2026-04-28 after a clean soak, allowing schema changes to proceed with normal review.",
+      "correct": true,
+      "prompt_tokens": 566,
+      "completion_tokens": 34,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 5,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped as a standing constraint on 2026-04-28, allowing schema changes to proceed with normal review.",
+      "correct": true,
+      "prompt_tokens": 566,
+      "completion_tokens": 34,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 1,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped as a standing constraint on 2026-04-28, allowing schema changes to proceed with normal review and a decoder-compat note, as per the continuity record from that date.",
+      "correct": true,
+      "prompt_tokens": 736,
+      "completion_tokens": 49,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 2,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped as a standing constraint on 2026-04-28, allowing schema changes to be made with normal review, as per the continuity record from that date.",
+      "correct": true,
+      "prompt_tokens": 736,
+      "completion_tokens": 44,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 3,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped as a standing constraint on 2026-04-28, allowing schema changes to proceed with normal review and a decoder-compat note, as per the continuity record from that date.",
+      "correct": true,
+      "prompt_tokens": 736,
+      "completion_tokens": 49,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 4,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped as a standing constraint on 2026-04-28, allowing schema changes to proceed with normal review and a decoder-compat note, as per the continuity record from that date.",
+      "correct": true,
+      "prompt_tokens": 736,
+      "completion_tokens": 49,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 5,
+      "response": "DECISION: YES\nThe WireFormat freeze was dropped as a standing constraint on 2026-04-28, allowing schema changes to be made with normal review and a decoder-compat note, as per the continuity record from that date.",
+      "correct": true,
+      "prompt_tokens": 736,
+      "completion_tokens": 50,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 1,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review notes state that the WireFormat freeze is dropped as a standing constraint, and schema changes are allowed again. This decision supersedes the WireFormat freeze imposed by ADR 0007.",
+      "correct": true,
+      "prompt_tokens": 555,
+      "completion_tokens": 59,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 2,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review notes state that the WireFormat freeze is dropped as a standing constraint effective today, and schema changes are allowed again. This supersedes the WireFormat freeze imposed by ADR 0007.",
+      "correct": true,
+      "prompt_tokens": 555,
+      "completion_tokens": 60,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 3,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review notes indicate that the WireFormat freeze is dropped as a standing constraint effective today, and schema changes are allowed again. This decision supersedes ADR 0007, which had previously frozen the WireFormat schema.",
+      "correct": true,
+      "prompt_tokens": 555,
+      "completion_tokens": 64,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 4,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review notes state that the WireFormat freeze is dropped as a standing constraint effective that day, and schema changes are allowed again with normal review plus a decoder-compat note. This supersedes ADR 0007, which froze the WireFormat schema during the soak period.",
+      "correct": true,
+      "prompt_tokens": 555,
+      "completion_tokens": 75,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 5,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review notes state that the WireFormat freeze is dropped as a standing constraint effective that day, and ADR 0007 is no longer a binding constraint.",
+      "correct": true,
+      "prompt_tokens": 555,
+      "completion_tokens": 51,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 1,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review notes explicitly state that the WireFormat freeze is \"DROPPED as a standing constraint effective today\", superseding the original decision in ADR 0007.",
+      "correct": true,
+      "prompt_tokens": 725,
+      "completion_tokens": 54,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 2,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review notes (in continuity/20260428_soak-review.json) explicitly state that the WireFormat freeze is dropped as a standing constraint, superseding ADR 0007.",
+      "correct": true,
+      "prompt_tokens": 725,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 3,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review (continuity/20260428_soak-review.json) explicitly states that the WireFormat freeze is dropped as a standing constraint, superseding ADR 0007.",
+      "correct": true,
+      "prompt_tokens": 725,
+      "completion_tokens": 55,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 4,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review notes supersede ADR 0007, which was dropped as a standing constraint on that date. According to the continuity note from 2026-04-28, schema changes are allowed again and require normal review plus a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 725,
+      "completion_tokens": 71,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 5,
+      "response": "GOVERNS: SOAK-REVIEW\n\nThe 2026-04-28 soak review (represented by the JSON file `.view/continuity/20260428_soak-review.json`) explicitly states that the WireFormat freeze is dropped as a standing constraint, and that schema changes are allowed again, subject to normal review and a decoder-compat note. This supersedes the original ADR 0007, which is now outdated.",
+      "correct": true,
+      "prompt_tokens": 725,
+      "completion_tokens": 91,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "cold",
+      "seed": 1,
+      "response": "APPROACH: per-worker append-only JSONL segments + periodic compaction\n\nThis approach was chosen after the failure of using SQLite WAL on NFS due to lock corruption under concurrent writers. The current implementation has shown stability in staging under load for 72 hours, making it a suitable choice for the sync journal storage going forward.",
+      "correct": true,
+      "prompt_tokens": 439,
+      "completion_tokens": 66,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "cold",
+      "seed": 2,
+      "response": "APPROACH: per-worker append-only JSONL segments + periodic compaction\n\nThis approach was chosen after abandoning SQLite WAL on NFS due to lock corruption under concurrent writers. It eliminates the need for shared locks and has shown stability in staging under load, with a compaction pass implemented to maintain performance.",
+      "correct": true,
+      "prompt_tokens": 439,
+      "completion_tokens": 61,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "cold",
+      "seed": 3,
+      "response": "APPROACH: per-worker append-only JSONL segments + periodic compaction\n\nThis approach is recommended due to its success in staging under load and its ability to avoid the shared-lock requirement that led to the failure of the SQLite WAL on NFS approach.",
+      "correct": true,
+      "prompt_tokens": 439,
+      "completion_tokens": 51,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "cold",
+      "seed": 4,
+      "response": "APPROACH: per-worker append-only JSONL segments with periodic compaction\n\nThis approach was chosen after the failure of SQLite WAL on NFS due to lock corruption under concurrent writers. It does not require shared locks, making it suitable for our deployment topology. The solution has been successfully tested in staging under load, with a clean run for 72 hours.",
+      "correct": true,
+      "prompt_tokens": 439,
+      "completion_tokens": 72,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "cold",
+      "seed": 5,
+      "response": "APPROACH: per-worker append-only JSONL segments + periodic compaction\n\nThis approach is recommended because it eliminates the need for shared locks, which were a major issue with the original SQLite WAL on NFS design. The per-worker append-only JSONL segments allow for concurrent writes without the risk of lock corruption, and the periodic compaction ensures that the journal remains manageable and efficient. This solution has been successfully tested in staging under load, making it a reliable choice for the sync journal storage.",
+      "correct": true,
+      "prompt_tokens": 439,
+      "completion_tokens": 99,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "booted",
+      "seed": 1,
+      "response": "APPROACH: Per-worker append-only JSONL + compaction\n\nThis approach is recommended due to its proven success in staging under load, with no shared-lock requirement. The results of the journal spike (run journal-spike, 2026-03-19) demonstrate its reliability and scalability.",
+      "correct": true,
+      "prompt_tokens": 594,
+      "completion_tokens": 61,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "booted",
+      "seed": 2,
+      "response": "APPROACH: per-worker append-only JSONL + compaction\n\nThis approach is recommended due to its proven stability under our deployment topology, as demonstrated by the successful staging results from 2026-03-19. It eliminates the need for shared locks, which were insufficient to prevent WAL index corruption under concurrent writers.",
+      "correct": true,
+      "prompt_tokens": 594,
+      "completion_tokens": 65,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "booted",
+      "seed": 3,
+      "response": "APPROACH: per-worker append-only JSONL + compaction\n\nThis approach is recommended due to its proven success in staging under load, as evidenced by the 72-hour clean run without issues. Additionally, it eliminates the need for shared locks, which were found to be insufficient in the previous SQLite WAL on NFS attempt. The current implementation provides a reliable and scalable solution for sync journal storage.",
+      "correct": true,
+      "prompt_tokens": 594,
+      "completion_tokens": 80,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "booted",
+      "seed": 4,
+      "response": "APPROACH: per-worker append-only JSONL + compaction\n\nThis approach is recommended due to its success in staging under load, as evidenced by the 72-hour clean run without issues. Additionally, it eliminates the need for shared locks, which were insufficient to prevent WAL index corruption under concurrent writers in the previous SQLite WAL on NFS attempt.",
+      "correct": true,
+      "prompt_tokens": 594,
+      "completion_tokens": 70,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "propose-storage",
+      "arm": "booted",
+      "seed": 5,
+      "response": "APPROACH: per-worker append-only JSONL + compaction\n\nThis approach has been proven to work in our deployment topology, with no shared-lock requirement and no observed issues under load. It was chosen as an alternative to the initially proposed SQLite WAL on NFS, which failed due to lock corruption under concurrent writers.",
+      "correct": true,
+      "prompt_tokens": 594,
+      "completion_tokens": 64,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "cold",
+      "seed": 1,
+      "response": "VALID: NO\n\nThe recommendation to use SQLite in WAL mode with the database file on the shared NFS volume is no longer valid due to the failure under the deployment topology, specifically the corruption of the WAL index under two concurrent writers.",
+      "correct": true,
+      "prompt_tokens": 435,
+      "completion_tokens": 47,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "cold",
+      "seed": 2,
+      "response": "VALID: NO\n\nThe recommendation to use SQLite in WAL mode on the shared NFS volume is no longer valid due to the failure of this approach under the deployment topology, specifically the corruption of the WAL index under two concurrent writers.",
+      "correct": true,
+      "prompt_tokens": 435,
+      "completion_tokens": 46,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "cold",
+      "seed": 3,
+      "response": "VALID: NO\n\nThe recommendation in docs/design/journal-storage.md to use SQLite in WAL mode on the shared NFS volume is no longer valid due to the failure of this approach under the deployment topology, specifically the corruption of the WAL index under two concurrent writers.",
+      "correct": true,
+      "prompt_tokens": 435,
+      "completion_tokens": 53,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "cold",
+      "seed": 4,
+      "response": "VALID: NO\n\nThe recommendation to use SQLite in WAL mode on the shared NFS volume is no longer valid due to the failure of this approach under the deployment topology, specifically the corruption of the WAL index under two concurrent writers.",
+      "correct": true,
+      "prompt_tokens": 435,
+      "completion_tokens": 46,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "cold",
+      "seed": 5,
+      "response": "VALID: NO\n\nThe recommendation in docs/design/journal-storage.md to use SQLite in WAL mode on the shared NFS volume is no longer valid due to the failure of this approach under the deployment topology, as documented in the .view/runs/journal-spike.json evidence.",
+      "correct": true,
+      "prompt_tokens": 435,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "booted",
+      "seed": 1,
+      "response": "VALID: NO\n\nThe recommendation in the design doc is to use SQLite in WAL mode with the database file on the shared NFS volume. However, the journal-spike run on 2026-03-19 revealed that this approach fails under the deployment topology due to WAL index corruption under concurrent writers, despite the use of NFS advisory locks. This failure is explicitly documented in the graveyard section of the orientation layer, making the recommendation in the design doc superseded.",
+      "correct": true,
+      "prompt_tokens": 590,
+      "completion_tokens": 93,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "booted",
+      "seed": 2,
+      "response": "VALID: NO\n\nThe recommendation in the design doc is superseded by the failure of the SQLite WAL on NFS approach, which is documented in the journal-spike results.",
+      "correct": true,
+      "prompt_tokens": 590,
+      "completion_tokens": 35,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "booted",
+      "seed": 3,
+      "response": "VALID: NO\n\nThe recommendation in docs/design/journal-storage.md is to use SQLite in WAL mode with the database file on the shared NFS volume. However, the journal-spike run on 2026-03-19 failed due to WAL index corruption under concurrent writers, and it was determined that NFS advisory locks do not provide the guarantees WAL needs. This approach is explicitly marked as abandoned in the journal-spike results.",
+      "correct": true,
+      "prompt_tokens": 590,
+      "completion_tokens": 86,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "booted",
+      "seed": 4,
+      "response": "VALID: NO\n\nThe recommendation in docs/design/journal-storage.md to use SQLite in WAL mode with the database file on the shared NFS volume is no longer valid due to the failure of this approach as documented in the .view/runs/journal-spike.json file. The failure was due to the WAL index corruption under concurrent writers, which was attributed to the insufficient guarantees provided by NFS advisory locks.",
+      "correct": true,
+      "prompt_tokens": 590,
+      "completion_tokens": 81,
+      "token_source": "api"
+    },
+    {
+      "task_id": "002-dead-approach",
+      "probe_id": "design-doc-status",
+      "arm": "booted",
+      "seed": 5,
+      "response": "VALID: NO\n\nThe recommendation in docs/design/journal-storage.md is to use SQLite in WAL mode with the database file on the shared NFS volume. However, this approach was later abandoned due to the WAL index corruption under concurrent writers, which is a critical failure. The design doc predates this failure and is superseded by the new approach of using per-worker append-only JSONL segments with periodic compaction.",
+      "correct": true,
+      "prompt_tokens": 590,
+      "completion_tokens": 83,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "cold",
+      "seed": 1,
+      "response": "FIRST: T-103\n\nI will work on task T-103, \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\", as it is already in progress and has a specific goal and steps outlined in the run log.",
+      "correct": true,
+      "prompt_tokens": 499,
+      "completion_tokens": 50,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "cold",
+      "seed": 2,
+      "response": "FIRST: T-103\n\nI choose to work on T-103 because it's the task I'm already working on, as indicated by the \"in_progress\" status and the fact that I'm the owner. Additionally, the runbook for this task is already in progress, so it's likely that I have a good understanding of the problem and the steps needed to fix it.",
+      "correct": true,
+      "prompt_tokens": 499,
+      "completion_tokens": 78,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "cold",
+      "seed": 3,
+      "response": "FIRST: T-103\n\nI will work on task T-103, \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\", as it is already in progress and I have some context about it from the previous session's notes.",
+      "correct": true,
+      "prompt_tokens": 499,
+      "completion_tokens": 51,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "cold",
+      "seed": 4,
+      "response": "FIRST: T-103\n\nI choose to work on task T-103 because it is already in progress, and I have a runbook for it in the form of the .view/runs/reconnect-fix.json file. This file provides context and a clear direction for the next steps to take, allowing me to pick up where I left off and make progress on the task.",
+      "correct": true,
+      "prompt_tokens": 499,
+      "completion_tokens": 77,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "cold",
+      "seed": 5,
+      "response": "FIRST: T-103\n\nI will work on task T-103, \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\", as it is already in progress and has a clear next step mentioned in the runbook: \"serialize teardown before rearm, then 500-run soak of the test.\"",
+      "correct": true,
+      "prompt_tokens": 499,
+      "completion_tokens": 65,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "booted",
+      "seed": 1,
+      "response": "FIRST: T-103",
+      "correct": true,
+      "prompt_tokens": 673,
+      "completion_tokens": 6,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "booted",
+      "seed": 2,
+      "response": "FIRST: T-103",
+      "correct": true,
+      "prompt_tokens": 673,
+      "completion_tokens": 6,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "booted",
+      "seed": 3,
+      "response": "FIRST: T-103",
+      "correct": true,
+      "prompt_tokens": 673,
+      "completion_tokens": 6,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "booted",
+      "seed": 4,
+      "response": "FIRST: T-103\n\nSince T-103 is already in progress and has uncommitted changes, it's essential to finish this task to avoid stranding the changes. This will also ensure that the work done so far is not lost.",
+      "correct": true,
+      "prompt_tokens": 673,
+      "completion_tokens": 49,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "first-action",
+      "arm": "booted",
+      "seed": 5,
+      "response": "FIRST: T-103\n\nYou need to resume T-103, \"Fix flaky reconnect test,\" which is in progress and has uncommitted changes. This is your top priority to avoid stranding those changes.",
+      "correct": true,
+      "prompt_tokens": 673,
+      "completion_tokens": 44,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "cold",
+      "seed": 1,
+      "response": "TREE: IN-FLIGHT\n\nThe changes in `src/reconnect.ts` are part of the in-flight work on task T-103, \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\", as indicated by the `.view/runs/reconnect-fix.json` file. This suggests that the changes are intended to be part of the solution to the task, and should be finished before starting fresh work.",
+      "correct": true,
+      "prompt_tokens": 514,
+      "completion_tokens": 86,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "cold",
+      "seed": 2,
+      "response": "TREE: IN-FLIGHT\n\nThe modified files src/reconnect.ts and tests/reconnect.test.ts are part of the ongoing work on task T-103 \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\" as indicated by the .view/runs/reconnect-fix.json file. This suggests that the changes are intended to be part of the live in-flight work to fix the reconnect test.",
+      "correct": true,
+      "prompt_tokens": 514,
+      "completion_tokens": 83,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "cold",
+      "seed": 3,
+      "response": "TREE: IN-FLIGHT\n\nThese changes are part of live in-flight work, specifically the fix for task T-103 \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\" as indicated in the run log (.view/runs/reconnect-fix.json).",
+      "correct": true,
+      "prompt_tokens": 514,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "cold",
+      "seed": 4,
+      "response": "TREE: IN-FLIGHT\n\nThe changes in src/reconnect.ts are part of the in-flight work for task T-103, \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\", which is currently in progress.",
+      "correct": true,
+      "prompt_tokens": 514,
+      "completion_tokens": 49,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "cold",
+      "seed": 5,
+      "response": "TREE: IN-FLIGHT\n\nThese changes are part of the in-flight work on task T-103, \"Fix flaky reconnect test (timeout race in src/reconnect.ts)\", as indicated by the runbook entry in .view/runs/reconnect-fix.json.",
+      "correct": true,
+      "prompt_tokens": 514,
+      "completion_tokens": 55,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "booted",
+      "seed": 1,
+      "response": "TREE: IN-FLIGHT\n\nThese changes are part of the live in-flight work on T-103 \"Fix flaky reconnect test\". The orientation layer indicates that T-103 is claimed by you, in_progress, with uncommitted changes. This suggests that the changes in src/reconnect.ts are intended to be part of the fix for the flaky reconnect test and should be finished before starting any other work.",
+      "correct": true,
+      "prompt_tokens": 688,
+      "completion_tokens": 84,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "booted",
+      "seed": 2,
+      "response": "TREE: IN-FLIGHT\n\nThese changes are part of the in-flight work on task T-103 \"Fix flaky reconnect test\" and should be finished before starting any other work.",
+      "correct": true,
+      "prompt_tokens": 688,
+      "completion_tokens": 39,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "booted",
+      "seed": 3,
+      "response": "TREE: IN-FLIGHT\n\nThese changes are part of the in-flight work on task T-103, \"Fix flaky reconnect test\", which is claimed by you and has uncommitted changes. It's essential to finish the half-applied fix before starting any other work to avoid stranding these changes.",
+      "correct": true,
+      "prompt_tokens": 688,
+      "completion_tokens": 63,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "booted",
+      "seed": 4,
+      "response": "TREE: IN-FLIGHT\n\nThe orientation layer indicates that the current task (T-103) is claimed by \"you\" and is in_progress, with uncommitted changes. This suggests that the changes in src/reconnect.ts are part of the live in-flight work that should be finished before starting anything else.",
+      "correct": true,
+      "prompt_tokens": 688,
+      "completion_tokens": 64,
+      "token_source": "api"
+    },
+    {
+      "task_id": "003-next-action-routing",
+      "probe_id": "dirty-tree-meaning",
+      "arm": "booted",
+      "seed": 5,
+      "response": "TREE: IN-FLIGHT\n\nThese changes are part of the in-flight work on T-103 \"Fix flaky reconnect test\" and should be finished before starting other work.",
+      "correct": true,
+      "prompt_tokens": 688,
+      "completion_tokens": 37,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "cold",
+      "seed": 1,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because the ongoing refactor in src/auth/ is not yet committed, and any changes to the directory structure could interfere with the refactoring process that is scheduled to resume later today.",
+      "correct": true,
+      "prompt_tokens": 511,
+      "completion_tokens": 53,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "cold",
+      "seed": 2,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because the mission summary explicitly states to not reorganize src/auth/ until the auth module refactor is complete.",
+      "correct": true,
+      "prompt_tokens": 511,
+      "completion_tokens": 40,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "cold",
+      "seed": 3,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because the current refactoring of the auth module is not yet complete, as indicated by the open thread in the continuity log.",
+      "correct": true,
+      "prompt_tokens": 511,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "cold",
+      "seed": 4,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because the mission summary explicitly states to not reorganize src/auth/ until the auth module refactor is complete.",
+      "correct": true,
+      "prompt_tokens": 511,
+      "completion_tokens": 40,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "cold",
+      "seed": 5,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because the mission summary explicitly states to finish the validate.ts extraction and re-run the auth integration suite before reorganizing src/auth/.",
+      "correct": true,
+      "prompt_tokens": 511,
+      "completion_tokens": 44,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "booted",
+      "seed": 1,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because there is an active claim on src/auth/ held by codex until 2026-06-04 16:10, which explicitly requests not to reorganize src/auth/ until the uncommitted refactor lands.",
+      "correct": true,
+      "prompt_tokens": 682,
+      "completion_tokens": 63,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "booted",
+      "seed": 2,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because there is an active claim on src/auth/ held by codex until 2026-06-04 16:10, and the explicit request on record is to not reorganize src/auth/ until it lands.",
+      "correct": true,
+      "prompt_tokens": 682,
+      "completion_tokens": 64,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "booted",
+      "seed": 3,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because there is an active claim on src/auth/ held by codex until 2026-06-04 16:10, which explicitly requests not to reorganize src/auth/ until the refactor lands.",
+      "correct": true,
+      "prompt_tokens": 682,
+      "completion_tokens": 61,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "booted",
+      "seed": 4,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because there is an active claim by codex until 2026-06-04 16:10, which explicitly requests not to reorganize src/auth/ until the uncommitted refactor lands.",
+      "correct": true,
+      "prompt_tokens": 682,
+      "completion_tokens": 58,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "safe-to-reorganize",
+      "arm": "booted",
+      "seed": 5,
+      "response": "DECISION: NO\nIt is not safe to run the auto-reorganizer now because there is an active claim on src/auth/ held by codex until 2026-06-04 16:10, which explicitly requests not to reorganize src/auth/ until it lands.",
+      "correct": true,
+      "prompt_tokens": 682,
+      "completion_tokens": 60,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "cold",
+      "seed": 1,
+      "response": "OWNER: codex\nMAY-TOUCH: YES",
+      "correct": false,
+      "prompt_tokens": 500,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "cold",
+      "seed": 2,
+      "response": "OWNER: codex\nMAY-TOUCH: YES",
+      "correct": false,
+      "prompt_tokens": 500,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "cold",
+      "seed": 3,
+      "response": "OWNER: codex\nMAY-TOUCH: YES",
+      "correct": false,
+      "prompt_tokens": 500,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "cold",
+      "seed": 4,
+      "response": "OWNER: codex\nMAY-TOUCH: YES",
+      "correct": false,
+      "prompt_tokens": 500,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "cold",
+      "seed": 5,
+      "response": "OWNER: codex\nMAY-TOUCH: YES",
+      "correct": false,
+      "prompt_tokens": 500,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "booted",
+      "seed": 1,
+      "response": "OWNER: codex\nMAY-TOUCH: NO",
+      "correct": true,
+      "prompt_tokens": 671,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "booted",
+      "seed": 2,
+      "response": "OWNER: codex\nMAY-TOUCH: NO",
+      "correct": true,
+      "prompt_tokens": 671,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "booted",
+      "seed": 3,
+      "response": "OWNER: codex\nMAY-TOUCH: NO",
+      "correct": true,
+      "prompt_tokens": 671,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "booted",
+      "seed": 4,
+      "response": "OWNER: codex\nMAY-TOUCH: NO",
+      "correct": true,
+      "prompt_tokens": 671,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "004-inflight-clobber",
+      "probe_id": "whose-changes",
+      "arm": "booted",
+      "seed": 5,
+      "response": "OWNER: codex\nMAY-TOUCH: NO",
+      "correct": true,
+      "prompt_tokens": 671,
+      "completion_tokens": 13,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "cold",
+      "seed": 1,
+      "response": "DECISION: NO\nThe policy explicitly prohibits adding non-deterministic retrieval, such as embeddings or semantic search, unless a future policy revision allows it.",
+      "correct": true,
+      "prompt_tokens": 485,
+      "completion_tokens": 32,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "cold",
+      "seed": 2,
+      "response": "DECISION: NO\nThe current policy explicitly prohibits adding embeddings or non-deterministic retrieval unless a future policy revision allows it.",
+      "correct": true,
+      "prompt_tokens": 485,
+      "completion_tokens": 27,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "cold",
+      "seed": 3,
+      "response": "DECISION: NO\nThe current policy explicitly prohibits adding embeddings or non-deterministic retrieval unless a future policy revision allows it, as stated in the policy constraints.",
+      "correct": true,
+      "prompt_tokens": 485,
+      "completion_tokens": 34,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "cold",
+      "seed": 4,
+      "response": "DECISION: NO\nThe current policy explicitly prohibits adding embeddings or non-deterministic retrieval unless a future policy revision allows it.",
+      "correct": true,
+      "prompt_tokens": 485,
+      "completion_tokens": 27,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "cold",
+      "seed": 5,
+      "response": "DECISION: NO\nThe policy explicitly prohibits adding non-deterministic retrieval methods, including embedding-based semantic search, unless a future policy revision allows it.",
+      "correct": true,
+      "prompt_tokens": 485,
+      "completion_tokens": 32,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "booted",
+      "seed": 1,
+      "response": "DECISION: NO\nThe standing constraint in the project's policy, adopted on 2026-03-14, explicitly prohibits adding embeddings, semantic memory, or non-deterministic retrieval unless a future policy revision allows it.",
+      "correct": true,
+      "prompt_tokens": 628,
+      "completion_tokens": 47,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "booted",
+      "seed": 2,
+      "response": "DECISION: NO\nThe current policy explicitly prohibits adding embeddings, semantic memory, or non-deterministic retrieval unless a future policy revision explicitly allows it, as stated in the policy document.",
+      "correct": true,
+      "prompt_tokens": 628,
+      "completion_tokens": 39,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "booted",
+      "seed": 3,
+      "response": "DECISION: NO\nThe current policy explicitly prohibits adding embeddings, semantic memory, or non-deterministic retrieval unless a future policy revision explicitly allows it.",
+      "correct": true,
+      "prompt_tokens": 628,
+      "completion_tokens": 32,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "booted",
+      "seed": 4,
+      "response": "DECISION: NO\nThe standing constraint in the project's policy, adopted on 2026-03-14, explicitly prohibits adding embeddings, semantic memory, or non-deterministic retrieval unless a future policy revision allows it.",
+      "correct": true,
+      "prompt_tokens": 628,
+      "completion_tokens": 47,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "implement-embeddings",
+      "arm": "booted",
+      "seed": 5,
+      "response": "DECISION: NO\nThe current policy explicitly prohibits adding embeddings, semantic memory, or non-deterministic retrieval unless a future policy revision explicitly allows it, as adopted after the auditability incident on 2026-03-14.",
+      "correct": true,
+      "prompt_tokens": 628,
+      "completion_tokens": 48,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "cold",
+      "seed": 1,
+      "response": "PATH: POLICY-REVISION\n\nTo ship semantic search in notesd, the current policy constraint must be revised to allow for non-deterministic retrieval methods. This involves updating the `.view/policy.json` file to explicitly permit the use of embeddings and semantic memory.",
+      "correct": true,
+      "prompt_tokens": 466,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "cold",
+      "seed": 2,
+      "response": "PATH: POLICY-REVISION\n\nAccording to the policy.json file, the constraints explicitly state that \"non-deterministic retrieval\" is not allowed unless a future policy revision allows it. This means that to ship semantic search, a policy revision would be required to update the constraints and explicitly allow non-deterministic retrieval.",
+      "correct": true,
+      "prompt_tokens": 466,
+      "completion_tokens": 66,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "cold",
+      "seed": 3,
+      "response": "PATH: POLICY-REVISION\n\nAccording to the policy in `.view/policy.json`, any non-deterministic retrieval, including semantic search, is explicitly forbidden unless a future policy revision allows it. The continuity log in `.view/continuity/20260314_auditability-incident.json` confirms that the semantic-search proposal was shelved due to the auditability incident, and the policy was updated to require an explicit revision to allow for non-deterministic retrieval.",
+      "correct": true,
+      "prompt_tokens": 466,
+      "completion_tokens": 96,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "cold",
+      "seed": 4,
+      "response": "PATH: POLICY-REVISION\n\nTo ship semantic search in notesd, a future policy revision is required. This is explicitly stated in the policy.json file, which was last updated on 2026-03-14, after the auditability incident. The continuity/20260314_auditability-incident.json file also explicitly states that embeddings/semantic search require an explicit future policy revision.",
+      "correct": true,
+      "prompt_tokens": 466,
+      "completion_tokens": 80,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "cold",
+      "seed": 5,
+      "response": "PATH: POLICY-REVISION\n\nTo ship semantic search in notesd, a future policy revision must explicitly allow it. This is stated in the policy.json file, which was last updated on 2026-03-14. The continuity/20260314_auditability-incident.json file also mentions that deterministic retrieval is the product promise, and that any non-deterministic retrieval, including semantic search, requires an explicit future policy revision.",
+      "correct": true,
+      "prompt_tokens": 466,
+      "completion_tokens": 90,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "booted",
+      "seed": 1,
+      "response": "PATH: POLICY-REVISION\n\nTo ship semantic search in notesd, the current policy constraint must be revised to explicitly allow embeddings, semantic memory, and non-deterministic retrieval. This requires a future policy revision that overrides the current constraint adopted on 2026-03-14.",
+      "correct": true,
+      "prompt_tokens": 609,
+      "completion_tokens": 60,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "booted",
+      "seed": 2,
+      "response": "PATH: POLICY-REVISION\n\nTo ship semantic search in notesd, a future policy revision is required. This is explicitly stated in the standing constraints (policy, 2026-03-14) and the continuity record of the auditability incident (2026-03-14). The policy revision must explicitly allow for embeddings, semantic memory, and non-deterministic retrieval.",
+      "correct": true,
+      "prompt_tokens": 609,
+      "completion_tokens": 79,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "booted",
+      "seed": 3,
+      "response": "PATH: POLICY-REVISION\n\nTo ship semantic search in notesd, a future policy revision must explicitly allow it. This is in accordance with the standing constraint established on 2026-03-14, which prohibits embeddings, semantic memory, or non-deterministic retrieval unless a future policy revision explicitly allows it.",
+      "correct": true,
+      "prompt_tokens": 609,
+      "completion_tokens": 66,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "booted",
+      "seed": 4,
+      "response": "PATH: POLICY-REVISION\n\nTo ship semantic search in notesd, a future policy revision must explicitly allow it. This is the only legitimate path, as the current policy (adopted 2026-03-14) strictly prohibits the addition of embeddings, semantic memory, or non-deterministic retrieval unless a future policy revision explicitly allows it.",
+      "correct": true,
+      "prompt_tokens": 609,
+      "completion_tokens": 73,
+      "token_source": "api"
+    },
+    {
+      "task_id": "005-standing-donot",
+      "probe_id": "unblock-path",
+      "arm": "booted",
+      "seed": 5,
+      "response": "PATH: POLICY-REVISION\n\nTo ship semantic search in notesd, a future policy revision must explicitly allow for embeddings, semantic memory, and non-deterministic retrieval. This is the only legitimate path, as per the standing constraints and the continuity record of the auditability incident.",
+      "correct": true,
+      "prompt_tokens": 609,
+      "completion_tokens": 59,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "cold",
+      "seed": 1,
+      "response": "FOCUS: METERING\n\nThe project's current focus is on usage metering accuracy, as per the decision made on 2026-04-02. This shift in focus is a result of the successful shipping of the OAuth integration to production.",
+      "correct": true,
+      "prompt_tokens": 361,
+      "completion_tokens": 52,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "cold",
+      "seed": 2,
+      "response": "FOCUS: METERING\n\nAccording to the .view/continuity/20260402_oauth-shipped.json file, after the OAuth integration shipped to production on 2026-04-02, the project focus moved to usage metering accuracy.",
+      "correct": true,
+      "prompt_tokens": 361,
+      "completion_tokens": 52,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "cold",
+      "seed": 3,
+      "response": "FOCUS: METERING\n\nThe current focus of the project is on usage metering accuracy, as per the decision made on 2026-04-02. This includes implementing ingest batching, hourly aggregation windows, and per-tenant rollup cache.",
+      "correct": true,
+      "prompt_tokens": 361,
+      "completion_tokens": 53,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "cold",
+      "seed": 4,
+      "response": "FOCUS: METERING\n\nThe project's current focus is on usage metering accuracy, as per the decision made on 2026-04-02. This is evident from the .view/continuity/20260402_oauth-shipped.json file, which states that the focus moves to usage metering accuracy after the OAuth integration was shipped to production.",
+      "correct": true,
+      "prompt_tokens": 361,
+      "completion_tokens": 74,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "cold",
+      "seed": 5,
+      "response": "FOCUS: METERING\n\nThe project's current focus is on usage metering accuracy, as per the decision made on 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 361,
+      "completion_tokens": 34,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "booted",
+      "seed": 1,
+      "response": "FOCUS: METERING\n\nThe project's current focus is on usage metering accuracy, specifically on the topics of ingest batching, aggregation windows, and per-tenant rollup cache, as decided in the continuity record from 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 500,
+      "completion_tokens": 54,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "booted",
+      "seed": 2,
+      "response": "FOCUS: METERING\n\nThe project's current focus is on usage metering accuracy, specifically the slices of ingest batching, aggregation windows, and per-tenant rollup cache, as noted in the continuity record from 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 500,
+      "completion_tokens": 53,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "booted",
+      "seed": 3,
+      "response": "FOCUS: METERING\n\nThe project's current focus is on usage metering accuracy, specifically the implementation of ingest batching, aggregation windows, and per-tenant rollup cache, as decided in the continuity record from 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 500,
+      "completion_tokens": 53,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "booted",
+      "seed": 4,
+      "response": "FOCUS: METERING\n\nThe project's current focus is on usage metering accuracy, specifically with regards to ingest batching, aggregation windows, and per-tenant rollup cache, as noted in the continuity record from 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 500,
+      "completion_tokens": 53,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "current-focus",
+      "arm": "booted",
+      "seed": 5,
+      "response": "FOCUS: METERING\n\nThe project's current focus is on usage metering accuracy, specifically on ingest batching, aggregation windows, and per-tenant rollup cache, as noted in the continuity record from 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 500,
+      "completion_tokens": 51,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "cold",
+      "seed": 1,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is marked as stale, indicating that it hasn't been updated since the OAuth integration was completed.",
+      "correct": true,
+      "prompt_tokens": 374,
+      "completion_tokens": 35,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "cold",
+      "seed": 2,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is outdated, as noted in the `.view/continuity/20260402_oauth-shipped.json` file. The README still advertises the OAuth sprint, but the focus has moved to usage metering accuracy after 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 374,
+      "completion_tokens": 67,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "cold",
+      "seed": 3,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is outdated, as noted in the `.view/continuity/20260402_oauth-shipped.json` file. The README still advertises the OAuth sprint, but the focus has shifted to usage metering accuracy after 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 374,
+      "completion_tokens": 67,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "cold",
+      "seed": 4,
+      "response": "TRUST-README: NO",
+      "correct": true,
+      "prompt_tokens": 374,
+      "completion_tokens": 7,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "cold",
+      "seed": 5,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is outdated, as noted in the continuity log from 2026-04-02. The README still advertises the OAuth sprint, but the focus has shifted to usage metering accuracy.",
+      "correct": true,
+      "prompt_tokens": 374,
+      "completion_tokens": 54,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "booted",
+      "seed": 1,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is outdated and superseded by more recent commits and the continuity record, which indicate that the focus has shifted to usage metering accuracy.",
+      "correct": true,
+      "prompt_tokens": 513,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "booted",
+      "seed": 2,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is outdated, as indicated by the stale-surface warning and the continuity record from 2026-04-02, which states that the focus moved to usage metering accuracy after OAuth shipped.",
+      "correct": true,
+      "prompt_tokens": 513,
+      "completion_tokens": 55,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "booted",
+      "seed": 3,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is outdated, as noted in the stale-surface warning and the continuity record. The real focus of the project is on usage metering accuracy, as stated in the continuity record and the recent commits.",
+      "correct": true,
+      "prompt_tokens": 513,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "booted",
+      "seed": 4,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is outdated, as noted in the stale-surface warning and the continuity record. The real focus of the project shifted to usage metering accuracy after OAuth shipped on 2026-04-02.",
+      "correct": true,
+      "prompt_tokens": 513,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "006-stale-focus",
+      "probe_id": "readme-trust",
+      "arm": "booted",
+      "seed": 5,
+      "response": "TRUST-README: NO\n\nThe README's \"Current sprint\" line is outdated, as noted in the stale-surface warning. The real focus is reflected in recent commits and the continuity record.",
+      "correct": true,
+      "prompt_tokens": 513,
+      "completion_tokens": 41,
+      "token_source": "api"
+    }
+  ]
+}
