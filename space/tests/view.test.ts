@@ -680,7 +680,7 @@ describe("WorkspaceView", () => {
     await view().startRun({ goal: "test blocked" });
     await view().logRun({ summary: "step", changedPaths: ["README.md"] });
 
-    const run = await view().finishRun({ status: "blocked" });
+    const run = await view().finishRun({ status: "blocked", cause: "waiting on the upstream fix" });
     expect(run.status).toBe("blocked");
   });
 
@@ -716,7 +716,7 @@ describe("WorkspaceView", () => {
     await view().sync();
     await view().startRun({ goal: "test blocked-unlogged" });
 
-    const run = await view().finishRun({ status: "blocked" });
+    const run = await view().finishRun({ status: "blocked", cause: "waiting on the upstream fix" });
     expect(run.status).toBe("blocked");
   });
 
@@ -1090,7 +1090,7 @@ describe("run claim lifecycle (57e37682)", () => {
     await writeFile(path.join(root, "README.md"), "# Demo\n");
     await view().sync();
     await view().startRun({ goal: "stuck work", claim: ["README.md"] });
-    await view().finishRun({ status: "blocked" });
+    await view().finishRun({ status: "blocked", cause: "waiting on the upstream fix" });
 
     expect(await view().listSignals({ includeExpired: true })).toHaveLength(0);
     expect(await view().listArchivedSignals()).toHaveLength(1);

@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-import type { AuditReport } from "@seedrop/space";
+import type { AuditReport, Grave } from "@seedrop/space";
 import type { PassportSource } from "./active-passport.js";
 import { buildContinuity, type ContinuityReport } from "./continuity.js";
 import type { RunCliIO } from "./router.js";
@@ -101,6 +101,13 @@ export interface Situation {
     recommended_reads: Array<{ path: string; reason: string; priority: number }>;
     open_threads: Array<{ summary: string; ref?: string; source: "continuity" | "run" | "handoff" }>;
     relevant_files: string[];
+    /**
+     * Prior attempts in this repo that died, narrowed to the paths in play when
+     * any overlap. Deliberately placed in `attention` rather than history: an
+     * agent about to touch a file wants to know what already failed there
+     * before it re-derives the same dead end. Git cannot answer this.
+     */
+    graves: Grave[];
     warnings: string[];
     constraints: string[];
   };
@@ -454,6 +461,7 @@ function buildSituation(
       recommended_reads: recommendedReads(continuity),
       open_threads: openThreads(continuity),
       relevant_files: relevantFiles(report, continuity),
+      graves: relevantGraves(continuity, relevantFiles(report, continuity)),
       warnings: report.safety.warnings.slice(0, 5),
       constraints: situationConstraints(continuity),
     },
@@ -594,6 +602,28 @@ function relevantFiles(
   ];
   const dirty = report.safety.uncommitted_paths;
   return uniqueStrings([...dirty, ...changed, ...reads]).slice(0, 8);
+}
+
+/**
+ * Narrow the repo's dead runs to the ones worth spending boot tokens on.
+ *
+ * Path-overlapping graves come first — "this exact file has killed two prior
+ * attempts" is the highest-value thing the graveyard knows. When nothing
+ * overlaps we still surface the two most recent, because at cold start the mere
+ * existence of recent failures is orienting. Capped at 3: the graveyard is
+ * context, not the mission.
+ */
+function relevantGraves(continuity: ContinuityReport, relevant: readonly string[]): Grave[] {
+  const graves = continuity.graves ?? [];
+  if (graves.length === 0) return [];
+  const scope = new Set(relevant);
+  const overlapping: Grave[] = [];
+  for (const grave of graves) {
+    const hits = grave.changed_paths.filter((p) => scope.has(p));
+    if (hits.length > 0) overlapping.push({ ...grave, overlapping_paths: hits });
+  }
+  if (overlapping.length > 0) return overlapping.slice(0, 3);
+  return graves.slice(0, 2);
 }
 
 function situationConstraints(continuity: ContinuityReport): string[] {

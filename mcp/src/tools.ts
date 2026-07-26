@@ -44,6 +44,11 @@ function strArrayArg(args: Record<string, unknown>, key: string): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
 }
 
+function numArg(args: Record<string, unknown>, key: string): number | undefined {
+  const v = args[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
 function pushStringFlag(cmd: string[], args: Record<string, unknown>, key: string, flag: string): void {
   const value = strArg(args, key);
   if (value) cmd.push(flag, value);
@@ -268,6 +273,54 @@ export const tools: ToolDef[] = [
     },
     async handler(args) {
       return exec(["view", "audit", "--json"], strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_view_graves",
+    description: desc(
+      "seed view graves [--path P]... [--limit N] --json",
+      "Prior attempts in this repo that failed or were abandoned, with their cause of death. Pass the paths you are about to modify to see what already died there. This is the one class of evidence git cannot supply — the repo records what survived, never what was tried and rejected. Returns JSON.",
+    ),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: "Repo-relative paths you are about to touch. Omit for the most recent graves overall.",
+        },
+        limit: { type: "number", description: "Max graves to return (default 5)." },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["view", "graves", "--json"];
+      for (const p of strArrayArg(args, "paths")) cmd.push("--path", p);
+      const limit = numArg(args, "limit");
+      if (limit !== undefined) cmd.push("--limit", String(limit));
+      return exec(cmd, strArg(args, "cwd"));
+    },
+  },
+  {
+    name: "seedrop_run_sweep",
+    description: desc(
+      "seed run sweep [--older-than-hours N] --json",
+      "Mark runs abandoned in_progress past a threshold (default 72h) as failed, with an inferred cause. Crashed or forgotten sessions are the most common real failures and the least likely to be reported; sweeping is how they reach the graveyard. Returns JSON.",
+    ),
+    inputSchema: {
+      type: "object",
+      properties: {
+        cwd: { type: "string" },
+        older_than_hours: { type: "number", description: "Idle threshold in hours (default 72)." },
+      },
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["run", "sweep", "--json"];
+      const hours = numArg(args, "older_than_hours");
+      if (hours !== undefined) cmd.push("--older-than-hours", String(hours));
+      return exec(cmd, strArg(args, "cwd"));
     },
   },
   {

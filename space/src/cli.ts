@@ -219,6 +219,24 @@ async function run(args: ParsedArgs): Promise<void> {
     return;
   }
 
+  if (command === "graves") {
+    const graves = await view.listGraves({
+      paths: args.flags.get("path"),
+      limit: Number(args.flags.get("limit")?.[0] ?? "5") || 5,
+    });
+    if (args.flags.has("json")) printJson({ graves });
+    else if (graves.length === 0) console.log("no dead runs recorded.");
+    else {
+      for (const g of graves) {
+        const mark = g.swept ? "swept" : "reported";
+        console.log(`✝ [${g.status}/${mark}] ${g.goal}`);
+        console.log(`  cause: ${g.cause ?? "(none recorded)"}`);
+        console.log(`  ${g.agent_id} · ${g.finished_at.slice(0, 10)} · ${g.changed_paths.length} path(s)`);
+      }
+    }
+    return;
+  }
+
   if (command === "explain") {
     const topic = args.values[0];
     if (!topic) throw new Error("seed view explain requires a topic: a path, or 'success'");
@@ -515,10 +533,17 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
         status: runFinishStatus(args.flags.get("status")?.[0] ?? args.values[0]),
         force: args.flags.has("force"),
         runId: args.flags.get("run-id")?.[0],
+        cause: args.flags.get("cause")?.[0],
         handoffTo: args.flags.get("handoff-to")?.[0],
         handoffNote: args.flags.get("handoff-note")?.[0],
       }),
     );
+    return;
+  }
+  if (command === "sweep") {
+    const hours = Number(args.flags.get("older-than-hours")?.[0] ?? "72");
+    const swept = await view.sweepOrphanedRuns({ olderThanHours: Number.isFinite(hours) ? hours : 72 });
+    printJson({ swept_count: swept.length, swept });
     return;
   }
   throw new Error(`Unknown run command: ${command ?? ""}`);
@@ -887,7 +912,10 @@ Commands:
   run decision TEXT            Record a run decision
   run thread TEXT              Record an open thread
   run verify --command C --status passed|failed|skipped
-  run finish --status completed|blocked|failed [--force]
+  run finish --status completed [--force]
+  run finish --status failed|blocked --cause "<one line>"
+  run sweep [--older-than-hours N]   Mark abandoned in_progress runs failed (default 72h)
+  graves [--path P]... [--limit N]   Dead runs, optionally scoped to paths you're about to touch
   task update <id> [--description TEXT] [--assigned-note TEXT] [--from-knowledge REF] [--blocked-by ID] [--replace-blocked-by]
   claim <target> <intent>      Create a claim signal lease
   lock <target> <intent>       Create a lock signal lease

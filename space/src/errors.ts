@@ -81,6 +81,45 @@ export class WorkspaceRunUnloggedChangesError extends WorkspaceViewError {
   }
 }
 
+/**
+ * Thrown when a run is finished `failed` or `blocked` without a cause line.
+ *
+ * This is the only gate on a non-completed finish, and it is deliberately the
+ * cheapest one in the system: no dirty-tree check, no changed_paths
+ * requirement, no committed work. One sentence about why it died. A graveyard
+ * of causeless corpses tells a later agent that something was tried here but
+ * not what to avoid, which is worse than no record at all — it costs a read
+ * and returns nothing.
+ */
+export class WorkspaceRunMissingCauseError extends WorkspaceViewError {
+  constructor(public readonly status: "failed" | "blocked") {
+    const verb = status === "failed" ? "failed" : "blocked";
+    super(
+      `Cannot mark run ${verb} without a cause. Pass one line saying what went wrong — that is the entire cost of recording this, and it is the only part a later agent needs.\n` +
+        `A dead run with no cause is worse than no record: it proves something was tried here without saying what to avoid.`,
+      {
+        recovery: [
+          {
+            kind: "command",
+            command: `seed run finish --status ${status} --cause "<what went wrong, one line>"`,
+            risk: "low",
+            requires_human: false,
+            reason: "Record the cause of death. No other evidence is required — failing is cheaper than completing.",
+          },
+          {
+            kind: "command",
+            command: "seed run finish --status completed",
+            risk: "low",
+            requires_human: true,
+            reason: "If the work actually succeeded, complete it instead (this path does gate on uncommitted changed paths).",
+          },
+        ],
+      },
+    );
+    this.name = "WorkspaceRunMissingCauseError";
+  }
+}
+
 export class TaskNotFoundError extends WorkspaceViewError {
   constructor(public readonly taskId: string) {
     super(`Task not found: ${taskId}`, {

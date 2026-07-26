@@ -166,6 +166,15 @@ export const RunJournalSchema = z
     started_at: IsoDateTime,
     updated_at: IsoDateTime,
     finished_at: IsoDateTime.optional(),
+    /**
+     * Cause of death. Required when a run finishes `failed` or `blocked` — it
+     * is the whole cost of recording a failure, and the only part of a dead run
+     * that a later agent actually needs. Deliberately one line: the graveyard
+     * is worthless if filling it feels like writing a post-mortem.
+     */
+    cause: z.string().min(1).max(500).optional(),
+    /** True when a sweeper marked this run failed because it was abandoned in_progress. */
+    swept: z.boolean().optional(),
     steps: z.array(RunStepSchema),
     decisions: z.array(z.string().min(1)),
     assumptions: z.array(z.string().min(1)),

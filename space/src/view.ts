@@ -11,6 +11,7 @@ import {
   TaskNotFoundError,
   WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
+  WorkspaceRunMissingCauseError,
   WorkspaceRunOwnershipError,
   WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
@@ -116,6 +117,7 @@ export {
   TaskNotFoundError,
   WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
+  WorkspaceRunMissingCauseError,
   WorkspaceRunOwnershipError,
   WorkspaceRunTaskConflictError,
   WorkspaceRunUnloggedChangesError,
@@ -209,12 +211,37 @@ export interface RunVerifyInput {
   runId?: string;
 }
 
+/**
+ * A dead run, reduced to what a later agent actually needs: what was attempted,
+ * what killed it, and where it touched. The negative counterpart to git history
+ * — git records what survived, the graveyard records what was tried and abandoned.
+ */
+export interface Grave {
+  run_id: string;
+  agent_id: string;
+  goal: string;
+  status: "failed" | "blocked";
+  /** One-line cause of death; null only for runs recorded before causes were required. */
+  cause: string | null;
+  /** True when a sweeper inferred the death rather than the agent reporting it. */
+  swept: boolean;
+  finished_at: string;
+  changed_paths: string[];
+  /** Present only when the query was path-scoped: which of `paths` this grave touches. */
+  overlapping_paths?: string[];
+}
+
 export interface RunFinishInput {
   status: "completed" | "blocked" | "failed";
   nextActions?: NextAction[];
   agent?: string;
   force?: boolean;
   runId?: string;
+  /**
+   * Cause of death, required for `failed` and `blocked`. One line. This is the
+   * only gate on a non-completed finish — see WorkspaceRunMissingCauseError.
+   */
+  cause?: string;
   /** Create a task assigned to this agent carrying the run's evidence (ADR 0001: handoffs are tasks). */
   handoffTo?: string;
   /** Optional note for the assigned handoff task; defaults to the run goal. */
@@ -819,6 +846,14 @@ export class WorkspaceView {
     const resolvedAgent = input.agent ?? this.agent;
     return await this.mutateRun(selected.run_id, async (run) => {
       this.assertRunOwner(run, resolvedAgent);
+      // Asymmetric on purpose. Completing is gated on committed work; dying only
+      // costs one line. Failure has to be the path of least resistance or the
+      // graveyard stays empty and the corpus becomes a highlight reel.
+      if (input.status === "failed" || input.status === "blocked") {
+        const cause = input.cause?.trim();
+        if (!cause) throw new WorkspaceRunMissingCauseError(input.status);
+        run.cause = cause;
+      }
       if (input.status === "completed" && !input.force) {
         const gitDirty = this.gitDirtyState();
         // Gate only on tracked changes. Untracked files are usually scratch
@@ -895,6 +930,81 @@ export class WorkspaceView {
   async listRuns(): Promise<RunJournal[]> {
     const { runs } = await this.listRunsWithErrors();
     return runs;
+  }
+
+  /**
+   * Mark long-abandoned `in_progress` runs as failed.
+   *
+   * An agent that crashes, loses its session, or simply moves on leaves a run
+   * open forever. Those are the most common real failures and the least likely
+   * to be recorded, because nobody comes back to a dead session to file a
+   * report. Sweeping them is how the graveyard gets the deaths nobody was
+   * around to witness.
+   *
+   * Swept runs are marked `swept: true` so they read as inferred rather than
+   * reported — a later agent should trust a hand-written cause more than
+   * "nobody touched this for a week".
+   */
+  async sweepOrphanedRuns(opts: { olderThanHours?: number; now?: Date } = {}): Promise<RunJournal[]> {
+    const olderThanHours = opts.olderThanHours ?? 72;
+    const cutoff = (opts.now ?? new Date(this.nowIso())).getTime() - olderThanHours * 3_600_000;
+    const runs = await this.listRuns();
+    const swept: RunJournal[] = [];
+    for (const candidate of runs) {
+      if (candidate.status !== "in_progress") continue;
+      const lastTouched = Date.parse(candidate.updated_at || candidate.started_at);
+      if (Number.isNaN(lastTouched) || lastTouched > cutoff) continue;
+      const idleHours = Math.floor(((opts.now ?? new Date(this.nowIso())).getTime() - lastTouched) / 3_600_000);
+      const updated = await this.mutateRun(candidate.run_id, async (run) => {
+        run.status = "failed";
+        run.finished_at = this.nowIso();
+        run.swept = true;
+        run.cause = `abandoned: no activity for ${idleHours}h (swept, not reported by the agent)`;
+        try {
+          await this.releaseRunClaims(run);
+        } catch {
+          // intentional: claim cleanup must never fail a sweep
+        }
+      });
+      swept.push(updated);
+    }
+    return swept;
+  }
+
+  /**
+   * Dead runs relevant to the paths an agent is about to touch.
+   *
+   * This is the whole point of recording failures. "Three prior approaches
+   * touched this area and all three died, here is what killed them" is the one
+   * thing a fresh agent cannot derive from git, the repo, or the file it is
+   * about to edit — git shows what survived, never what was abandoned.
+   *
+   * Ranked most-recent-first, filtered to runs whose changed_paths intersect
+   * `paths` when given, otherwise the most recent graves overall.
+   */
+  async listGraves(opts: { paths?: readonly string[]; limit?: number } = {}): Promise<Grave[]> {
+    const limit = opts.limit ?? 5;
+    const runs = await this.listRuns();
+    const scope = opts.paths?.length ? new Set(opts.paths.map((p) => p.replace(/^\.\//, ""))) : null;
+    const graves: Grave[] = [];
+    for (const run of runs) {
+      if (run.status !== "failed" && run.status !== "blocked") continue;
+      const overlap = scope ? run.changed_paths.filter((p) => scope.has(p)) : [];
+      if (scope && overlap.length === 0) continue;
+      graves.push({
+        run_id: run.run_id,
+        agent_id: run.agent_id,
+        goal: run.goal,
+        status: run.status,
+        cause: run.cause ?? null,
+        swept: run.swept === true,
+        finished_at: run.finished_at ?? run.updated_at,
+        changed_paths: run.changed_paths,
+        ...(scope ? { overlapping_paths: overlap } : {}),
+      });
+    }
+    graves.sort((a, b) => b.finished_at.localeCompare(a.finished_at));
+    return graves.slice(0, limit);
   }
 
   async listRunsWithErrors(): Promise<{ runs: RunJournal[]; malformed: Array<{ filename: string; error: string }> }> {

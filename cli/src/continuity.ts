@@ -3,7 +3,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { WorkspaceView, type AuditReport, type ContinuityPacket as SpaceContinuityPacket, type ViewBrief as SpaceViewBrief, type ViewCheck } from "@seedrop/space";
+import { WorkspaceView, type AuditReport, type ContinuityPacket as SpaceContinuityPacket, type Grave, type ViewBrief as SpaceViewBrief, type ViewCheck } from "@seedrop/space";
 import type { PassportSource } from "./active-passport.js";
 import { readContinuityState, writeContinuityState } from "./continuity-state.js";
 import type { RunCliIO } from "./router.js";
@@ -228,6 +228,11 @@ export interface ContinuityReport {
    * detection must run `seed view audit` explicitly.
    */
   cachedAudit: AuditReport | null;
+  /**
+   * Dead runs (failed/blocked) in this repo, most recent first. Unscoped here;
+   * boot narrows to the paths in play. Empty when no View is present.
+   */
+  graves: Grave[];
   daemon: {
     url: string;
     reachable: boolean;
@@ -281,6 +286,15 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   // of running a fresh full-tree hash audit, which on large roots (worst case a
   // stray $HOME View) takes tens of seconds and made boot unusable.
   const cachedAudit: AuditReport | null = viewPresent ? (viewContext.latest_audit ?? null) : null;
+  // Dead runs. Loaded unscoped and cheaply here; boot narrows them to the paths
+  // the agent is actually about to touch. This is the one class of evidence that
+  // cannot be recovered from git — the repo records what survived, never what
+  // was tried and abandoned.
+  const graves: Grave[] = viewPresent
+    ? await WorkspaceView.open({ root, agent: passport?.agent_id ?? "agent" })
+        .listGraves({ limit: 20 })
+        .catch(() => [])
+    : [];
   if (!viewPresent) {
     warnings.push(`No .seedrop/view in ${root}. Run \`seed bootstrap\` to link this root to your passport.`);
   }
@@ -383,6 +397,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
       otherAgents,
     },
     cachedAudit,
+    graves,
     daemon: {
       url: opts.spaceUrl,
       reachable: daemonReachable,

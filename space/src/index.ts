@@ -91,6 +91,7 @@ export type {
 export { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceValidationError } from "./errors.js";
 export { WorkspaceView } from "./view.js";
 export type {
+  Grave,
   LogInput,
   ReleaseSignalInput,
   RunFinishInput,

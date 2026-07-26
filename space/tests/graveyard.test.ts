@@ -1,0 +1,145 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { WorkspaceRunMissingCauseError } from "../src/errors.js";
+import { WorkspaceView } from "../src/view.js";
+
+let root: string;
+let now: Date;
+
+beforeEach(async () => {
+  root = await mkdtemp(path.join(os.tmpdir(), "seedrop-graves-"));
+  now = new Date("2026-05-14T10:00:00.000Z");
+});
+
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true });
+});
+
+function view(agent = "codex"): WorkspaceView {
+  return WorkspaceView.open({ root, agent, now: () => now });
+}
+
+describe("cause of death is the only gate on a non-completed finish", () => {
+  it("refuses to record a failure with no cause", async () => {
+    const v = view();
+    await v.startRun({ goal: "try the sqlite backend" });
+    await expect(v.finishRun({ status: "failed" })).rejects.toBeInstanceOf(WorkspaceRunMissingCauseError);
+  });
+
+  it("refuses a blocked finish with only whitespace as a cause", async () => {
+    const v = view();
+    await v.startRun({ goal: "try the sqlite backend" });
+    await expect(v.finishRun({ status: "blocked", cause: "   " })).rejects.toBeInstanceOf(
+      WorkspaceRunMissingCauseError,
+    );
+  });
+
+  it("records a failure with one line and no other evidence", async () => {
+    const v = view();
+    await v.startRun({ goal: "try the sqlite backend" });
+    const run = await v.finishRun({ status: "failed", cause: "native module ABI broke on every Node upgrade" });
+    expect(run.status).toBe("failed");
+    expect(run.cause).toBe("native module ABI broke on every Node upgrade");
+    expect(run.finished_at).toBeTruthy();
+    expect(run.swept).toBeUndefined();
+  });
+
+  it("does not apply the dirty-tree gate to failures — dying is cheaper than completing", async () => {
+    const v = view();
+    await v.startRun({ goal: "try the sqlite backend" });
+    await v.logRun({ summary: "touched a file", changedPaths: ["src/a.ts"] });
+    // No git repo, no commit, no validation. A failure still lands.
+    const run = await v.finishRun({ status: "failed", cause: "approach abandoned" });
+    expect(run.status).toBe("failed");
+  });
+
+  it("suggests the exact cause-carrying command in its recovery", () => {
+    const err = new WorkspaceRunMissingCauseError("failed");
+    const commands = err.recovery.map((r) => r.command);
+    expect(commands.some((c) => c?.includes('--status failed --cause'))).toBe(true);
+    expect(err.recovery[0]?.requires_human).toBe(false);
+  });
+});
+
+describe("orphan sweeper", () => {
+  it("marks runs abandoned past the threshold as failed and flags them swept", async () => {
+    const v = view();
+    await v.startRun({ goal: "half-finished migration" });
+    const later = new Date("2026-05-20T10:00:00.000Z"); // 144h later
+    const swept = await v.sweepOrphanedRuns({ olderThanHours: 72, now: later });
+    expect(swept).toHaveLength(1);
+    expect(swept[0]?.status).toBe("failed");
+    expect(swept[0]?.swept).toBe(true);
+    expect(swept[0]?.cause).toContain("abandoned");
+    expect(swept[0]?.cause).toContain("144h");
+  });
+
+  it("leaves runs inside the threshold alone", async () => {
+    const v = view();
+    await v.startRun({ goal: "still working" });
+    const soon = new Date("2026-05-14T20:00:00.000Z"); // 10h later
+    expect(await v.sweepOrphanedRuns({ olderThanHours: 72, now: soon })).toHaveLength(0);
+  });
+
+  it("never touches runs that already reached a terminal status", async () => {
+    const v = view();
+    await v.startRun({ goal: "already dead" });
+    await v.finishRun({ status: "failed", cause: "reported by the agent" });
+    const later = new Date("2026-06-14T10:00:00.000Z");
+    expect(await v.sweepOrphanedRuns({ olderThanHours: 72, now: later })).toHaveLength(0);
+    const graves = await v.listGraves();
+    expect(graves[0]?.swept).toBe(false);
+    expect(graves[0]?.cause).toBe("reported by the agent");
+  });
+});
+
+describe("graves are scoped to what the agent is about to touch", () => {
+  async function bury(v: WorkspaceView, goal: string, changed: string[], cause: string): Promise<void> {
+    await v.startRun({ goal, new: true });
+    if (changed.length > 0) await v.logRun({ summary: "work", changedPaths: changed });
+    await v.finishRun({ status: "failed", cause });
+  }
+
+  it("returns only graves overlapping the requested paths", async () => {
+    const v = view();
+    await bury(v, "rewrite the parser", ["src/parser.ts"], "grammar was ambiguous");
+    now = new Date("2026-05-15T10:00:00.000Z");
+    await bury(v, "swap the logger", ["src/log.ts"], "no structured output");
+
+    const parser = await v.listGraves({ paths: ["src/parser.ts"] });
+    expect(parser).toHaveLength(1);
+    expect(parser[0]?.goal).toBe("rewrite the parser");
+    expect(parser[0]?.overlapping_paths).toEqual(["src/parser.ts"]);
+
+    expect(await v.listGraves({ paths: ["src/untouched.ts"] })).toHaveLength(0);
+  });
+
+  it("returns the most recent graves first when unscoped", async () => {
+    const v = view();
+    await bury(v, "first attempt", ["a.ts"], "wrong layer");
+    now = new Date("2026-05-16T10:00:00.000Z");
+    await bury(v, "second attempt", ["b.ts"], "same problem, new shape");
+
+    const graves = await v.listGraves();
+    expect(graves.map((g) => g.goal)).toEqual(["second attempt", "first attempt"]);
+    expect(graves.every((g) => g.cause !== null)).toBe(true);
+  });
+
+  it("excludes completed runs — the graveyard is not a run log", async () => {
+    const v = view();
+    await v.startRun({ goal: "this one worked" });
+    await v.finishRun({ status: "completed" });
+    expect(await v.listGraves()).toHaveLength(0);
+  });
+
+  it("honours the limit", async () => {
+    const v = view();
+    for (let i = 0; i < 4; i += 1) {
+      now = new Date(`2026-05-1${i + 4}T10:00:00.000Z`);
+      await bury(v, `attempt ${i}`, [`f${i}.ts`], `cause ${i}`);
+    }
+    expect(await v.listGraves({ limit: 2 })).toHaveLength(2);
+  });
+});
