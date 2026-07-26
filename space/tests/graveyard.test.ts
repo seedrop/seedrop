@@ -200,3 +200,29 @@ describe("the dirty-tree gate covers claimed new files (root cause of 56 lost ru
     expect((await v.finishRun({ status: "completed" })).status).toBe("completed");
   });
 });
+
+describe("decision-density nudge", () => {
+  it("suggests recording a decision when a run changed files but recorded none", async () => {
+    const v = view();
+    await v.startRun({ goal: "refactor the parser" });
+    await v.logRun({ summary: "did work", changedPaths: ["src/parser.ts"] });
+    const run = await v.finishRun({ status: "completed", force: true });
+    expect(run.next_actions.some((a) => a.command === 'seed run decision "..."')).toBe(true);
+  });
+
+  it("stays silent when the run already recorded a decision", async () => {
+    const v = view();
+    await v.startRun({ goal: "refactor the parser" });
+    await v.logRun({ summary: "did work", changedPaths: ["src/parser.ts"] });
+    await v.decideRun("kept recursive descent; PEG backtracking blew the stack");
+    const run = await v.finishRun({ status: "completed", force: true });
+    expect(run.next_actions.some((a) => a.command === 'seed run decision "..."')).toBe(false);
+  });
+
+  it("stays silent for a run that changed nothing", async () => {
+    const v = view();
+    await v.startRun({ goal: "read-only investigation" });
+    const run = await v.finishRun({ status: "completed", force: true });
+    expect(run.next_actions.some((a) => a.command === 'seed run decision "..."')).toBe(false);
+  });
+});

@@ -907,6 +907,26 @@ export class WorkspaceView {
           // intentional: dedicated sync command surfaces policy errors
         }
 
+        // Nudge for reasoning when a run changed real code and recorded none.
+        //
+        // The corpus says this field is where the ledger is thinnest: decisions
+        // appear on 16.4% of runs and open_threads on 1.3%, against 100% for
+        // changed_paths. So the record captures what moved and almost never why
+        // — which is the half a later agent cannot reconstruct from git, and the
+        // reason benchmark v2 has 6 independent facts to test instead of 100.
+        // Suggested, never required: a run with nothing worth saying should not
+        // be forced to invent something.
+        if (run.changed_paths.length > 0 && run.decisions.length === 0) {
+          const suggestion = commandAction(
+            'seed run decision "..."',
+            "low",
+            "This run changed files but recorded no decision. One line on why you chose this approach is the part git cannot recover.",
+          );
+          if (!run.next_actions.some((existing) => existing.command === suggestion.command)) {
+            run.next_actions = [...run.next_actions, suggestion];
+          }
+        }
+
         // Suggest a continuity packet if this run had non-trivial activity
         // and no packet has been written since the run started.
         const nonTrivial =
