@@ -1538,10 +1538,15 @@ export class WorkspaceView {
       ...(await this.inferVerificationCommands()),
     ]);
     const importantPaths = manifest ? pickImportantPaths(manifest) : [];
-    const freshness = !manifest
+    const freshnessSource: "live" | "cached" | "unknown" = !manifest
+      ? "unknown"
+      : options.checkFreshness === false
+        ? "cached"
+        : "live";
+    const freshness: ManifestFreshness = !manifest
       ? (manifestResult.error ? "invalid" : "missing")
       : options.checkFreshness === false
-        ? await this.cachedManifestFreshness()
+        ? await this.cachedManifestFreshness(policy, manifest)
         : (await this.hasManifestDrift(manifest))
           ? "stale"
           : "fresh";
@@ -1587,6 +1592,7 @@ export class WorkspaceView {
               recommended_reads: manifest.recommended_reads,
               important_paths: importantPaths,
               freshness,
+              freshness_source: freshnessSource,
             },
           }
         : {
@@ -1596,6 +1602,7 @@ export class WorkspaceView {
               recommended_reads: [],
               important_paths: [],
               freshness,
+              freshness_source: freshnessSource,
             },
           }),
       success,
@@ -1768,7 +1775,7 @@ export class WorkspaceView {
     if (manifest) {
       checks.push({ id: "manifest", status: "pass", summary: "Manifest parses.", path: "manifest.json" });
       if (options.checkManifestDrift === false) {
-        manifestFreshness = await this.cachedManifestFreshness();
+        manifestFreshness = await this.cachedManifestFreshness((await this.readPolicyResult()).value, manifest);
         checks.push({ id: "manifest_freshness", status: "skipped", summary: "Manifest freshness check skipped for read-only context.", path: "manifest.json" });
       } else if (await this.hasManifestDrift(manifest)) {
         manifestFreshness = "stale";
@@ -2425,21 +2432,64 @@ export class WorkspaceView {
     };
   }
 
-  private async cachedManifestFreshness(): Promise<"fresh" | "stale"> {
-    if (!existsSync(this.auditPath)) return "fresh";
-    try {
-      const parsed = JSON.parse(await readFile(this.auditPath, "utf8")) as AuditReport;
-      return parsed.issues.some((issue) =>
-        issue.code === "manifest_stale" ||
-        issue.code === "file_missing_from_manifest" ||
-        issue.code === "file_hash_changed" ||
-        issue.code === "manifest_file_missing"
-      )
-        ? "stale"
-        : "fresh";
-    } catch {
-      return "fresh";
+  /**
+   * Freshness according to the cached audit snapshot, for callers that cannot
+   * afford a live re-hash.
+   *
+   * Fails closed. This previously returned "fresh" when the snapshot was
+   * missing or unparseable, so absence of evidence became evidence of
+   * freshness — and `context()` reads this path, which meant boot could report
+   * L4/meets_required while `view brief` and `view preflight`, which check
+   * live, reported L1/below-required on the same repo in the same second.
+   *
+   * Reporting a *higher* trust level from *weaker* evidence is the one thing an
+   * orientation surface must never do; it also contradicted the View's own
+   * standing constraint that a stale manifest is not trustworthy orientation.
+   * Unknown now stays unknown, and `viewSuccess` only grants L2+ on "fresh".
+   */
+  private async cachedManifestFreshness(
+    policy?: ViewPolicy,
+    manifest?: WorkspaceManifest,
+  ): Promise<"fresh" | "stale" | "unknown"> {
+    // Absent an explicit policy, a manifest younger than this counts as fresh.
+    // Some notion of "recent enough" is required, or a View that was just
+    // synced but never audited reports unknown and can never reach L2+.
+    const DEFAULT_FRESHNESS_TTL_HOURS = 24;
+    const ttlMs = (policy?.freshness_ttl_hours ?? DEFAULT_FRESHNESS_TTL_HOURS) * 3_600_000;
+
+    // A recent audit snapshot is the strongest cheap evidence available.
+    if (existsSync(this.auditPath)) {
+      try {
+        const parsed = JSON.parse(await readFile(this.auditPath, "utf8")) as AuditReport;
+        const age = Date.parse(this.nowIso()) - (await stat(this.auditPath)).mtimeMs;
+        const usable = Number.isFinite(age) && age <= ttlMs;
+        if (usable) {
+          return parsed.issues.some((issue) =>
+            issue.code === "manifest_stale" ||
+            issue.code === "file_missing_from_manifest" ||
+            issue.code === "file_hash_changed" ||
+            issue.code === "manifest_file_missing"
+          )
+            ? "stale"
+            : "fresh";
+        }
+      } catch {
+        // Fall through to the manifest-age rule below.
+      }
     }
+
+    // No usable snapshot. Fall back to what the policy itself means by fresh: a
+    // manifest younger than freshness_ttl_hours. A just-synced View is fresh by
+    // construction and must not be punished for never having been audited.
+    if (manifest?.updated_at) {
+      const age = Date.parse(this.nowIso()) - Date.parse(manifest.updated_at);
+      if (Number.isFinite(age)) return age <= ttlMs ? "fresh" : "unknown";
+    }
+
+    // Nothing can establish freshness. Say so rather than assuming the best —
+    // this path previously returned "fresh", which let boot report L4 while
+    // live-checking surfaces reported L1 on the same repo.
+    return "unknown";
   }
 
   private async activeRun(agent = this.agent): Promise<RunJournal | undefined> {

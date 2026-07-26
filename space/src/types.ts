@@ -63,7 +63,14 @@ export interface ViewBrief {
     file_count: number;
     recommended_reads: WorkspaceManifest["recommended_reads"];
     important_paths: string[];
-    freshness: "fresh" | "stale" | "missing" | "invalid";
+    freshness: "fresh" | "stale" | "missing" | "invalid" | "unknown";
+    /**
+     * How `freshness` was determined. `live` re-hashed the tree; `cached` read a
+     * prior audit snapshot; `unknown` means it could not be established at all.
+     * Consumers that report trustworthiness must not present a `cached` or
+     * `unknown` verdict as though it were `live`.
+     */
+    freshness_source?: "live" | "cached" | "unknown";
   };
   success: {
     level: "L0" | "L1" | "L2" | "L3" | "L4";
