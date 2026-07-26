@@ -43,6 +43,12 @@ export interface PassportIdentityResolverOptions {
    * to the startup set; auth and DM delivery for new agents work immediately.
    */
   watchAgentsDirs?: boolean;
+  /**
+   * Safety-net poll interval (ms) for agentsDirs when watching. Defaults to
+   * 2000. fs.watch drops events outright on some platforms, so this bounds how
+   * long a new passport can stay unadmitted.
+   */
+  agentsDirsPollMs?: number;
 }
 
 export interface ServeOptions extends PassportIdentityResolverOptions {
@@ -96,16 +102,33 @@ export async function createPassportIdentityResolver(
   const watchers: FSWatcher[] = [];
   let refreshTimer: NodeJS.Timeout | null = null;
   let refreshInFlight = false;
+  let refreshQueued = false;
+  let pollTimer: NodeJS.Timeout | null = null;
 
   async function refresh(): Promise<PassportIdentity[]> {
-    if (refreshInFlight) return identities;
+    if (refreshInFlight) {
+      // Coalesce rather than drop. A passport written *during* an in-flight
+      // read may land after the directory listing and be missed by that pass;
+      // returning early here used to discard the follow-up request with nothing
+      // left to reschedule it, so the new agent stayed invisible until the next
+      // unrelated event. Small window, but it is why the watcher test flaked
+      // only under parallel load.
+      refreshQueued = true;
+      return identities;
+    }
     refreshInFlight = true;
     try {
-      const next = await readPassportIdentities(options);
+      let next = await readPassportIdentities(options);
       indexIdentities(next);
+      while (refreshQueued) {
+        refreshQueued = false;
+        next = await readPassportIdentities(options);
+        indexIdentities(next);
+      }
       return next;
     } finally {
       refreshInFlight = false;
+      refreshQueued = false;
     }
   }
 
@@ -128,6 +151,20 @@ export async function createPassportIdentityResolver(
         // fs.watch can fail on unsupported filesystems; degrade silently
       }
     }
+
+    // Safety net. fs.watch is best-effort, and measured on macOS it is either
+    // fast or absent: 19 of 20 trials delivered in ~150ms, and the twentieth
+    // never fired at all, even after 5s. A dropped event means a new agent's
+    // passport is never admitted and its requests fail auth until the daemon
+    // restarts — so the watcher cannot be the only path. Polling a handful of
+    // small JSON files on this interval is negligible next to that failure.
+    pollTimer = setInterval(() => {
+      void refresh().catch(() => {
+        // non-fatal; the next tick retries
+      });
+    }, options.agentsDirsPollMs ?? 2_000);
+    // Never hold the process open on this timer's account.
+    pollTimer.unref?.();
   }
 
   return {
@@ -153,6 +190,10 @@ export async function createPassportIdentityResolver(
       if (refreshTimer) {
         clearTimeout(refreshTimer);
         refreshTimer = null;
+      }
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
       }
       for (const watcher of watchers) {
         try {

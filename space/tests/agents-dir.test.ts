@@ -129,3 +129,52 @@ describe("createPassportIdentityResolver with agentsDirs", () => {
     stopWatching(); // should not throw
   });
 });
+
+describe("the poll safety net covers dropped fs.watch events", () => {
+  it("admits a new passport faster than the watcher debounce could", async () => {
+    const agentsDir = path.join(root, "agents");
+    await writePassport(path.join(agentsDir, "claude.json"), "claude");
+
+    // The watcher path cannot resolve sooner than its 100ms debounce, which
+    // only starts once an event arrives. A 10ms poll therefore wins every race
+    // it is in — so an admission observed well inside that debounce window is
+    // attributable to the poll and nothing else. This is what rescues the ~1-in-20
+    // write where fs.watch never fires at all.
+    const { resolver, stopWatching } = await createPassportIdentityResolver({
+      agentsDirs: [agentsDir],
+      watchAgentsDirs: true,
+      agentsDirsPollMs: 10,
+    });
+    try {
+      expect(resolver.resolve("kimi")).toBeNull();
+
+      const startedAt = Date.now();
+      await writePassport(path.join(agentsDir, "kimi.json"), "kimi");
+      for (let i = 0; i < 200; i += 1) {
+        await new Promise((r) => setTimeout(r, 5));
+        if (resolver.resolve("kimi")) break;
+      }
+      const elapsed = Date.now() - startedAt;
+
+      expect(resolver.resolve("kimi")?.agentId).toBe("kimi");
+      expect(elapsed).toBeLessThan(100);
+    } finally {
+      stopWatching();
+    }
+  });
+
+  it("stops polling once stopWatching is called", async () => {
+    const agentsDir = path.join(root, "agents");
+    await writePassport(path.join(agentsDir, "claude.json"), "claude");
+    const { resolver, stopWatching } = await createPassportIdentityResolver({
+      agentsDirs: [agentsDir],
+      watchAgentsDirs: true,
+      agentsDirsPollMs: 10,
+    });
+    stopWatching();
+
+    await writePassport(path.join(agentsDir, "kimi.json"), "kimi");
+    await new Promise((r) => setTimeout(r, 120));
+    expect(resolver.resolve("kimi")).toBeNull();
+  });
+});
