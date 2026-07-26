@@ -856,17 +856,23 @@ export class WorkspaceView {
       }
       if (input.status === "completed" && !input.force) {
         const gitDirty = this.gitDirtyState();
-        // Gate only on tracked changes. Untracked files are usually scratch
-        // notes or build artifacts; another agent can still resume from HEAD
-        // without them. Splitting tracked vs untracked closes task f3fc8250.
-        if (gitDirty.inside && gitDirty.tracked.length > 0) {
+        if (gitDirty.inside) {
           if (run.changed_paths.length > 0) {
-            const dirtySet = new Set(gitDirty.tracked);
+            // A path the run itself logged is claimed work product, so an
+            // untracked one is not scratch — it is new work that would vanish.
+            // Gating only on tracked paths (task f3fc8250) let any run whose
+            // output was entirely new files complete with nothing committed:
+            // 56 runs across this corpus were marked completed while their work
+            // never reached git, most of them new untracked files.
+            const dirtySet = new Set([...gitDirty.tracked, ...gitDirty.untracked]);
             const dirtyChanged = run.changed_paths.filter((p) => dirtySet.has(p));
             if (dirtyChanged.length > 0) {
               throw new WorkspaceRunDirtyTreeError(dirtyChanged, run.changed_paths);
             }
-          } else {
+          } else if (gitDirty.tracked.length > 0) {
+            // Nothing was logged, so we cannot tell work product from noise.
+            // Only tracked edits are evidence enough to refuse here — untracked
+            // files at large really are usually build output or scratch notes.
             throw new WorkspaceRunUnloggedChangesError(gitDirty.tracked);
           }
         }

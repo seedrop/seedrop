@@ -1,8 +1,9 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkspaceRunMissingCauseError } from "../src/errors.js";
+import { WorkspaceRunDirtyTreeError, WorkspaceRunMissingCauseError } from "../src/errors.js";
 import { WorkspaceView } from "../src/view.js";
 
 let root: string;
@@ -141,5 +142,61 @@ describe("graves are scoped to what the agent is about to touch", () => {
       await bury(v, `attempt ${i}`, [`f${i}.ts`], `cause ${i}`);
     }
     expect(await v.listGraves({ limit: 2 })).toHaveLength(2);
+  });
+});
+
+describe("the dirty-tree gate covers claimed new files (root cause of 56 lost runs)", () => {
+  function gitInit(dir: string): void {
+    spawnSync("git", ["init", "-q", dir]);
+    spawnSync("git", ["-C", dir, "config", "user.email", "t@t.test"]);
+    spawnSync("git", ["-C", dir, "config", "user.name", "t"]);
+    spawnSync("git", ["-C", dir, "config", "commit.gpgsign", "false"]);
+  }
+
+  it("refuses to complete when a logged changed_path is a new untracked file", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "seed.md"), "# seed\n");
+    spawnSync("git", ["-C", root, "add", "-A"]);
+    spawnSync("git", ["-C", root, "commit", "-q", "-m", "init"]);
+
+    const v = view();
+    await v.startRun({ goal: "write a brand new module" });
+    // The run's entire output is a file git has never seen.
+    await writeFile(path.join(root, "brand-new.ts"), "export const added = true;\n");
+    await v.logRun({ summary: "created it", changedPaths: ["brand-new.ts"] });
+
+    await expect(v.finishRun({ status: "completed" })).rejects.toBeInstanceOf(WorkspaceRunDirtyTreeError);
+  });
+
+  it("still ignores untracked files the run never claimed", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "seed.md"), "# seed\n");
+    spawnSync("git", ["-C", root, "add", "-A"]);
+    spawnSync("git", ["-C", root, "commit", "-q", "-m", "init"]);
+
+    const v = view();
+    await v.startRun({ goal: "validation-only run" });
+    // Build output and scratch notes must not block a clean finish.
+    await writeFile(path.join(root, "build.log"), "noise\n");
+    await v.logRun({ summary: "ran checks", changedPaths: [] });
+
+    const run = await v.finishRun({ status: "completed" });
+    expect(run.status).toBe("completed");
+  });
+
+  it("completes once the claimed new file is committed", async () => {
+    gitInit(root);
+    await writeFile(path.join(root, "seed.md"), "# seed\n");
+    spawnSync("git", ["-C", root, "add", "-A"]);
+    spawnSync("git", ["-C", root, "commit", "-q", "-m", "init"]);
+
+    const v = view();
+    await v.startRun({ goal: "write a brand new module" });
+    await writeFile(path.join(root, "brand-new.ts"), "export const added = true;\n");
+    await v.logRun({ summary: "created it", changedPaths: ["brand-new.ts"] });
+    spawnSync("git", ["-C", root, "add", "-A"]);
+    spawnSync("git", ["-C", root, "commit", "-q", "-m", "add module"]);
+
+    expect((await v.finishRun({ status: "completed" })).status).toBe("completed");
   });
 });
