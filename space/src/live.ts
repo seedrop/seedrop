@@ -12,6 +12,38 @@ import type { Database as DatabaseType } from "better-sqlite3";
 type DatabaseCtor = new (filename: string) => DatabaseType;
 let cachedDatabase: DatabaseCtor | null = null;
 
+const MISSING_MODULE_ADVICE =
+  "The Seedrop Space live store requires the native module 'better-sqlite3', which is not installed. "
+  + "It is an optional dependency: the CLI and per-repo View work without it, but the always-on Space daemon "
+  + "(presence, mentions, inbox) does not. To enable it, ensure build tools are present and run "
+  + "`npm rebuild better-sqlite3` (Linux: install python3/make/g++ first).";
+
+/**
+ * Turn a native-module load failure into the specific remedy for that failure.
+ *
+ * These two cases need different fixes and used to share one message. The ABI
+ * mismatch is by far the more common of the two in practice — it fires whenever
+ * a developer switches Node versions (nvm, a new release, a rebuilt image)
+ * against an existing node_modules, and it presents as the Space daemon
+ * returning opaque 500s rather than as anything resembling an install problem.
+ */
+export function describeNativeLoadFailure(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  if (/NODE_MODULE_VERSION|was compiled against a different Node\.js version|ERR_DLOPEN_FAILED/i.test(message)) {
+    const versions = message.match(/NODE_MODULE_VERSION (\d+)[\s\S]*?NODE_MODULE_VERSION (\d+)/);
+    const detail = versions
+      ? ` The installed binary targets Node ABI ${versions[1]}; this Node needs ABI ${versions[2]}.`
+      : "";
+    return (
+      "'better-sqlite3' is installed but was compiled for a different Node.js version, so the Seedrop Space "
+      + `live store (presence, mentions, inbox) cannot start.${detail} `
+      + "This usually means the Node version changed after `npm install` — switching via nvm is the common cause. "
+      + "Fix it with `npm rebuild better-sqlite3`, or reinstall dependencies under the current Node."
+    );
+  }
+  return MISSING_MODULE_ADVICE;
+}
+
 async function loadDatabaseCtor(): Promise<DatabaseCtor> {
   if (cachedDatabase) return cachedDatabase;
   try {
@@ -19,12 +51,7 @@ async function loadDatabaseCtor(): Promise<DatabaseCtor> {
     cachedDatabase = mod.default;
     return cachedDatabase;
   } catch (cause) {
-    throw new Error(
-      "The Seedrop Space live store requires the native module 'better-sqlite3', which is not installed or failed to build. "
-        + "It is an optional dependency: the CLI and per-repo View work without it, but the always-on Space daemon (presence, mentions, inbox) does not. "
-        + "To enable it, ensure build tools are present and run `npm rebuild better-sqlite3` (Linux: install python3/make/g++ first).",
-      { cause },
-    );
+    throw new Error(describeNativeLoadFailure(cause), { cause });
   }
 }
 

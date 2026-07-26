@@ -12,6 +12,7 @@ import {
   WorkspaceViewParseError,
   WorkspaceViewValidationError,
 } from "../src/errors.js";
+import { describeNativeLoadFailure } from "../src/live.js";
 
 describe("structured recovery on every WorkspaceViewError subclass", () => {
   it("WorkspaceRunDirtyTreeError suggests commit / blocked / force", () => {
@@ -125,5 +126,36 @@ describe("renderRecovery", () => {
     expect(renderRecovery(new Error("plain"))).toBe("");
     expect(renderRecovery(new WorkspaceViewError("bare"))).toBe("");
     expect(renderRecovery(null)).toBe("");
+  });
+});
+
+describe("native module load failures name the right remedy", () => {
+  it("identifies an ABI mismatch and reports both ABI versions", () => {
+    const abiError = new Error(
+      "The module '/repo/node_modules/better-sqlite3/build/Release/better_sqlite3.node'\n" +
+        "was compiled against a different Node.js version using\n" +
+        "NODE_MODULE_VERSION 115. This version of Node.js requires\n" +
+        "NODE_MODULE_VERSION 137. Please try re-compiling or re-installing\n" +
+        "the module (for instance, using `npm rebuild` or `npm install`).",
+    );
+    const message = describeNativeLoadFailure(abiError);
+    expect(message).toContain("compiled for a different Node.js version");
+    expect(message).toContain("ABI 115");
+    expect(message).toContain("ABI 137");
+    expect(message).toContain("npm rebuild better-sqlite3");
+    // The nvm case is the common one and should be named, not left to guesswork.
+    expect(message).toContain("nvm");
+    expect(message).not.toContain("is not installed");
+  });
+
+  it("falls back to install advice when the module is genuinely absent", () => {
+    const message = describeNativeLoadFailure(new Error("Cannot find module 'better-sqlite3'"));
+    expect(message).toContain("is not installed");
+    expect(message).toContain("optional dependency");
+    expect(message).not.toContain("compiled for a different Node.js version");
+  });
+
+  it("handles a non-Error rejection without throwing", () => {
+    expect(describeNativeLoadFailure("boom")).toContain("is not installed");
   });
 });
