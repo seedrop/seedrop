@@ -64,16 +64,25 @@ export async function readAuditLog(path: string): Promise<AuditEntry[]> {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw err;
   }
-  return raw
+  const entries = raw
     .split("\n")
-    .filter((l) => l.length > 0)
-    .flatMap((line) => {
+    .filter((line) => line.length > 0)
+    .map((line, index) => {
       try {
-        return [JSON.parse(line) as AuditEntry];
-      } catch {
-        return [];
+        return JSON.parse(line) as AuditEntry;
+      } catch (error) {
+        throw new Error(`Failed to parse passport audit entry ${index + 1} at ${path}`, { cause: error });
       }
     });
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index]!;
+    const prior = entries[index - 1];
+    const expectedPrev = prior?.after_hash ?? null;
+    if (entry.prev_hash !== expectedPrev) {
+      throw new Error(`Passport audit chain mismatch at entry ${index + 1} in ${path}`);
+    }
+  }
+  return entries;
 }
 
 export function reversePassportChange(passport: Passport, entry: AuditEntry): Passport {

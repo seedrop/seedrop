@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, copyFile, readFile, rm, writeFile, stat } from "node:fs/promises";
+import { mkdtemp, copyFile, readFile, realpath, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,8 +75,9 @@ describe("Identity.commitSession — write: true", () => {
     const result = await id.commitSession({ write: true, now, notes: "first commit" });
 
     expect(result.wrote).toBe(true);
-    expect(result.passportPath).toBe(passportPath);
-    expect(result.auditPath).toBe(passportPath + ".audit.jsonl");
+    const canonicalPath = await realpath(passportPath);
+    expect(result.passportPath).toBe(canonicalPath);
+    expect(result.auditPath).toBe(canonicalPath + ".audit.jsonl");
 
     const onDisk = JSON.parse(await readFile(passportPath, "utf8")) as Passport;
     expect(onDisk.metadata.session_count).toBe(48);
@@ -84,11 +85,11 @@ describe("Identity.commitSession — write: true", () => {
 
     const log = await readAuditLog(result.auditPath!);
     expect(log).toHaveLength(1);
-    expect(log[0]!.notes).toBe("first commit");
+    expect(log[0]!.notes).toContain("first commit");
     expect(log[0]!.prev_hash).toBeNull();
 
     expect(id.passport.metadata.session_count).toBe(48);
-    expect(result.journalPath).toBe(passportPath + ".commit.json");
+    expect(result.journalPath).toBe(canonicalPath + ".commit.json");
     expect(await readCommitJournal(result.journalPath!)).toBeNull();
   });
 
@@ -125,14 +126,16 @@ describe("Identity.commitSession — write: true", () => {
     const otherPath = join(scratch, "other.json");
     await copyFile(passportPath, otherPath);
     const result = await id.commitSession({ write: true, passportPath: otherPath });
-    expect(result.passportPath).toBe(otherPath);
+    expect(result.passportPath).toBe(await realpath(otherPath));
     const otherJson = JSON.parse(await readFile(otherPath, "utf8")) as Passport;
     expect(otherJson.metadata.session_count).toBe(48);
   });
 
   it("does not append audit when the passport write cannot be prepared", async () => {
     const id = await Identity.fromPassport(passportPath);
-    const badPassportPath = join(scratch, "missing", "passport.json");
+    const blockerPath = join(scratch, "not-a-directory");
+    await writeFile(blockerPath, "blocked");
+    const badPassportPath = join(blockerPath, "passport.json");
     const auditPath = join(scratch, "audit.jsonl");
 
     await expect(
@@ -223,7 +226,7 @@ describe("Identity construction via savePassport — write requires a path", () 
     await Identity.savePassport(id1.passport, out);
     const id2 = await Identity.fromPassport(out);
     const result = await id2.commitSession({ write: true });
-    expect(result.passportPath).toBe(out);
+    expect(result.passportPath).toBe(await realpath(out));
     expect(result.wrote).toBe(true);
   });
 

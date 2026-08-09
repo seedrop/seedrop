@@ -41,6 +41,30 @@ export class IdentityCommitRepairError extends PassportError {
   }
 }
 
+export class IdentityVersionConflictError extends PassportError {
+  constructor(
+    public readonly expectedHash: string,
+    public readonly actualHash: string | null,
+  ) {
+    super(`Passport version conflict: expected ${expectedHash}, found ${actualHash ?? "absent"}`);
+    this.name = "IdentityVersionConflictError";
+  }
+}
+
+export class IdentityCommandConflictError extends PassportError {
+  constructor(public readonly commandId: string) {
+    super(`Passport command ${commandId} was already used with a different mutation`);
+    this.name = "IdentityCommandConflictError";
+  }
+}
+
+export class IdentityLockTimeoutError extends PassportError {
+  constructor(public readonly lockPath: string) {
+    super(`Timed out waiting for passport transaction lock: ${lockPath}`);
+    this.name = "IdentityLockTimeoutError";
+  }
+}
+
 export class PassportValidationError extends PassportError {
   constructor(
     public readonly issues: ZodIssue[],

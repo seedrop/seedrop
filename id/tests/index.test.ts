@@ -24,10 +24,14 @@ describe("public entry point", () => {
     expect(new pkg.PassportParseError("/p", new Error("boom"))).toBeInstanceOf(pkg.PassportError);
     expect(new pkg.PassportValidationError([])).toBeInstanceOf(pkg.PassportError);
     expect(new pkg.IdentityCommitRepairError("x")).toBeInstanceOf(pkg.PassportError);
+    expect(new pkg.IdentityVersionConflictError("expected", "actual")).toBeInstanceOf(pkg.PassportError);
+    expect(new pkg.IdentityCommandConflictError("command")).toBeInstanceOf(pkg.PassportError);
+    expect(new pkg.IdentityLockTimeoutError("/passport.lock")).toBeInstanceOf(pkg.PassportError);
   });
 
   it("exports commit journal helpers", () => {
     expect(typeof pkg.defaultCommitJournalPath).toBe("function");
+    expect(typeof pkg.commitPassportTransaction).toBe("function");
     expect(typeof pkg.repairPendingCommit).toBe("function");
     expect(pkg.CommitJournalRecordSchema).toBeDefined();
   });

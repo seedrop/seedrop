@@ -93,11 +93,20 @@ This avoids rereading the PRD and rediscovering the repo from zero on every sess
 
 Passport writes are explicit. `commitSession()` defaults to dry-run and only touches disk with `write: true`.
 
-The write path has three durable artifacts:
+The write path has three durable artifacts and one ephemeral cross-process lock:
 
 - `passport.json` — current identity state
 - `passport.json.audit.jsonl` — append-only history of committed changes
 - `passport.json.commit.json` — short-lived repair journal for an in-flight commit
+- `passport.json.lock` — canonical-path lock owned by one live writer
+
+Before a mutation, the transaction resolves the passport's real path so symlink aliases share the same lock, journal, and default audit file. Under that lock it verifies:
+
+- the current passport matches the caller's expected hash (`absent` for creation)
+- the audit tip matches the current passport when an audit exists
+- a reused command ID describes exactly the same before/after hashes
+
+The command ID remains durable in the audit note after the short-lived journal is cleared. This gives callers an idempotency key without changing the frozen v1 passport or audit schema.
 
 The commit journal records the intended audit entry and target passport state before the audit/passport files are changed. If the process crashes after the journal is durable, `repairPendingCommit()` can safely finish the missing side:
 
@@ -107,7 +116,7 @@ The commit journal records the intended audit entry and target passport state be
 - both present: clear the stale journal
 - either file moved on independently: return `conflict` and leave the journal for operator review
 
-This is not a distributed transaction. It is a small, inspectable recovery protocol for local files.
+Malformed audit JSON and broken `prev_hash` chains fail closed. This is not a distributed transaction. It is a small, inspectable recovery protocol for local files, with compare-and-swap and command-level idempotency for concurrent local processes.
 
 The package-local CLI exposes this as:
 

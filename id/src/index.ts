@@ -9,6 +9,7 @@ export type {
 export {
   CommitJournalRecordSchema,
   clearCommitJournal,
+  commitPassportTransaction,
   createCommitJournalRecord,
   defaultCommitJournalPath,
   readCommitJournal,
@@ -20,6 +21,9 @@ export type {
   CommitRepairOptions,
   CommitRepairResult,
   CommitRepairStatus,
+  PassportCommitPhase,
+  PassportTransactionOptions,
+  PassportTransactionResult,
 } from "./commit-journal.js";
 export {
   canonicalJSON,
@@ -70,4 +74,7 @@ export {
   PassportValidationError,
   IdentityConfigError,
   IdentityCommitRepairError,
+  IdentityVersionConflictError,
+  IdentityCommandConflictError,
+  IdentityLockTimeoutError,
 } from "./errors.js";

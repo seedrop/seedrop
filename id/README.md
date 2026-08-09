@@ -53,11 +53,15 @@ const drift = await session.coherence();
 ```typescript
 const result = await id.commitSession({
   write: true,
+  commandId: "resume-2026-08-09-001",
+  expectedHash: "<sha256 of the passport that was read>",
   notes: "resume state updated after handoff",
 });
 ```
 
-Writes create a short-lived commit journal beside the passport before touching the audit log. If a process crashes mid-commit, the next startup or CLI can repair the pending write:
+Every package-owned passport mutation (`init`, `update`, `project link`, and session commit) uses one transaction boundary. It resolves symlink aliases to the same passport, takes a cross-process lock, checks the expected hash, records the command ID in the audit entry, and writes journal → audit → passport. Repeating the same command ID with the same before/after hashes is idempotent; reusing it for another mutation fails closed.
+
+Writes create a short-lived commit journal beside the passport before touching the audit log. If a process dies mid-commit, the next startup or CLI can repair the pending write and remove abandoned prepared files:
 
 ```typescript
 await Identity.repairPendingCommit({ passportPath: "./passport.json" });
@@ -69,6 +73,7 @@ The package-local CLI exposes the same repair path:
 
 ```bash
 seed-id init --name codex --purpose "Help build Seedrop"
+seed-id update --passport ./.seedrop/id/passport.json --purpose "Build Seedrop" --command-id update-001 --expected-hash SHA256
 seed-id validate --passport ./.seedrop/id/passport.json
 seed-id show --passport ./.seedrop/id/passport.json
 seed-id audit --passport ./.seedrop/id/passport.json
@@ -79,6 +84,8 @@ seed-id repair --passport ./passport.json
 
 `init` writes `.seedrop/id/passport.json` by default, accepts `--out <path>`, and refuses to overwrite an existing passport unless `--force` is passed.
 `project link` upserts one `active_projects` entry through the same audited, repairable passport write path used by session commits.
+
+Mutation commands accept `--command-id` for safe retries and `--expected-hash` for compare-and-swap. Omitting the command ID generates one. A malformed audit entry, broken audit chain, stale expected hash, or passport/audit tip disagreement prevents the mutation; Seedrop does not silently skip or overwrite inconsistent state.
 
 `repair` exits `0` when no repair is needed or repair succeeds, `2` when the journal conflicts and needs operator review, and `1` for command/runtime errors.
 

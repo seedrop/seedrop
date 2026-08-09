@@ -1,20 +1,15 @@
-import { randomUUID } from "node:crypto";
-import { rename, rm, writeFile } from "node:fs/promises";
-import { readPassport, serializePassport, writePassport } from "./passport.js";
+import { readPassport } from "./passport.js";
 import type { ActiveProject, LearnedBlock, Passport } from "./schema.js";
 import { Session, type SessionOptions } from "./session.js";
-import { IdentityConfigError } from "./errors.js";
+import { IdentityConfigError, PassportNotFoundError } from "./errors.js";
 import {
-  clearCommitJournal,
-  createCommitJournalRecord,
-  defaultCommitJournalPath,
+  commitPassportTransaction,
   repairPendingCommit,
-  writeCommitJournal,
   type CommitRepairOptions,
   type CommitRepairResult,
+  type PassportCommitPhase,
 } from "./commit-journal.js";
 import {
-  appendAuditEntry,
   hashPassport,
   readAuditLog,
   type AuditEntry,
@@ -29,6 +24,10 @@ export interface CommitSessionOptions {
   newLearnedBlocks?: readonly LearnedBlock[];
   notes?: string;
   now?: Date;
+  commandId?: string;
+  expectedHash?: string;
+  lockTimeoutMs?: number;
+  onPhase?: (phase: PassportCommitPhase) => void | Promise<void>;
 }
 
 export interface UpsertActiveProjectInput {
@@ -47,6 +46,10 @@ export interface UpsertActiveProjectOptions {
   journalPath?: string;
   notes?: string;
   now?: Date;
+  commandId?: string;
+  expectedHash?: string;
+  lockTimeoutMs?: number;
+  onPhase?: (phase: PassportCommitPhase) => void | Promise<void>;
 }
 
 export interface CommitSessionResult {
@@ -58,28 +61,12 @@ export interface CommitSessionResult {
   passportPath: string | undefined;
   auditPath: string | undefined;
   journalPath: string | undefined;
+  commandId: string | undefined;
+  expectedHash: string;
+  idempotent: boolean;
 }
 
 export type UpsertActiveProjectResult = CommitSessionResult;
-
-interface PreparedPassportWrite {
-  commit(): Promise<void>;
-  cleanup(): Promise<void>;
-}
-
-async function preparePassportWrite(passport: Passport, passportPath: string): Promise<PreparedPassportWrite> {
-  const tempPath = `${passportPath}.tmp-${process.pid}-${randomUUID()}`;
-  await writeFile(tempPath, serializePassport(passport), "utf8");
-
-  return {
-    async commit(): Promise<void> {
-      await rename(tempPath, passportPath);
-    },
-    async cleanup(): Promise<void> {
-      await rm(tempPath, { force: true });
-    },
-  };
-}
 
 export class Identity {
   private _passport: Passport;
@@ -99,8 +86,27 @@ export class Identity {
     return new Identity(passport, path);
   }
 
-  static async savePassport(passport: Passport, path: string): Promise<void> {
-    await writePassport(passport, path);
+  static async savePassport(
+    passport: Passport,
+    path: string,
+    options: Pick<CommitSessionOptions, "commandId" | "expectedHash" | "notes" | "now" | "lockTimeoutMs" | "onPhase"> = {},
+  ): Promise<void> {
+    let before: Passport | null;
+    try {
+      before = await readPassport(path);
+    } catch (error) {
+      if (!(error instanceof PassportNotFoundError)) throw error;
+      before = null;
+    }
+    await commitPassportTransaction(before, passport, {}, {
+      passportPath: path,
+      commandId: options.commandId,
+      expectedHash: options.expectedHash,
+      notes: options.notes ?? (before ? "replaced passport" : "created passport"),
+      now: options.now,
+      lockTimeoutMs: options.lockTimeoutMs,
+      onPhase: options.onPhase,
+    });
   }
 
   static async repairPendingCommit(options: CommitRepairOptions = {}): Promise<CommitRepairResult> {
@@ -109,6 +115,19 @@ export class Identity {
 
   session(options?: SessionOptions): Session {
     return new Session(this._passport, options);
+  }
+
+  async updateMutableFields(
+    input: { name?: string; purpose?: string },
+    options: UpsertActiveProjectOptions = {},
+  ): Promise<CommitSessionResult> {
+    const before = this._passport;
+    const after: Passport = {
+      ...before,
+      name: input.name ?? before.name,
+      purpose: input.purpose ?? before.purpose,
+    };
+    return this.commitPassportChange(after, {}, options);
   }
 
   async upsertActiveProject(
@@ -202,67 +221,65 @@ export class Identity {
     const now = options.now ?? new Date();
     const nowIso = now.toISOString();
     const before = this._passport;
-    let passportPath: string | undefined;
-    let auditPath: string | undefined;
-    let journalPath: string | undefined;
+    let expectedHash = options.expectedHash ?? hashPassport(before);
     let prevHash: string | null = null;
 
     if (write) {
-      passportPath = options.passportPath ?? this.loadedFrom;
+      const passportPath = options.passportPath ?? this.loadedFrom;
       if (!passportPath) {
         throw new IdentityConfigError(
           "commitSession({ write: true }) requires passportPath or an Identity loaded via Identity.fromPassport()",
         );
       }
-      auditPath = options.auditPath ?? `${passportPath}.audit.jsonl`;
-      journalPath = options.journalPath ?? defaultCommitJournalPath(passportPath);
-      const log = await readAuditLog(auditPath);
-      const last = log[log.length - 1];
-      if (last) prevHash = last.after_hash;
-    } else if (options.auditPath) {
-      auditPath = options.auditPath;
-      const log = await readAuditLog(auditPath);
+      if (options.expectedHash === undefined) {
+        try {
+          await readPassport(passportPath);
+        } catch (error) {
+          if (!(error instanceof PassportNotFoundError)) throw error;
+          expectedHash = "absent";
+        }
+      }
+      const committed = await commitPassportTransaction(before, after, changes, {
+        passportPath,
+        auditPath: options.auditPath,
+        journalPath: options.journalPath,
+        commandId: options.commandId,
+        expectedHash,
+        notes: options.notes,
+        now,
+        lockTimeoutMs: options.lockTimeoutMs,
+        onPhase: options.onPhase,
+      });
+      this._passport = committed.current;
+      return {
+        before,
+        after,
+        changes,
+        entry: committed.entry,
+        wrote: committed.wrote,
+        passportPath: committed.passportPath,
+        auditPath: committed.auditPath,
+        journalPath: committed.journalPath,
+        commandId: committed.commandId,
+        expectedHash: committed.expectedHash,
+        idempotent: committed.idempotent,
+      };
+    }
+
+    if (options.auditPath) {
+      const log = await readAuditLog(options.auditPath);
       const last = log[log.length - 1];
       if (last) prevHash = last.after_hash;
     }
 
     const entry: AuditEntry = {
       timestamp: nowIso,
-      before_hash: hashPassport(before),
+      before_hash: expectedHash,
       after_hash: hashPassport(after),
       prev_hash: prevHash,
       changes,
       ...(options.notes !== undefined ? { notes: options.notes } : {}),
     };
-
-    if (write && passportPath && auditPath && journalPath) {
-      const prepared = await preparePassportWrite(after, passportPath);
-      try {
-        await writeCommitJournal(
-          journalPath,
-          createCommitJournalRecord({
-            passportPath,
-            auditPath,
-            beforeHash: entry.before_hash,
-            afterHash: entry.after_hash,
-            auditEntry: entry,
-            afterPassport: after,
-            now,
-          }),
-        );
-        await appendAuditEntry(auditPath, entry);
-        await prepared.commit();
-        this._passport = after;
-        await clearCommitJournal(journalPath);
-      } catch (err) {
-        try {
-          await prepared.cleanup();
-        } catch {
-          // Preserve the original commit failure; the temp path is best-effort cleanup.
-        }
-        throw err;
-      }
-    }
 
     return {
       before,
@@ -270,9 +287,12 @@ export class Identity {
       changes,
       entry,
       wrote: write,
-      passportPath,
-      auditPath,
-      journalPath,
+      passportPath: undefined,
+      auditPath: options.auditPath,
+      journalPath: undefined,
+      commandId: undefined,
+      expectedHash,
+      idempotent: false,
     };
   }
 }

@@ -188,6 +188,58 @@ describe("seed-id cli", () => {
     expect(after.name).toBe(before.name);
   });
 
+  it("routes update retries and expected hashes through the transaction journal", async () => {
+    const expectedHash = hashPassport(await readPassport(passportPath));
+    const command = [
+      "update",
+      "--passport",
+      passportPath,
+      "--purpose",
+      "Idempotent CLI update",
+      "--command-id",
+      "cli-update-command",
+      "--expected-hash",
+      expectedHash,
+      "--json",
+    ];
+    const firstIo = createIo();
+    const retryIo = createIo();
+
+    expect(await runCli(command, firstIo)).toBe(0);
+    expect(await runCli(command, retryIo)).toBe(0);
+    expect(JSON.parse(firstIo.stdoutText())).toMatchObject({
+      changed: true,
+      idempotent: false,
+      commandId: "cli-update-command",
+    });
+    expect(JSON.parse(retryIo.stdoutText())).toMatchObject({
+      changed: false,
+      idempotent: true,
+      commandId: "cli-update-command",
+    });
+    expect(await readAuditLog(auditPath)).toHaveLength(1);
+    expect(await readCommitJournal(journalPath)).toBeNull();
+
+    const staleIo = createIo();
+    const staleCode = await runCli(
+      [
+        "update",
+        "--passport",
+        passportPath,
+        "--name",
+        "Stale writer",
+        "--command-id",
+        "stale-cli-command",
+        "--expected-hash",
+        expectedHash,
+      ],
+      staleIo,
+    );
+    expect(staleCode).toBe(1);
+    expect(staleIo.stderrText()).toContain("Passport version conflict");
+    expect(await readAuditLog(auditPath)).toHaveLength(1);
+  });
+
   it("update is a no-op when nothing changes", async () => {
     const before = await readPassport(passportPath);
     const io = createIo();

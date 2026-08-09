@@ -13,7 +13,7 @@ import {
   type CommitRepairOptions,
 } from "./commit-journal.js";
 import { Identity } from "./identity.js";
-import { readPassport, writePassport } from "./passport.js";
+import { readPassport } from "./passport.js";
 import type { AuditEntry } from "./audit.js";
 import type { Passport } from "./schema.js";
 
@@ -37,15 +37,17 @@ interface ParsedOptions extends CommitRepairOptions {
   view?: string;
   issuedBy?: string;
   autonomous?: boolean;
+  commandId?: string;
+  expectedHash?: string;
 }
 
 const usage = `Usage:
-  seed-id init [--name <name>] [--purpose <purpose>] [--agent-id <id>] [--issued-by <agent_id>] [--autonomous] [--out <path>] [--force] [--json]
-  seed-id update [--passport <path>] [--name <name>] [--purpose <purpose>] [--json]
+  seed-id init [--name <name>] [--purpose <purpose>] [--agent-id <id>] [--issued-by <agent_id>] [--autonomous] [--out <path>] [--command-id <id>] [--expected-hash <sha256>] [--force] [--json]
+  seed-id update [--passport <path>] [--name <name>] [--purpose <purpose>] [--command-id <id>] [--expected-hash <sha256>] [--json]
   seed-id validate [--passport <path>] [--json]
   seed-id show [--passport <path>] [--json]
   seed-id audit [--passport <path>] [--audit <path>] [--json]
-  seed-id project link [--passport <path>] --id <id> --root <path> [--role <role>] [--current-focus <text>] [--space <id>] [--view <path>] [--json]
+  seed-id project link [--passport <path>] --id <id> --root <path> [--role <role>] [--current-focus <text>] [--space <id>] [--view <path>] [--command-id <id>] [--expected-hash <sha256>] [--json]
   seed-id repair [--passport <path>] [--audit <path>] [--journal <path>] [--json]
   seed-id status [--passport <path>] [--journal <path>] [--json]
 
@@ -122,7 +124,8 @@ async function initCommand(argv: readonly string[], io: CliIO): Promise<number> 
   if (!options.purpose) {
     throw new Error("--purpose <purpose> is required");
   }
-  if (!options.force && (await pathExists(outPath))) {
+  const passportExists = await pathExists(outPath);
+  if (!options.force && passportExists) {
     throw new Error(`passport already exists: ${outPath} (pass --force to overwrite)`);
   }
 
@@ -132,10 +135,15 @@ async function initCommand(argv: readonly string[], io: CliIO): Promise<number> 
     autonomous: options.autonomous,
   });
   await mkdir(dirname(outPath), { recursive: true });
-  await writePassport(passport, outPath);
+  const commandId = options.commandId ?? randomUUID();
+  await Identity.savePassport(passport, outPath, {
+    commandId,
+    expectedHash: options.expectedHash ?? (passportExists ? hashPassport(await readPassport(outPath)) : "absent"),
+    notes: `initialized passport ${passport.agent_id}`,
+  });
 
   if (options.json) {
-    writeJson(io, { passportPath: outPath, passport });
+    writeJson(io, { passportPath: outPath, passport, commandId });
   } else {
     io.stdout.write(`created passport: ${outPath}\n`);
     io.stdout.write(`agent: ${passport.agent_id}\n`);
@@ -148,7 +156,8 @@ async function initCommand(argv: readonly string[], io: CliIO): Promise<number> 
 
 async function validateCommand(argv: readonly string[], io: CliIO): Promise<number> {
   const options = parseOptions(argv, { requirePassport: true });
-  const passport = await readPassport(options.passportPath!);
+  const identity = await Identity.fromPassport(options.passportPath!);
+  const passport = identity.passport;
   const payload = {
     ok: true,
     passportPath: options.passportPath,
@@ -169,7 +178,8 @@ async function validateCommand(argv: readonly string[], io: CliIO): Promise<numb
 
 async function updateCommand(argv: readonly string[], io: CliIO): Promise<number> {
   const options = parseOptions(argv, { requirePassport: true });
-  const passport = await readPassport(options.passportPath!);
+  const identity = await Identity.fromPassport(options.passportPath!);
+  const passport = identity.passport;
 
   const changes: Record<string, { from: string; to: string }> = {};
   if (options.name !== undefined && options.name !== passport.name) {
@@ -181,7 +191,7 @@ async function updateCommand(argv: readonly string[], io: CliIO): Promise<number
     passport.purpose = options.purpose;
   }
 
-  if (Object.keys(changes).length === 0) {
+  if (Object.keys(changes).length === 0 && !options.commandId) {
     if (options.json) {
       writeJson(io, { passportPath: options.passportPath, changed: false, changes: {} });
     } else {
@@ -190,10 +200,29 @@ async function updateCommand(argv: readonly string[], io: CliIO): Promise<number
     return 0;
   }
 
-  await writePassport(passport, options.passportPath!);
+  const commandId = options.commandId ?? randomUUID();
+  const result = await identity.updateMutableFields(
+    { name: passport.name, purpose: passport.purpose },
+    {
+      write: true,
+      passportPath: options.passportPath,
+      auditPath: options.auditPath,
+      journalPath: options.journalPath,
+      commandId,
+      expectedHash: options.expectedHash,
+      notes: `updated mutable passport fields for ${passport.agent_id}`,
+    },
+  );
 
   if (options.json) {
-    writeJson(io, { passportPath: options.passportPath, changed: true, changes });
+    writeJson(io, {
+      passportPath: result.passportPath,
+      auditPath: result.auditPath,
+      changed: result.wrote,
+      idempotent: result.idempotent,
+      commandId: result.commandId,
+      changes,
+    });
   } else {
     io.stdout.write(`updated passport: ${options.passportPath}\n`);
     for (const [field, { from, to }] of Object.entries(changes)) {
@@ -279,6 +308,8 @@ async function projectCommand(argv: readonly string[], io: CliIO): Promise<numbe
       passportPath: options.passportPath,
       auditPath: options.auditPath,
       journalPath: options.journalPath,
+      commandId: options.commandId ?? randomUUID(),
+      expectedHash: options.expectedHash,
       notes: `linked active project ${options.projectId}`,
     },
   );
@@ -288,6 +319,8 @@ async function projectCommand(argv: readonly string[], io: CliIO): Promise<numbe
     writeJson(io, {
       passportPath: result.passportPath,
       auditPath: result.auditPath,
+      commandId: result.commandId,
+      idempotent: result.idempotent,
       project,
     });
   } else {
@@ -427,6 +460,16 @@ function parseOptions(argv: readonly string[], rules: { requirePassport: boolean
     }
     if (arg === "--autonomous") {
       options.autonomous = true;
+      continue;
+    }
+    if (arg === "--command-id") {
+      options.commandId = readOptionValue(argv, i, arg);
+      i += 1;
+      continue;
+    }
+    if (arg === "--expected-hash") {
+      options.expectedHash = readOptionValue(argv, i, arg);
+      i += 1;
       continue;
     }
     throw new Error(`Unknown option: ${arg}`);
