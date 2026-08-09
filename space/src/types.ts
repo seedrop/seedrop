@@ -31,7 +31,9 @@ export type ArtifactFamily =
   | "tasks"
   | "handoffs"
   | "signals"
-  | "signals_archive";
+  | "signals_archive"
+  | "knowledge"
+  | "resolved_threads";
 
 /**
  * A typed explanation for a durable artifact that could not be returned.
@@ -45,6 +47,7 @@ export interface ArtifactDiagnostic {
     | "invalid_json"
     | "schema_validation"
     | "unsupported_schema_version"
+    | "invalid_content"
     | "missing"
     | "unreadable"
     | "io_error";

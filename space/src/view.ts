@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { mkdir, open, readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import {
   TaskBlockedError,
   TaskConflictError,
@@ -335,6 +335,17 @@ export interface ViewAuditOptions {
   writeCache?: boolean;
 }
 
+export interface KnowledgeArtifact {
+  path: string;
+  content: string;
+  metadata: {
+    status?: string;
+    superseded_by?: string;
+    updated_at?: string;
+    validated_by?: string;
+  };
+}
+
 const DEFAULT_DATA_DIR = ".seedrop/view";
 const DEFAULT_IGNORE = new Set([".git", "node_modules", "dist", "coverage", ".seedrop", ".DS_Store"]);
 const MAX_HASHED_FILE_BYTES = 50 * 1024 * 1024;
@@ -342,6 +353,17 @@ const VIEW_FILE_LOCK_RETRY_MS = 25;
 const VIEW_FILE_LOCK_TIMEOUT_MS = 30_000;
 const VIEW_FILE_LOCK_STALE_MS = 5 * 60_000;
 const SUCCESS_LEVELS = ["L0", "L1", "L2", "L3", "L4"] as const;
+const ResolvedThreadEntrySchema = z.object({
+  id: z.string().min(1),
+  packet_id: z.string().min(1),
+  thread: z.string().min(1),
+  resolved_at: z.string().datetime(),
+  note: z.string().min(1).optional(),
+}).strict();
+const ResolvedThreadsEnvelopeSchema = z.object({
+  schema_version: z.literal("1.0"),
+  resolved: z.array(z.unknown()),
+}).strict();
 type ViewSuccessLevel = (typeof SUCCESS_LEVELS)[number];
 type ManifestFreshness = NonNullable<ViewBrief["manifest"]>["freshness"];
 
@@ -1803,18 +1825,84 @@ export class WorkspaceView {
     }
   }
 
-  private async readResolvedThreads(): Promise<ResolvedThreadEntry[]> {
-    if (!existsSync(this.resolvedThreadsPath)) return [];
+  async readKnowledgeArtifacts(): Promise<ArtifactReadResult<KnowledgeArtifact>> {
+    if (!existsSync(this.knowledgeDir)) return artifactReadResult([]);
+    const records: KnowledgeArtifact[] = [];
+    const diagnostics: ArtifactDiagnostic[] = [];
+    const walk = async (directory: string): Promise<void> => {
+      let entries;
+      try {
+        entries = await readdir(directory, { withFileTypes: true });
+      } catch (error) {
+        diagnostics.push(this.toArtifactDiagnostic("knowledge", directory, error));
+        return;
+      }
+      for (const entry of entries) {
+        const filePath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          await walk(filePath);
+          continue;
+        }
+        if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md")) continue;
+        try {
+          const content = await readFile(filePath, "utf8");
+          const parsed = parseKnowledgeFrontmatterChecked(content);
+          if (parsed.error) {
+            const error = Object.assign(new Error(parsed.error), { artifactCode: "invalid_content" as const });
+            diagnostics.push(this.toArtifactDiagnostic("knowledge", filePath, error));
+          } else {
+            records.push({
+              path: normalizeRelativePath(path.relative(this.dataDir, filePath)),
+              content,
+              metadata: parsed.metadata,
+            });
+          }
+        } catch (error) {
+          diagnostics.push(this.toArtifactDiagnostic("knowledge", filePath, error));
+        }
+      }
+    };
+    await walk(this.knowledgeDir);
+    records.sort((a, b) => comparePaths(a.path, b.path));
+    return artifactReadResult(records, diagnostics);
+  }
+
+  async readResolvedThreadIndex(): Promise<ArtifactReadResult<ResolvedThreadEntry>> {
+    if (!existsSync(this.resolvedThreadsPath)) return artifactReadResult([]);
+    let parsed: unknown;
     try {
-      const raw = JSON.parse(await readFile(this.resolvedThreadsPath, "utf8"));
-      const list = Array.isArray(raw?.resolved) ? raw.resolved : [];
-      return list.filter(
-        (entry: unknown): entry is ResolvedThreadEntry =>
-          typeof (entry as ResolvedThreadEntry)?.id === "string",
-      );
-    } catch {
-      return [];
+      parsed = JSON.parse(await readFile(this.resolvedThreadsPath, "utf8"));
+    } catch (error) {
+      return artifactReadResult([], [this.toArtifactDiagnostic("resolved_threads", this.resolvedThreadsPath, error)]);
     }
+    const envelope = ResolvedThreadsEnvelopeSchema.safeParse(parsed);
+    if (!envelope.success) {
+      return artifactReadResult([], [this.toArtifactDiagnostic(
+        "resolved_threads",
+        this.resolvedThreadsPath,
+        new WorkspaceViewValidationError(envelope.error.issues, this.resolvedThreadsPath),
+      )]);
+    }
+    const records: ResolvedThreadEntry[] = [];
+    const diagnostics: ArtifactDiagnostic[] = [];
+    for (let index = 0; index < envelope.data.resolved.length; index += 1) {
+      const entry = ResolvedThreadEntrySchema.safeParse(envelope.data.resolved[index]);
+      if (entry.success) {
+        records.push(entry.data);
+      } else {
+        const pointer = `${this.resolvedThreadsPath}#/resolved/${index}`;
+        diagnostics.push(this.toArtifactDiagnostic(
+          "resolved_threads",
+          pointer,
+          new WorkspaceViewValidationError(entry.error.issues, pointer),
+        ));
+      }
+    }
+    return artifactReadResult(records, diagnostics);
+  }
+
+  private async readResolvedThreads(): Promise<ResolvedThreadEntry[]> {
+    return this.requireComplete(await this.readResolvedThreadIndex(), "read the resolved-thread index");
   }
 
   private async writeResolvedThreads(entries: ResolvedThreadEntry[]): Promise<void> {
@@ -2046,18 +2134,46 @@ export class WorkspaceView {
     const issues: AuditReport["issues"] = [];
     const checks: ViewCheck[] = [];
     const nextActions: NextAction[] = [];
-    const manifestResult = await this.readManifestResult();
-    const manifest = manifestResult.value;
-    const policyResult = await this.readPolicyResult();
-    const policy = policyResult.value;
+    const [
+      manifestRead,
+      policyRead,
+      continuityRead,
+      runsRead,
+      tasksRead,
+      handoffsRead,
+      signalsRead,
+      archiveRead,
+      knowledgeRead,
+      resolvedThreadsRead,
+    ] = await Promise.all([
+      this.readManifestArtifact(),
+      this.readPolicyArtifact(),
+      this.readContinuityPackets(),
+      this.readRuns(),
+      this.readTasks(),
+      this.readHandoffs(),
+      this.readSignals({ includeExpired: true }),
+      this.readArchivedSignals(),
+      this.readKnowledgeArtifacts(),
+      this.readResolvedThreadIndex(),
+    ]);
+    const manifest = manifestRead.records[0];
+    const policy = policyRead.records[0];
+
+    this.collectArtifactReadAudit("manifest", manifestRead, issues, checks, { required: true, path: "manifest.json" });
+    this.collectArtifactReadAudit("policy", policyRead, issues, checks, { path: "policy.json" });
+    this.collectArtifactReadAudit("continuity", continuityRead, issues, checks, { path: "continuity/" });
+    this.collectArtifactReadAudit("runs", runsRead, issues, checks, { path: "runs/" });
+    this.collectArtifactReadAudit("tasks", tasksRead, issues, checks, { path: "tasks/" });
+    this.collectArtifactReadAudit("handoffs", handoffsRead, issues, checks, { path: "handoffs/" });
+    this.collectArtifactReadAudit("signals", signalsRead, issues, checks, { path: "signals/" });
+    this.collectArtifactReadAudit("signals_archive", archiveRead, issues, checks, { path: "signals-archive.json" });
+    this.collectArtifactReadAudit("knowledge", knowledgeRead, issues, checks, { path: "knowledge/" });
+    this.collectArtifactReadAudit("resolved_threads", resolvedThreadsRead, issues, checks, { path: "resolved-threads.json" });
 
     if (!manifest) {
-      const message = manifestResult.error ?? "Workspace manifest is missing.";
-      issues.push({ severity: "error", code: "manifest_missing", message });
-      checks.push({ id: "manifest", status: "fail", summary: message, path: "manifest.json" });
       nextActions.push(commandAction("seed view sync", "low", "Create or repair workspace manifest."));
     } else {
-      checks.push({ id: "manifest", status: "pass", summary: "Manifest parses.", path: "manifest.json" });
       const actualFiles = new Set(await this.scanFiles(policy?.ignore ?? []));
       const manifestFiles = new Map(manifest.files.map((file) => [file.path, file]));
 
@@ -2136,7 +2252,7 @@ export class WorkspaceView {
       };
     }
 
-    for (const signal of await this.listSignals({ includeExpired: true })) {
+    for (const signal of signalsRead.records) {
       if (Date.parse(signal.expires_at) <= this.now().getTime()) {
         issues.push({
           severity: "warning",
@@ -2148,15 +2264,9 @@ export class WorkspaceView {
       }
     }
 
-    await this.collectKnowledgeFreshness(issues, checks, nextActions);
-    await this.collectMalformedArtifacts("runs", this.runsDir, RunJournalSchema, issues, checks);
-    await this.collectMalformedArtifacts("handoffs", this.handoffsDir, HandoffSchema, issues, checks);
-    if (policyResult.errorMessage) {
-      issues.push({ severity: "error", code: "policy_malformed", message: policyResult.errorMessage, path: "policy.json" });
-      checks.push({ id: "policy", status: "fail", summary: policyResult.errorMessage, path: "policy.json" });
-    } else if (policyResult.value) {
-      checks.push({ id: "policy", status: "pass", summary: "Policy parses.", path: "policy.json" });
-      if (!policyResult.value.purpose || !policyResult.value.current_focus) {
+    this.collectKnowledgeFreshness(knowledgeRead.records, issues, checks, nextActions);
+    if (policy) {
+      if (!policy.purpose || !policy.current_focus) {
         issues.push({
           severity: "warning",
           code: "policy_low_signal",
@@ -2172,6 +2282,15 @@ export class WorkspaceView {
       } else {
         checks.push({ id: "policy_signal", status: "pass", summary: "Policy includes purpose and current focus.", path: "policy.json" });
       }
+    } else {
+      checks.push({
+        id: "policy_signal",
+        status: policyRead.completeness === "partial" ? "fail" : "skipped",
+        summary: policyRead.completeness === "partial"
+          ? "Policy signal cannot be evaluated because policy.json is malformed."
+          : "No policy is present; purpose and current focus are unavailable.",
+        path: "policy.json",
+      });
     }
 
     const report: AuditReport = {
@@ -2688,48 +2807,48 @@ export class WorkspaceView {
     return undefined;
   }
 
-  private async collectMalformedArtifacts(
-    label: "runs" | "handoffs",
-    dir: string,
-    schema: ZodType<unknown>,
+  private collectArtifactReadAudit<T>(
+    family: ArtifactFamily,
+    result: ArtifactReadResult<T>,
     issues: AuditReport["issues"],
     checks: ViewCheck[],
-  ): Promise<void> {
-    if (!existsSync(dir)) {
-      checks.push({ id: label, status: "pass", summary: `${label} directory has no artifacts yet.`, path: label });
-      return;
+    options: { required?: boolean; path: string },
+  ): void {
+    for (const diagnostic of result.diagnostics) {
+      const requiredMissing = options.required && diagnostic.code === "missing";
+      issues.push({
+        severity: "error",
+        code: requiredMissing ? `${family}_missing` : `${family}_malformed`,
+        message: requiredMissing && family === "manifest"
+          ? "Workspace manifest is missing."
+          : diagnostic.reason,
+        path: diagnostic.path,
+      });
     }
-    const entries = await readdir(dir, { withFileTypes: true });
-    let malformed = 0;
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      const filePath = path.join(dir, entry.name);
-      try {
-        await this.readJson(filePath, schema);
-      } catch (error) {
-        malformed += 1;
-        issues.push({
-          severity: "error",
-          code: `${label}_malformed`,
-          message: error instanceof Error ? error.message : String(error),
-          path: normalizeRelativePath(path.relative(this.dataDir, filePath)),
-        });
-      }
-    }
+    const absentOptional = !options.required && result.records.length === 0 && result.diagnostics.length === 0;
     checks.push({
-      id: label,
-      status: malformed > 0 ? "fail" : "pass",
-      summary: malformed > 0 ? `${malformed} malformed ${label} artifact(s).` : `${label} artifacts parse.`,
-      path: label,
+      id: family,
+      status: result.completeness === "partial" ? "fail" : absentOptional ? "skipped" : "pass",
+      summary: result.completeness === "partial"
+        ? `${result.diagnostics.length} ${family} artifact(s) could not be read; ${result.records.length} valid record(s) preserved.`
+        : absentOptional
+          ? `No ${family} artifacts are present.`
+          : `${result.records.length} ${family} record(s) read completely.`,
+      path: options.path,
+      details: {
+        completeness: result.completeness,
+        records_count: result.records.length,
+        diagnostics_count: result.diagnostics.length,
+      },
     });
   }
 
-  private async collectKnowledgeFreshness(
+  private collectKnowledgeFreshness(
+    files: KnowledgeArtifact[],
     issues: AuditReport["issues"],
     checks: ViewCheck[],
     nextActions: NextAction[],
-  ): Promise<void> {
-    const files = await listMarkdownFiles(this.knowledgeDir);
+  ): void {
     if (files.length === 0) {
       checks.push({ id: "knowledge_freshness", status: "skipped", summary: "No knowledge markdown files found.", path: "knowledge/" });
       return;
@@ -2738,8 +2857,8 @@ export class WorkspaceView {
     const staleFiles: Array<Record<string, unknown>> = [];
     let annotated = 0;
     for (const file of files) {
-      const relativePath = normalizeRelativePath(path.relative(this.dataDir, file));
-      const metadata = parseKnowledgeFrontmatter(await readFile(file, "utf8"));
+      const relativePath = file.path;
+      const metadata = file.metadata;
       if (Object.keys(metadata).length > 0) annotated += 1;
       if (metadata.status !== "stale" && metadata.status !== "superseded") continue;
 
@@ -2902,8 +3021,11 @@ export class WorkspaceView {
     const err = error instanceof Error ? error : new Error(String(error));
     const cause = (err as Error & { cause?: unknown }).cause;
     const nodeCode = (cause as NodeJS.ErrnoException | undefined)?.code ?? (err as NodeJS.ErrnoException).code;
+    const artifactCode = (err as Error & { artifactCode?: ArtifactDiagnostic["code"] }).artifactCode;
     const code: ArtifactDiagnostic["code"] =
-      nodeCode === "ENOENT"
+      artifactCode
+        ? artifactCode
+        : nodeCode === "ENOENT"
         ? "missing"
         : nodeCode === "EACCES" || nodeCode === "EPERM"
           ? "unreadable"
@@ -3057,21 +3179,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function listMarkdownFiles(dir: string): Promise<string[]> {
-  if (!existsSync(dir)) return [];
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files: string[] = [];
-  for (const entry of entries) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await listMarkdownFiles(entryPath)));
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
-      files.push(entryPath);
-    }
-  }
-  return files.sort(comparePaths);
-}
-
 interface KnowledgeFrontmatter {
   status?: string;
   superseded_by?: string;
@@ -3079,13 +3186,17 @@ interface KnowledgeFrontmatter {
   validated_by?: string;
 }
 
-function parseKnowledgeFrontmatter(markdown: string): KnowledgeFrontmatter {
+function parseKnowledgeFrontmatterChecked(markdown: string): { metadata: KnowledgeFrontmatter; error?: string } {
   const lines = markdown.split(/\r?\n/);
-  if (lines[0] !== "---") return {};
+  if (lines[0] !== "---") return { metadata: {} };
   const metadata: KnowledgeFrontmatter = {};
+  let closed = false;
   for (let index = 1; index < lines.length; index += 1) {
     const line = lines[index]!;
-    if (line === "---") break;
+    if (line === "---") {
+      closed = true;
+      break;
+    }
     const match = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
     if (!match) continue;
     const key = match[1]!.replace(/-/g, "_");
@@ -3095,7 +3206,9 @@ function parseKnowledgeFrontmatter(markdown: string): KnowledgeFrontmatter {
     else if (key === "updated_at") metadata.updated_at = value;
     else if (key === "validated_by") metadata.validated_by = value;
   }
-  return metadata;
+  return closed
+    ? { metadata }
+    : { metadata: {}, error: "Knowledge frontmatter opens with --- but has no closing --- delimiter." };
 }
 
 function stripFrontmatterQuotes(value: string): string {
