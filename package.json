@@ -2,6 +2,7 @@
   "name": "seedrop",
   "private": true,
   "workspaces": [
+    "protocol",
     "id",
     "space",
     "cli",

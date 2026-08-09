@@ -1,0 +1,61 @@
+{
+  "fixture_version": "1.0.0",
+  "id_kind_codes": {
+    "principal": "prn",
+    "project": "prj",
+    "intent": "int",
+    "episode": "eps",
+    "claim": "clm",
+    "receipt": "rcp",
+    "lease": "lse",
+    "event": "evt",
+    "situation": "sit",
+    "command": "cmd"
+  },
+  "canonical_id": {
+    "kind": "intent",
+    "timestamp_ms": 1723379696789,
+    "entropy_hex": "00112233445566778899",
+    "value": "sd_int_0191416f-4495-7011-a233-445566778899"
+  },
+  "canonical_json": {
+    "value": {
+      "z": "Zażółć 🪴",
+      "a": [3, true, null, { "β": 2, "alpha": 0 }],
+      "n": 1.25e-7
+    },
+    "text": "{\"a\":[3,true,null,{\"alpha\":0,\"β\":2}],\"n\":1.25e-7,\"z\":\"Zażółć 🪴\"}",
+    "utf8_hex": "7b2261223a5b332c747275652c6e756c6c2c7b22616c706861223a302c22ceb2223a327d5d2c226e223a312e3235652d372c227a223a225a61c5bcc3b3c582c48720f09faab4227d",
+    "sha256": "sha256:d607c0f3bc44925670c079130c6246e9bb05cc1462d816e3289b71b4b3dbd48f"
+  },
+  "versions": {
+    "schema_version": "2.0.0",
+    "semantic_version": "2.0.0",
+    "command_version": "1.0.0",
+    "projection_version": "1.0.0",
+    "wire_version": "1.0.0"
+  },
+  "migration_plan": {
+    "schema": "seedrop.protocol-envelope",
+    "current": "2.0.0",
+    "roots": ["2.0.0"],
+    "direction": "forward_only",
+    "downgrade": "unsupported_restore_source_snapshot_or_use_compatibility_reader",
+    "steps": []
+  },
+  "error_registry": {
+    "seedrop.protocol.invalid_id": { "category": "input", "message": "The identifier is not a canonical Seedrop v2 identifier.", "retryable": false },
+    "seedrop.protocol.id_prefix_too_short": { "category": "input", "message": "The identifier prefix is shorter than the protocol minimum.", "retryable": false },
+    "seedrop.protocol.id_prefix_not_found": { "category": "not_found", "message": "The identifier prefix did not match a canonical identifier.", "retryable": false },
+    "seedrop.protocol.id_prefix_ambiguous": { "category": "conflict", "message": "The identifier prefix matched more than one canonical identifier.", "retryable": false },
+    "seedrop.protocol.canonical_json_unsupported": { "category": "input", "message": "The value is outside the canonical JSON data model.", "retryable": false },
+    "seedrop.protocol.canonical_json_cycle": { "category": "input", "message": "Canonical JSON cannot encode a cyclic value.", "retryable": false },
+    "seedrop.protocol.canonical_json_invalid_unicode": { "category": "input", "message": "Canonical JSON cannot encode an unpaired Unicode surrogate.", "retryable": false },
+    "seedrop.protocol.version_invalid": { "category": "input", "message": "The protocol version is missing or malformed.", "retryable": false },
+    "seedrop.protocol.version_unknown": { "category": "compatibility", "message": "The protocol version is not registered as supported.", "retryable": false },
+    "seedrop.protocol.version_forward": { "category": "compatibility", "message": "The protocol version is newer than this implementation supports.", "retryable": false },
+    "seedrop.protocol.migration_graph_invalid": { "category": "integrity", "message": "The migration graph is ambiguous, cyclic, orphaned, or has a gap.", "retryable": false },
+    "seedrop.protocol.migration_failed": { "category": "integrity", "message": "A registered protocol migration failed.", "retryable": false },
+    "seedrop.protocol.validation_failed": { "category": "input", "message": "The migrated protocol value failed current-schema validation.", "retryable": false }
+  }
+}

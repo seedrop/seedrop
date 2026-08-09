@@ -1,0 +1,52 @@
+{
+  "name": "@seedrop/protocol",
+  "version": "0.1.0-alpha.1",
+  "description": "Seedrop v2 protocol primitives: canonical IDs and bytes, stable errors, versions, and migrations.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "verify:golden": "npm run build && node scripts/verify-golden.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "files": [
+    "src/",
+    "dist/",
+    "fixtures/",
+    "scripts/",
+    "README.md"
+  ],
+  "keywords": [
+    "seedrop",
+    "protocol",
+    "canonical-json",
+    "uuidv7",
+    "migrations"
+  ],
+  "author": "Mariusz Czaykowski",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seedrop/seedrop.git",
+    "directory": "protocol"
+  }
+}
