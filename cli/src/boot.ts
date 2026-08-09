@@ -50,6 +50,29 @@ export interface SituationConfidence {
   reasons: string[];
 }
 
+/** Independent trust axes. Never infer a stronger axis from a weaker one. */
+export interface BootOutcomeFacts {
+  reported: {
+    status: "complete" | "not_complete" | "unknown";
+    source: "run" | "none";
+    ref?: string;
+    summary: string;
+  };
+  evidence: {
+    status: "validated" | "failed" | "not_validated" | "unknown";
+    source: "run_validation" | "continuity_validation" | "none";
+    ref?: string;
+    commands: string[];
+    summary: string;
+  };
+  delivery: {
+    status: "observed" | "not_observed" | "unknown";
+    source: "receipt" | "none";
+    ref?: string;
+    summary: string;
+  };
+}
+
 export interface SituationLastWork {
   kind: "run" | "continuity" | "none";
   ref?: string;
@@ -94,6 +117,7 @@ export interface Situation {
     active_signals: number;
     audit: { ok: boolean | null; warnings: number; errors: number };
     daemon_reachable: boolean;
+    outcome: BootOutcomeFacts;
     confidence: SituationConfidence;
   };
   next_move: SituationNextMove;
@@ -254,9 +278,11 @@ export interface BootReport {
     warnings: string[];
   };
   trust: Array<{
-    label: "live_local" | "committed_proof" | "stale" | "untrusted" | "sandbox_limited";
+    axis: "provenance" | "report" | "evidence" | "delivery" | "freshness" | "integrity" | "runtime";
+    label: "live_local" | "reported_complete" | "validated_evidence" | "delivery_unobserved" | "stale" | "untrusted" | "sandbox_limited";
     summary: string;
   }>;
+  outcome: BootOutcomeFacts;
   situation: Situation;
   next_action: BootNextAction;
   alternate_actions: BootNextAction[];
@@ -299,6 +325,7 @@ export async function buildBootReport(opts: {
 
 export function buildBootReportFromContinuity(continuity: ContinuityReport, audit: AuditReport | null, generatedAt = new Date().toISOString()): BootReport {
   const knowledgeIssues = audit?.issues.filter((issue) => issue.code === "knowledge_stale" || issue.code === "knowledge_superseded") ?? [];
+  const outcome = outcomeFacts(continuity);
   const report: BootReportBase = {
     schema_version: "1.0",
     generated_at: generatedAt,
@@ -358,7 +385,8 @@ export function buildBootReportFromContinuity(continuity: ContinuityReport, audi
         ...(audit?.issues.filter((issue) => issue.severity === "warning").map((issue) => issue.message) ?? []),
       ],
     },
-    trust: trustLabels(continuity, audit),
+    trust: trustLabels(continuity, audit, outcome),
+    outcome,
     continuity: continuity.orientation,
   };
   const candidates = collectBootCandidates(report, continuity, audit);
@@ -445,6 +473,7 @@ function buildSituation(
       active_signals: report.coordination.active_signals,
       audit: report.freshness.audit,
       daemon_reachable: report.coordination.daemon_reachable,
+      outcome: report.outcome,
       confidence,
     },
     next_move: {
@@ -563,6 +592,9 @@ function situationConfidence(report: Omit<BootReport, "situation">): SituationCo
   if (report.trust.some((entry) => entry.label === "stale")) reasons.push("Some View evidence is stale.");
   if (report.trust.some((entry) => entry.label === "untrusted")) reasons.push("View audit reported untrusted evidence.");
   if (report.trust.some((entry) => entry.label === "sandbox_limited")) reasons.push("Runtime sandbox limits daemon proof.");
+  if (report.outcome.reported.status === "complete" && report.outcome.delivery.status !== "observed") {
+    reasons.push("Completion is reported, but no delivery observation receipt is present.");
+  }
   if (reasons.length === 0) {
     return { level: "high", reasons: ["Identity, View, audit, and git evidence are available."] };
   }
@@ -670,6 +702,9 @@ export function renderBoot(report: BootReport): string {
   lines.push("");
   lines.push("Evidence / confidence:");
   lines.push(`  Confidence: ${situation.current_state.confidence.level} - ${situation.current_state.confidence.reasons[0]}`);
+  lines.push(`  Reported: ${report.outcome.reported.status} - ${report.outcome.reported.summary}`);
+  lines.push(`  Evidence: ${report.outcome.evidence.status} - ${report.outcome.evidence.summary}`);
+  lines.push(`  Delivery: ${report.outcome.delivery.status} - ${report.outcome.delivery.summary}`);
   for (const evidence of situation.next_move.evidence.slice(0, 3)) {
     lines.push(`  - ${evidence.summary}${evidence.ref ? ` (${evidence.ref})` : ""}`);
   }
@@ -1264,22 +1299,116 @@ const fallbackCandidate: BootCandidate = {
   evidence: [{ source: "view", summary: "No higher-priority boot candidates were generated." }],
 };
 
-function trustLabels(continuity: ContinuityReport, audit: AuditReport | null): BootReport["trust"] {
+function outcomeFacts(continuity: ContinuityReport): BootOutcomeFacts {
+  const run = continuity.view.latestRun;
+  const reported: BootOutcomeFacts["reported"] = run
+    ? {
+      status: run.status === "completed" ? "complete" : "not_complete",
+      source: "run",
+      ref: run.run_id,
+      summary: run.status === "completed"
+        ? `Run ${run.run_id.slice(0, 8)} self-reports status=completed.`
+        : `Latest run ${run.run_id.slice(0, 8)} reports status=${run.status}.`,
+    }
+    : {
+      status: "unknown",
+      source: "none",
+      summary: "No run report is available.",
+    };
+
+  const candidates: Array<{
+    source: "run_validation" | "continuity_validation";
+    ref: string;
+    status: string;
+    commands: string[];
+    at: string;
+  }> = [];
+  const runValidation = run?.validation?.at(-1);
+  if (run && runValidation) {
+    candidates.push({
+      source: "run_validation",
+      ref: run.run_id,
+      status: runValidation.status,
+      commands: [runValidation.command],
+      at: runValidation.recorded_at ?? run.updated_at ?? run.started_at ?? "",
+    });
+  }
+  const packet = continuity.view.latestPacket;
+  if (packet?.id && packet.validation?.status && packet.validation.status !== "unknown") {
+    candidates.push({
+      source: "continuity_validation",
+      ref: packet.id,
+      status: packet.validation.status,
+      commands: packet.validation.commands ?? [],
+      at: packet.created_at ?? "",
+    });
+  }
+  const latestEvidence = candidates.sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+  const evidence: BootOutcomeFacts["evidence"] = latestEvidence
+    ? {
+      status: latestEvidence.status === "passed"
+        ? "validated"
+        : latestEvidence.status === "failed"
+          ? "failed"
+          : "not_validated",
+      source: latestEvidence.source,
+      ref: latestEvidence.ref,
+      commands: latestEvidence.commands,
+      summary: latestEvidence.status === "passed"
+        ? `Validation passed${latestEvidence.commands.length ? `: ${latestEvidence.commands.join("; ")}` : "."}`
+        : latestEvidence.status === "failed"
+          ? `Validation failed${latestEvidence.commands.length ? `: ${latestEvidence.commands.join("; ")}` : "."}`
+          : "The latest validation record was skipped; it is not proof.",
+    }
+    : {
+      status: run?.status === "completed" ? "not_validated" : "unknown",
+      source: "none",
+      commands: [],
+      summary: run?.status === "completed"
+        ? "The completion report has no validation receipt."
+        : "No validation evidence is available.",
+    };
+
+  const delivery: BootOutcomeFacts["delivery"] = reported.status === "complete"
+    ? {
+      status: "not_observed",
+      source: "none",
+      summary: "No commit, push, deploy, or recipient observation receipt is present.",
+    }
+    : {
+      status: "unknown",
+      source: "none",
+      summary: "No completed outcome exists for delivery reconciliation.",
+    };
+  return { reported, evidence, delivery };
+}
+
+function trustLabels(
+  continuity: ContinuityReport,
+  audit: AuditReport | null,
+  outcome: BootOutcomeFacts,
+): BootReport["trust"] {
   const labels: BootReport["trust"] = [];
   if (continuity.view.present) {
-    labels.push({ label: "live_local", summary: ".seedrop/view is live local state for this repo." });
+    labels.push({ axis: "provenance", label: "live_local", summary: ".seedrop/view is live local state for this repo." });
   }
-  if (continuity.view.latestPacket?.git_status?.is_dirty === false || continuity.view.latestRun?.status === "completed") {
-    labels.push({ label: "committed_proof", summary: "Latest durable trace has validation or completed-run evidence." });
+  if (outcome.reported.status === "complete") {
+    labels.push({ axis: "report", label: "reported_complete", summary: outcome.reported.summary });
+  }
+  if (outcome.evidence.status === "validated") {
+    labels.push({ axis: "evidence", label: "validated_evidence", summary: outcome.evidence.summary });
+  }
+  if (outcome.delivery.status === "not_observed") {
+    labels.push({ axis: "delivery", label: "delivery_unobserved", summary: outcome.delivery.summary });
   }
   if ((audit?.issues ?? []).some((issue) => issue.code === "knowledge_stale" || issue.code === "knowledge_superseded" || issue.code === "manifest_age_stale")) {
-    labels.push({ label: "stale", summary: "Some View knowledge or manifest evidence is stale." });
+    labels.push({ axis: "freshness", label: "stale", summary: "Some View knowledge or manifest evidence is stale." });
   }
   if ((audit?.issues ?? []).some((issue) => issue.severity === "error")) {
-    labels.push({ label: "untrusted", summary: "View audit has errors; inspect before trusting orientation." });
+    labels.push({ axis: "integrity", label: "untrusted", summary: "View audit has errors; inspect before trusting orientation." });
   }
   if (continuity.warnings.some((warning) => /sandbox/i.test(warning))) {
-    labels.push({ label: "sandbox_limited", summary: "Runtime sandbox limits daemon proof from this process." });
+    labels.push({ axis: "runtime", label: "sandbox_limited", summary: "Runtime sandbox limits daemon proof from this process." });
   }
   return labels;
 }

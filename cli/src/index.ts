@@ -6,6 +6,7 @@ export {
   resolveBootNextAction,
   scoreBootOutcome,
   type BootOutcomeObservation,
+  type BootOutcomeFacts,
   type BootOutcomeScore,
   type BootReport,
   type BootNextAction,

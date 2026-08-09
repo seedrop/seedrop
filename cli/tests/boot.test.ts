@@ -130,6 +130,105 @@ describe("BootReport next-action resolver", () => {
     expect(out).toContain("Evidence / confidence:");
   });
 
+  it("keeps an unvalidated completion report separate from evidence and delivery", () => {
+    const report = buildBootReportFromContinuity(
+      continuity({
+        view: {
+          ...continuity().view,
+          latestRun: {
+            run_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            agent_id: "codex",
+            goal: "Reported work",
+            status: "completed",
+            updated_at: "2026-06-04T09:30:00.000Z",
+          },
+        },
+      }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.outcome).toMatchObject({
+      reported: { status: "complete", source: "run", ref: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+      evidence: { status: "not_validated", source: "none", commands: [] },
+      delivery: { status: "not_observed", source: "none" },
+    });
+    expect(report.situation.current_state.outcome).toEqual(report.outcome);
+    expect(report.trust.map((entry) => entry.label)).toEqual([
+      "live_local",
+      "reported_complete",
+      "delivery_unobserved",
+    ]);
+    expect(report.trust.find((entry) => entry.label === "reported_complete")?.axis).toBe("report");
+    expect(JSON.stringify(report)).not.toContain("committed_proof");
+    expect(report.situation.current_state.confidence).toMatchObject({
+      level: "medium",
+      reasons: [expect.stringContaining("no delivery observation receipt")],
+    });
+
+    const rendered = renderBoot(report);
+    expect(rendered).toContain("Reported: complete");
+    expect(rendered).toContain("Evidence: not_validated");
+    expect(rendered).toContain("Delivery: not_observed");
+    expect(rendered).not.toContain("committed_proof");
+  });
+
+  it("emits validated evidence without promoting it or a clean packet to delivery proof", () => {
+    const report = buildBootReportFromContinuity(
+      continuity({
+        view: {
+          ...continuity().view,
+          latestPacket: {
+            id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            created_at: "2026-06-04T09:45:00.000Z",
+            mission: "Validated packet",
+            summary: "Tests passed while the tree was clean.",
+            validation: { status: "passed", commands: ["npm test"] },
+            git_status: { is_repo: true, is_dirty: false, uncommitted_count: 0 },
+          },
+        },
+      }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.outcome).toMatchObject({
+      reported: { status: "unknown" },
+      evidence: {
+        status: "validated",
+        source: "continuity_validation",
+        ref: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        commands: ["npm test"],
+      },
+      delivery: { status: "unknown" },
+    });
+    expect(report.trust.map((entry) => entry.label)).toEqual(["live_local", "validated_evidence"]);
+    expect(JSON.stringify(report)).not.toContain("committed_proof");
+  });
+
+  it("does not call failed validation evidence or delivery", () => {
+    const report = buildBootReportFromContinuity(
+      continuity({
+        view: {
+          ...continuity().view,
+          latestRun: {
+            run_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            agent_id: "codex",
+            goal: "Failed verification",
+            status: "completed",
+            validation: [{ command: "npm test", status: "failed", recorded_at: "2026-06-04T09:50:00.000Z" }],
+          },
+        },
+      }),
+      null,
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.outcome.evidence).toMatchObject({ status: "failed", source: "run_validation" });
+    expect(report.outcome.delivery.status).toBe("not_observed");
+    expect(report.trust.map((entry) => entry.label)).not.toContain("validated_evidence");
+  });
+
   it("truncates a long current_focus in the text render but keeps JSON lossless", () => {
     const longFocus = `Improve cold-start attention ${"and reduce token waste ".repeat(20)}`.trim();
     const report = buildBootReportFromContinuity(
@@ -499,4 +598,3 @@ describe("boot byte budget (fc8b8b30)", () => {
     expect(budgeted.budget?.exceeded).toBe(true);
   });
 });
-
