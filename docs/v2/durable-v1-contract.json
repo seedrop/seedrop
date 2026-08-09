@@ -9,7 +9,7 @@
     "decision_requirement": "accepted ADR under docs/adr with matching Durable v1 change class metadata"
   },
   "current": {
-    "extractor_sha256": "03e04c18b7596c64477ac560e4acc1a018ac02985e9d9da8f8917ebbc006828c",
+    "extractor_sha256": "4949606517dc0e57be30859b7d818c4e85a5b4a58eb59fd3e0503a14759a6116",
     "artifacts": [
       {
         "id": "cli/src/active-passport.ts#ActivePassportState",
@@ -460,7 +460,7 @@
         "sha256": "9f47e8ae20bdd19fe60b43d33f5ee28353778d05e5072d2554b753783f4699d0"
       }
     ],
-    "contract_sha256": "c1dd3e7b003f7e5dde3ac5e16c3ff2485f754077ba02e602f973c894561588cf"
+    "contract_sha256": "7f1b0ea63553ecbbfa92a5b545aeb6ceec54f3823fc1fc8b5fd84afb944b5a92"
   },
   "accepted_transitions": [
     {
@@ -469,6 +469,13 @@
       "decision": "docs/adr/0002-freeze-durable-v1.md",
       "from_sha256": null,
       "to_sha256": "c1dd3e7b003f7e5dde3ac5e16c3ff2485f754077ba02e602f973c894561588cf"
+    },
+    {
+      "id": "DC-01A-extractor-baseline-repair",
+      "class": "safety-repair",
+      "decision": "docs/adr/0003-repair-durable-freeze-extractor-baseline.md",
+      "from_sha256": "c1dd3e7b003f7e5dde3ac5e16c3ff2485f754077ba02e602f973c894561588cf",
+      "to_sha256": "7f1b0ea63553ecbbfa92a5b545aeb6ceec54f3823fc1fc8b5fd84afb944b5a92"
     }
   ]
 }
