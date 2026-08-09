@@ -1,0 +1,61 @@
+{
+  "name": "@seedrop/observer",
+  "version": "0.2.0-alpha.5",
+  "description": "Read-only collector for Seedrop project, View, and daemon state. Shared by Bench and Desktop.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "seedrop-observe": "./bin/observe.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "llm",
+    "ai-agents",
+    "seedrop",
+    "observer"
+  ],
+  "author": "Mariusz Czaykowski",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@seedrop/id": "^0.2.0-alpha.5",
+    "@seedrop/space": "^0.2.0-alpha.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.22.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seedrop/seedrop.git",
+    "directory": "observer"
+  },
+  "homepage": "https://github.com/seedrop/seedrop#readme",
+  "bugs": "https://github.com/seedrop/seedrop/issues"
+}

@@ -1,0 +1,474 @@
+{
+  "schema_version": "seedrop-durable-v1-freeze/1.0",
+  "policy": {
+    "durable_v1": "frozen",
+    "permitted_future_changes": [
+      "safety-repair",
+      "versioned-migration"
+    ],
+    "decision_requirement": "accepted ADR under docs/adr with matching Durable v1 change class metadata"
+  },
+  "current": {
+    "extractor_sha256": "03e04c18b7596c64477ac560e4acc1a018ac02985e9d9da8f8917ebbc006828c",
+    "artifacts": [
+      {
+        "id": "cli/src/active-passport.ts#ActivePassportState",
+        "source": "cli/src/active-passport.ts",
+        "declaration": "ActivePassportState",
+        "kind": "interface",
+        "sha256": "2a5bf3ed6f21b7aa5706c913d72962c192201f6e71924a1b1e0dafcb9fbbd0b6"
+      },
+      {
+        "id": "cli/src/active-passport.ts#SCHEMA_VERSION",
+        "source": "cli/src/active-passport.ts",
+        "declaration": "SCHEMA_VERSION",
+        "kind": "variable",
+        "sha256": "4927204d0a407a08b1fa10ead38e67bfd8c4098d724a6ed20c8d6263e2efc980"
+      },
+      {
+        "id": "cli/src/continuity-state.ts#ContinuityState",
+        "source": "cli/src/continuity-state.ts",
+        "declaration": "ContinuityState",
+        "kind": "interface",
+        "sha256": "2092c1042224aa4c3ee01c3e815f7278f37babb65fed07d01c4d985a18abbac5"
+      },
+      {
+        "id": "cli/src/continuity-state.ts#SCHEMA_VERSION",
+        "source": "cli/src/continuity-state.ts",
+        "declaration": "SCHEMA_VERSION",
+        "kind": "variable",
+        "sha256": "4927204d0a407a08b1fa10ead38e67bfd8c4098d724a6ed20c8d6263e2efc980"
+      },
+      {
+        "id": "cli/src/router.ts#SETUP_SCHEMA_VERSION",
+        "source": "cli/src/router.ts",
+        "declaration": "SETUP_SCHEMA_VERSION",
+        "kind": "variable",
+        "sha256": "696f6b793c8b88917002847eb83246eb28f77e8cf5b58d425ab803cc6fb82f38"
+      },
+      {
+        "id": "cli/src/router.ts#SETUP_STEP_IDS",
+        "source": "cli/src/router.ts",
+        "declaration": "SETUP_STEP_IDS",
+        "kind": "variable",
+        "sha256": "070a9f7484df18fafc4bf5e84a90bdad5350581f863d5bda52a06ead563f767d"
+      },
+      {
+        "id": "cli/src/router.ts#SetupJournal",
+        "source": "cli/src/router.ts",
+        "declaration": "SetupJournal",
+        "kind": "interface",
+        "sha256": "4c126b1b6c7d65b73dc97c35a45631c107282b6646645624e593a1a4cc85be43"
+      },
+      {
+        "id": "cli/src/router.ts#SetupJournalStep",
+        "source": "cli/src/router.ts",
+        "declaration": "SetupJournalStep",
+        "kind": "interface",
+        "sha256": "bb6f636a952dd64b12ebfe1618bb6a4e115ae61a5b2b7dae43fbb19e9adc1d96"
+      },
+      {
+        "id": "cli/src/router.ts#SetupStatus",
+        "source": "cli/src/router.ts",
+        "declaration": "SetupStatus",
+        "kind": "type",
+        "sha256": "537a92aa2b40cb13dcb3642a7458a3046b7200d2c9ee55011d13f2e8891312b4"
+      },
+      {
+        "id": "cli/src/router.ts#SetupStepId",
+        "source": "cli/src/router.ts",
+        "declaration": "SetupStepId",
+        "kind": "type",
+        "sha256": "7aee8ec80b3d95c5480e4b43659b8e8f0cf7db9eb117b7c8e63ff10f3595432d"
+      },
+      {
+        "id": "cli/src/router.ts#SetupStepStatus",
+        "source": "cli/src/router.ts",
+        "declaration": "SetupStepStatus",
+        "kind": "type",
+        "sha256": "2ae8ed8108abf7af1d47fea9df9ace065c4b91dba177e419be5a73e3819a5b2b"
+      },
+      {
+        "id": "id/src/audit.ts#AuditEntry",
+        "source": "id/src/audit.ts",
+        "declaration": "AuditEntry",
+        "kind": "interface",
+        "sha256": "182bf5ee2570a4049d864f92bfc839dcd2cd4f8ec7a32fac9bb63eaeb7f8bd43"
+      },
+      {
+        "id": "id/src/audit.ts#PassportChanges",
+        "source": "id/src/audit.ts",
+        "declaration": "PassportChanges",
+        "kind": "interface",
+        "sha256": "1d4910a3d7480468b90ca5176d8745e0caea452fe91617f4a62136270cfc6f6e"
+      },
+      {
+        "id": "id/src/commit-journal.ts#AuditEntrySchema",
+        "source": "id/src/commit-journal.ts",
+        "declaration": "AuditEntrySchema",
+        "kind": "variable",
+        "sha256": "78f9e8791a545bf90325b8a6413d42af1bef1282b54f47ffddef00ce1a8f2218"
+      },
+      {
+        "id": "id/src/commit-journal.ts#CommitJournalRecordSchema",
+        "source": "id/src/commit-journal.ts",
+        "declaration": "CommitJournalRecordSchema",
+        "kind": "variable",
+        "sha256": "fb26ba8e1e40b405b81585b4e352dec98b25223569a608518931c47c8ff2d50c"
+      },
+      {
+        "id": "id/src/commit-journal.ts#PassportChangesSchema",
+        "source": "id/src/commit-journal.ts",
+        "declaration": "PassportChangesSchema",
+        "kind": "variable",
+        "sha256": "6d8bdeeb859d31519c4ac38dd4f9535daef0b7d48e6b812a0917ed0b2de5f440"
+      },
+      {
+        "id": "id/src/schema.ts#ActiveProjectSchema",
+        "source": "id/src/schema.ts",
+        "declaration": "ActiveProjectSchema",
+        "kind": "variable",
+        "sha256": "1912c1fc12479bc7cd643e9e97138ae6f7e548b1f54041c95ca0e61a3590fd60"
+      },
+      {
+        "id": "id/src/schema.ts#ContinuityStateSchema",
+        "source": "id/src/schema.ts",
+        "declaration": "ContinuityStateSchema",
+        "kind": "variable",
+        "sha256": "7774ba308b5f1ac0158fd83def8818abd8aea46a7a8398dda92cd995591fa48c"
+      },
+      {
+        "id": "id/src/schema.ts#CredentialRefSchema",
+        "source": "id/src/schema.ts",
+        "declaration": "CredentialRefSchema",
+        "kind": "variable",
+        "sha256": "c500ac3fa95a1d28b023ae69e9f3c70093617838b61ec42375874800b057548a"
+      },
+      {
+        "id": "id/src/schema.ts#LearnedBlockSchema",
+        "source": "id/src/schema.ts",
+        "declaration": "LearnedBlockSchema",
+        "kind": "variable",
+        "sha256": "2497daf019be96f6bd856fd3f539f421abd9b0f95c3099baaee119b89ad2e209"
+      },
+      {
+        "id": "id/src/schema.ts#Metadata",
+        "source": "id/src/schema.ts",
+        "declaration": "Metadata",
+        "kind": "variable",
+        "sha256": "95015ae0bb1bd47b9ddf53cdb827e721760df6bcc0fd9fe216417930608c3fbf"
+      },
+      {
+        "id": "id/src/schema.ts#PassportSchema",
+        "source": "id/src/schema.ts",
+        "declaration": "PassportSchema",
+        "kind": "variable",
+        "sha256": "897664db87f3fef0b58c8fda225898dc4938c0bdcdf2bea5272e230fea9d9b2c"
+      },
+      {
+        "id": "id/src/schema.ts#PassportSchemaV1",
+        "source": "id/src/schema.ts",
+        "declaration": "PassportSchemaV1",
+        "kind": "variable",
+        "sha256": "9efa18760a27815c40b3d3f84aa52ef972f82cb8a8fb077bd5ec4bf198348b01"
+      },
+      {
+        "id": "id/src/schema.ts#ValueAnchor",
+        "source": "id/src/schema.ts",
+        "declaration": "ValueAnchor",
+        "kind": "variable",
+        "sha256": "e2b66c1c50be7837ce5bcac3f7380620457c471855425384e2d7d0b085c7a584"
+      },
+      {
+        "id": "space/src/cli.ts#readSessionState",
+        "source": "space/src/cli.ts",
+        "declaration": "readSessionState",
+        "kind": "function",
+        "sha256": "ee03874105eef449dbd9d6798bbb7f5dd325dee8925a127b65e4d813b49d43b4"
+      },
+      {
+        "id": "space/src/cli.ts#writeSessionState",
+        "source": "space/src/cli.ts",
+        "declaration": "writeSessionState",
+        "kind": "function",
+        "sha256": "37eefa3cfec9707ad9082a55b0ebc3262444b62b5e1b9bdd63e6c8a4a3710af7"
+      },
+      {
+        "id": "space/src/live.ts#SCHEMA_STATEMENTS",
+        "source": "space/src/live.ts",
+        "declaration": "SCHEMA_STATEMENTS",
+        "kind": "variable",
+        "sha256": "6613bfc926bd772a743636c73c45b51dc413661603a478d830cf696607bedf67"
+      },
+      {
+        "id": "space/src/mentions.ts#ACK_RESULTS",
+        "source": "space/src/mentions.ts",
+        "declaration": "ACK_RESULTS",
+        "kind": "variable",
+        "sha256": "6dc4360cb2678b3acf66536e12986cb0061524bb331af96ba9b8b8bc2e60eeda"
+      },
+      {
+        "id": "space/src/mentions.ts#MentionAckResult",
+        "source": "space/src/mentions.ts",
+        "declaration": "MentionAckResult",
+        "kind": "type",
+        "sha256": "a3e2820ba22cf2796b27a6b3d6c7f0dac6a16bb10e95c89af48788b92228ca32"
+      },
+      {
+        "id": "space/src/mentions.ts#MentionRecord",
+        "source": "space/src/mentions.ts",
+        "declaration": "MentionRecord",
+        "kind": "interface",
+        "sha256": "0b5b935b502d02e1b575272e5dc8cdcf0df3199ad446ceca09c4b2c14e6f9624"
+      },
+      {
+        "id": "space/src/schema-migrations.ts#ContinuityPacketMigrationChain",
+        "source": "space/src/schema-migrations.ts",
+        "declaration": "ContinuityPacketMigrationChain",
+        "kind": "variable",
+        "sha256": "5f28247e65108e9bfc87c3252546d8e08a62b311febd59a875bcccd0f6fafb93"
+      },
+      {
+        "id": "space/src/schema-migrations.ts#RunJournalMigrationChain",
+        "source": "space/src/schema-migrations.ts",
+        "declaration": "RunJournalMigrationChain",
+        "kind": "variable",
+        "sha256": "8d58abe67a2c0d8dddc6ffdded5b9959a1214fa9972bf2a7de0af949e9e60cbb"
+      },
+      {
+        "id": "space/src/schema-migrations.ts#TaskMigrationChain",
+        "source": "space/src/schema-migrations.ts",
+        "declaration": "TaskMigrationChain",
+        "kind": "variable",
+        "sha256": "11ffd07d97bb21af92a567b54266aeb5bfe6a8d3fd05b7d27233e983a3dab14f"
+      },
+      {
+        "id": "space/src/schema.ts#ArchivedSignalSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "ArchivedSignalSchema",
+        "kind": "variable",
+        "sha256": "00978712da6ebf74dfaaa5e2b97282712dcc43779bc505172a9c67128c54401e"
+      },
+      {
+        "id": "space/src/schema.ts#ContinuityPacketSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "ContinuityPacketSchema",
+        "kind": "variable",
+        "sha256": "9dd351e97a4363f8dd747a9ef43e0cbbe09b527afc06a56545bee55cd43eb5fc"
+      },
+      {
+        "id": "space/src/schema.ts#ContinuityValidationSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "ContinuityValidationSchema",
+        "kind": "variable",
+        "sha256": "1fec82c3e4fefc5b345773ba04a72c98ba03d20795319e3dd654a85d6a7ff20d"
+      },
+      {
+        "id": "space/src/schema.ts#FileKindSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "FileKindSchema",
+        "kind": "variable",
+        "sha256": "c9cd04a0086b54f39c8a1ea0156ecc1a6de2f0b7778d3c793ee1ac2726a2ce6a"
+      },
+      {
+        "id": "space/src/schema.ts#HandoffSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "HandoffSchema",
+        "kind": "variable",
+        "sha256": "4e0ad2be016e21024d1f7e6a56fb1dd26450bcdbfca38d423d423558df6f0e4a"
+      },
+      {
+        "id": "space/src/schema.ts#IsoDateTime",
+        "source": "space/src/schema.ts",
+        "declaration": "IsoDateTime",
+        "kind": "variable",
+        "sha256": "4b67bbabf91886d9f9a28387b699831548eded3e3fffba4295719f37e7eca4fa"
+      },
+      {
+        "id": "space/src/schema.ts#ManifestFileSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "ManifestFileSchema",
+        "kind": "variable",
+        "sha256": "f0f682371260f46d89802f69817b5f0bd8c6e788ec4d503d8473145d9230b292"
+      },
+      {
+        "id": "space/src/schema.ts#MessageRoleSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "MessageRoleSchema",
+        "kind": "variable",
+        "sha256": "04487513f041da943260602088f946172ad82b261e72b956f928a4518b436838"
+      },
+      {
+        "id": "space/src/schema.ts#MessageSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "MessageSchema",
+        "kind": "variable",
+        "sha256": "89f6ff90d0776a09541e023f51e0546eda0432ce024915a8ad104f82a182b5c5"
+      },
+      {
+        "id": "space/src/schema.ts#NextActionSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "NextActionSchema",
+        "kind": "variable",
+        "sha256": "2e0d7317245bf23922de69008cc2df80911ba8bdb4621ca3a073ebb4c197caf9"
+      },
+      {
+        "id": "space/src/schema.ts#NonEmptyString",
+        "source": "space/src/schema.ts",
+        "declaration": "NonEmptyString",
+        "kind": "variable",
+        "sha256": "8148a7f40445deee61932ff1a3dd9b9fd225f3d9ea929e29c69664fb81fd880f"
+      },
+      {
+        "id": "space/src/schema.ts#NotificationPointerSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "NotificationPointerSchema",
+        "kind": "variable",
+        "sha256": "2a612ff688546e7addf81a35d86fd3e0c06d2e39c2c674a02ebc056c5da01a0a"
+      },
+      {
+        "id": "space/src/schema.ts#NotificationSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "NotificationSchema",
+        "kind": "variable",
+        "sha256": "47e154ddd860ed1fc4a33742d33076b83552cfba392c833c6cc3205468b8d607"
+      },
+      {
+        "id": "space/src/schema.ts#PacketGitStatusSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "PacketGitStatusSchema",
+        "kind": "variable",
+        "sha256": "7225a8b83502e5cb472cc8fdfff80231a9bff272355d9a9354d6b6e5b6168d8a"
+      },
+      {
+        "id": "space/src/schema.ts#PathPurposeSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "PathPurposeSchema",
+        "kind": "variable",
+        "sha256": "14dc173e3b21eace400a00b0c5be020391707e8c5a9cd3803288fa029b3f9464"
+      },
+      {
+        "id": "space/src/schema.ts#PolicyPathPurposeSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "PolicyPathPurposeSchema",
+        "kind": "variable",
+        "sha256": "41e65deac5d3525ead39daddf76298f8d417acdbd8336d39dc5194f5d1f54eb9"
+      },
+      {
+        "id": "space/src/schema.ts#PresenceRecordSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "PresenceRecordSchema",
+        "kind": "variable",
+        "sha256": "8f1f1305b2507745f483051fa7de14a974eacf60aafe2b6cf3badb572cfdf48f"
+      },
+      {
+        "id": "space/src/schema.ts#RecommendedReadSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "RecommendedReadSchema",
+        "kind": "variable",
+        "sha256": "051c4f99f1b7b38aac7e84ab49c8f932d6b8f54180d1abe3190f6c031130761d"
+      },
+      {
+        "id": "space/src/schema.ts#RunJournalSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "RunJournalSchema",
+        "kind": "variable",
+        "sha256": "157a6087bf65490057c1356ac183e3038d81e6c04f9de6e6ad5b391ce03ef737"
+      },
+      {
+        "id": "space/src/schema.ts#RunStepSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "RunStepSchema",
+        "kind": "variable",
+        "sha256": "f3a32bc4607bfbe500173dbacf8c0acee0f8d50cedb8ed204a88672f919f0c8f"
+      },
+      {
+        "id": "space/src/schema.ts#RunValidationEntrySchema",
+        "source": "space/src/schema.ts",
+        "declaration": "RunValidationEntrySchema",
+        "kind": "variable",
+        "sha256": "ff85160c37d8a7f447e6e39aac68ea0321b127fbd02e3a98e92be77445b01f80"
+      },
+      {
+        "id": "space/src/schema.ts#SessionSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "SessionSchema",
+        "kind": "variable",
+        "sha256": "2e0b479f050948a44ab42d11acb62f4cf62c3e947fef459ef943a25947228621"
+      },
+      {
+        "id": "space/src/schema.ts#SignalsArchiveSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "SignalsArchiveSchema",
+        "kind": "variable",
+        "sha256": "d1c9004acd8e843a60023d0d0f2ff84b719a0f9b598bef6def16868334c24fa1"
+      },
+      {
+        "id": "space/src/schema.ts#SignalSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "SignalSchema",
+        "kind": "variable",
+        "sha256": "ed3d0613e284ce2c480f21e6a1bcf6140bba0de210dd5db4332d9d2807d611af"
+      },
+      {
+        "id": "space/src/schema.ts#SpaceLifecycleSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "SpaceLifecycleSchema",
+        "kind": "variable",
+        "sha256": "b12825c5b8d3434b1f31594e65c2643ff3d021c7179a285d25298ea5e1d64148"
+      },
+      {
+        "id": "space/src/schema.ts#SpaceMemberSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "SpaceMemberSchema",
+        "kind": "variable",
+        "sha256": "a4e838f71f5f076530fd94bcc04ae3a143e76c85747ec23c999ca8badeb11665"
+      },
+      {
+        "id": "space/src/schema.ts#SpaceMetaSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "SpaceMetaSchema",
+        "kind": "variable",
+        "sha256": "010da967d42ab6c2fdbf483e36eab4d5d357b787b56cbbbed0bfba41857217f1"
+      },
+      {
+        "id": "space/src/schema.ts#TaskSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "TaskSchema",
+        "kind": "variable",
+        "sha256": "28d226eddc8d3a5fa50e1910c5f6e42e97c28cca2668f76babe8b654c871f2cd"
+      },
+      {
+        "id": "space/src/schema.ts#TaskStatusSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "TaskStatusSchema",
+        "kind": "variable",
+        "sha256": "e56932ba5de66d66c222f3fa94f13a28949304dbe686d6ca05e6cb33f7a1c4e9"
+      },
+      {
+        "id": "space/src/schema.ts#ViewPolicySchema",
+        "source": "space/src/schema.ts",
+        "declaration": "ViewPolicySchema",
+        "kind": "variable",
+        "sha256": "386e616da749f4a0edaf72e8ba4fe5ee7c6c4dc5bd97478d789d794a584e3aaa"
+      },
+      {
+        "id": "space/src/schema.ts#WorkspaceManifestSchema",
+        "source": "space/src/schema.ts",
+        "declaration": "WorkspaceManifestSchema",
+        "kind": "variable",
+        "sha256": "9f47e8ae20bdd19fe60b43d33f5ee28353778d05e5072d2554b753783f4699d0"
+      }
+    ],
+    "contract_sha256": "c1dd3e7b003f7e5dde3ac5e16c3ff2485f754077ba02e602f973c894561588cf"
+  },
+  "accepted_transitions": [
+    {
+      "id": "DC-01-initial-freeze",
+      "class": "initial-freeze",
+      "decision": "docs/adr/0002-freeze-durable-v1.md",
+      "from_sha256": null,
+      "to_sha256": "c1dd3e7b003f7e5dde3ac5e16c3ff2485f754077ba02e602f973c894561588cf"
+    }
+  ]
+}

@@ -1,18 +1,104 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   defaultPassportPath,
   defaultSpaceRoot,
+  resolveDaemonRuntimeIdentity,
   resolveCommand,
   runCli,
   type CommandDispatch,
   type CommandRunner,
 } from "../src/index.js";
 import { WorkspaceView } from "@seedrop/space";
+
+describe("daemon runtime identity", () => {
+  it("accepts only the bundled Node and compiled CLI declared by one sealed manifest", async () => {
+    const scratch = await mkdtemp(join(tmpdir(), "seed-daemon-sealed-"));
+    try {
+      const routerPath = join(scratch, "payload/node_modules/@seedrop/cli/dist/router.js");
+      const cliPath = join(scratch, "payload/node_modules/@seedrop/cli/dist/cli.js");
+      const nodePath = join(scratch, "node/bin/node");
+      await mkdir(dirname(routerPath), { recursive: true });
+      await mkdir(dirname(nodePath), { recursive: true });
+      await writeFile(routerPath, "sealed router\n");
+      await writeFile(cliPath, "sealed cli\n");
+      await writeFile(nodePath, "sealed node\n");
+      const entries = await Promise.all([routerPath, cliPath, nodePath].map(async (file) => ({
+        path: file.slice(scratch.length + 1),
+        kind: "file",
+        sha256: createHash("sha256").update(await readFile(file)).digest("hex"),
+      })));
+      const manifestRaw = `${JSON.stringify({
+        schemaVersion: "1.0",
+        version: "2.0.0-test",
+        sourceHash: "a".repeat(64),
+        entries,
+      }, null, 2)}\n`;
+      const manifestPath = join(scratch, "runtime-manifest.json");
+      await writeFile(manifestPath, manifestRaw);
+
+      const identity = await resolveDaemonRuntimeIdentity({ routerPath, nodePath });
+
+      expect(identity).toMatchObject({
+        profile: "sealed",
+        node: nodePath,
+        seedBin: cliPath,
+        runtimeRoot: scratch,
+        version: "2.0.0-test",
+        sourceHash: "a".repeat(64),
+        manifestPath,
+      });
+      expect(identity.buildHash).toBe(createHash("sha256").update(manifestRaw).digest("hex"));
+
+      await writeFile(cliPath, "tampered cli\n");
+      await expect(resolveDaemonRuntimeIdentity({ routerPath, nodePath })).rejects.toThrow("integrity mismatch");
+      await writeFile(cliPath, "sealed cli\n");
+      await expect(resolveDaemonRuntimeIdentity({ routerPath, nodePath: process.execPath })).rejects.toThrow("bundled Node");
+      const roguePath = join(scratch, "payload/node_modules/rogue.js");
+      await writeFile(roguePath, "undeclared runtime code\n");
+      await expect(resolveDaemonRuntimeIdentity({ routerPath, nodePath })).rejects.toThrow("contents differ");
+      await rm(roguePath);
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses source execution unless the development profile is explicit", async () => {
+    const scratch = await mkdtemp(join(tmpdir(), "seed-daemon-dev-"));
+    try {
+      const routerPath = join(scratch, "src/router.ts");
+      const sourceShim = join(scratch, "bin/seed.mjs");
+      await mkdir(dirname(routerPath), { recursive: true });
+      await mkdir(dirname(sourceShim), { recursive: true });
+      await writeFile(routerPath, "source router\n");
+      await writeFile(sourceShim, "source shim\n");
+      await writeFile(join(scratch, "package.json"), JSON.stringify({ version: "2.0.0-dev" }));
+
+      await expect(resolveDaemonRuntimeIdentity({ routerPath, nodePath: process.execPath })).rejects.toThrow("--profile dev");
+      await expect(resolveDaemonRuntimeIdentity({ routerPath, nodePath: process.execPath, requestedProfile: "sealed" })).rejects.toThrow("--profile dev");
+      await expect(resolveDaemonRuntimeIdentity({ routerPath, nodePath: process.execPath, requestedProfile: "invalid" })).rejects.toThrow("daemon profile");
+
+      await expect(resolveDaemonRuntimeIdentity({
+        routerPath,
+        nodePath: process.execPath,
+        requestedProfile: "dev",
+      })).resolves.toMatchObject({
+        profile: "development",
+        seedBin: sourceShim,
+        runtimeRoot: scratch,
+        version: "2.0.0-dev",
+        buildHash: "development-unsealed",
+      });
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("resolveCommand", () => {
   it("routes id commands to seed-id", () => {
@@ -1382,6 +1468,36 @@ describe("seed init / doctor", () => {
     expect(seen).toEqual([]);
     const journal = JSON.parse(await readFile(join(process.env.HOME!, ".seedrop", "state", "setup.json"), "utf8"));
     expect(journal.status).toBe("completed");
+  });
+
+  it("init --adopt-existing records truth without mutating clients or daemon", async () => {
+    const operatorPath = join(process.env.HOME!, ".seedrop", "id", "passport.json");
+    const codexConfig = join(process.env.HOME!, ".codex", "config.toml");
+    await mkdir(dirname(operatorPath), { recursive: true });
+    await mkdir(dirname(codexConfig), { recursive: true });
+    await writeFile(operatorPath, JSON.stringify({ schema_version: "1.0", agent_id: "mc", name: "MC" }), "utf8");
+    await writeFile(codexConfig, `[mcp_servers.seedrop]\ncommand = "/existing/node"\nargs = ["/existing/seed-mcp"]\n`, "utf8");
+    const before = await readFile(codexConfig, "utf8");
+    const seen: CommandDispatch[] = [];
+    const io = createIo();
+
+    const code = await runCli(["init", "--adopt-existing", "--yes"], io, fakeRunner(0, seen));
+
+    expect(code).toBe(0);
+    expect(seen).toEqual([]);
+    expect(await readFile(codexConfig, "utf8")).toBe(before);
+    expect(io.stdoutText()).toContain("Preserved MCP client configuration and daemon ownership");
+    const journal = JSON.parse(await readFile(join(process.env.HOME!, ".seedrop", "state", "setup.json"), "utf8"));
+    expect(journal).toMatchObject({ status: "completed", mode: "adopted_existing" });
+    expect(journal.steps.find((step: { id: string }) => step.id === "operator_passport").status).toBe("completed");
+    expect(journal.steps.filter((step: { id: string }) => step.id !== "operator_passport").every((step: { status: string }) => step.status === "skipped")).toBe(true);
+  });
+
+  it("init --adopt-existing fails closed without an operator identity", async () => {
+    const io = createIo();
+    const code = await runCli(["init", "--adopt-existing", "--yes"], io, fakeRunner());
+    expect(code).toBe(1);
+    expect(io.stderrText()).toContain("Cannot adopt an existing installation");
   });
 });
 

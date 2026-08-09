@@ -1,4 +1,11 @@
-export { resolveCommand, runCli, defaultPassportPath, defaultSpaceRoot } from "./router.js";
+export {
+  resolveCommand,
+  resolveDaemonRuntimeIdentity,
+  runCli,
+  defaultPassportPath,
+  defaultSpaceRoot,
+  type DaemonRuntimeIdentity,
+} from "./router.js";
 export {
   buildBootReport,
   buildBootReportFromContinuity,

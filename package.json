@@ -6,11 +6,15 @@
     "space",
     "cli",
     "mcp",
-    "bench"
+    "observer",
+    "bench",
+    "desktop"
   ],
   "scripts": {
-    "build": "npm run build -ws",
-    "test": "npm test -ws",
+    "build": "npm run build --workspaces",
+    "test": "npm test --workspaces",
+    "check:durable-v1": "node scripts/check-durable-v1-freeze.mjs check",
+    "test:durable-v1-freeze": "node --test scripts/check-durable-v1-freeze.test.mjs",
     "link": "npm run build --workspace @seedrop/space --workspace @seedrop/id && npm link --workspace @seedrop/cli && npm link --workspace @seedrop/mcp && npm link --workspace @seedrop/id && npm link --workspace @seedrop/bench",
     "unlink": "npm unlink --workspace @seedrop/cli --workspace @seedrop/mcp --workspace @seedrop/id --workspace @seedrop/bench"
   },

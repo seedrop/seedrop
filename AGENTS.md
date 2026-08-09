@@ -2,6 +2,14 @@
 
 > Identity is persistent and per-agent. View is persistent and per-repo. Space is a single always-on daemon. New project = `seed view init`. New machine = `seed bootstrap`.
 
+## Human entry: Seedrop Desktop (developer preview)
+
+**Do not distribute the current Desktop build or describe it as the recommended operator path until `npm run release:verify -w @seedrop/desktop` passes for a signed, notarized artifact.** Desktop (`desktop/`) is the intended human layer and is currently a developer preview while its sealed-runtime and clean-machine guarantees are completed. Agents still use CLI/MCP. Bench (`seed bench`) remains the power-user continuity workbench.
+
+```bash
+cd desktop && npm run fetch-runtime && npm run prepare-runtime && npm run tauri:dev
+```
+
 ## What Seedrop is today
 
 A local-first orientation layer for repos worked on by agents. Today's surface is **macOS + Node 20+**, with **MCP** for agent clients (Claude Code, Codex, Kilo, …) and **launchctl** managing the always-on daemon. Cross-platform support (Linux, Windows) and non-MCP integrations are on the roadmap, not in the current release.
@@ -67,7 +75,7 @@ Startup overhead from tsx is ~60ms vs running compiled dist directly, measured c
 
 ```bash
 seed bootstrap --name claude --purpose "Build Seedrop"
-seed daemon install     # writes ~/Library/LaunchAgents/com.seedrop.daemon.plist and starts it
+seed daemon install --profile dev # explicit source-first daemon for workspace development
 seed daemon status      # confirm state=running
 ```
 
@@ -168,7 +176,7 @@ Membership comes from `seed space join` and persists; presence is the live signa
 ## Daemon Management
 
 ```bash
-seed daemon install     # write plist + launchctl bootstrap
+seed daemon install --profile dev # source-first developer profile; sealed Desktop installs omit this flag
 seed daemon status      # state, pid
 seed daemon uninstall   # launchctl bootout + remove plist
 tail -f ~/.seedrop/space/logs/{out,err}.log

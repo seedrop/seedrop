@@ -50,6 +50,9 @@ export interface HealthMetadata {
   startedAt?: string;
   version?: string;
   buildHash?: string;
+  runtimeProfile?: string;
+  runtimeRoot?: string;
+  runtimeSourceHash?: string;
   host?: string;
   port?: number;
   registeredPassports?: readonly HealthPassportMetadata[];
@@ -109,6 +112,9 @@ export function createServer(options: CreateServerOptions = {}): Server {
       startedAt,
       version: options.health?.version ?? SPACE_VERSION,
       buildHash: options.health?.buildHash ?? "unknown",
+      runtimeProfile: options.health?.runtimeProfile ?? "unknown",
+      runtimeRoot: options.health?.runtimeRoot,
+      runtimeSourceHash: options.health?.runtimeSourceHash,
       host: options.health?.host ?? "127.0.0.1",
       port: options.health?.port ?? 18791,
       registeredPassports: options.health?.registeredPassports ?? [],
@@ -310,6 +316,9 @@ async function handleHealth(res: ServerResponse, options: CreateServerOptions): 
     ok: true,
     version: health?.version ?? SPACE_VERSION,
     build_hash: health?.buildHash ?? "unknown",
+    runtime_profile: health?.runtimeProfile ?? "unknown",
+    runtime_root: health?.runtimeRoot ?? null,
+    runtime_source_hash: health?.runtimeSourceHash ?? null,
     started_at: startedAt,
     uptime_ms: uptimeMs,
     root: options.root,

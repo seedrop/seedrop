@@ -2,12 +2,14 @@
 
 Read `AGENTS.md` first. Seedrop uses a persistent-identity model: one passport per agent, per-repo View, one always-on Space daemon.
 
+Humans: **Seedrop Desktop** (`desktop/`) is a developer preview until its signed clean-machine release gate passes. Agents: use CLI/MCP below.
+
 Minimum boot:
 
 ```bash
 # First time on this machine only:
 seed bootstrap --name claude --purpose "Build Seedrop"
-seed daemon install
+seed daemon install --profile dev
 
 # Every session in a new repo:
 seed bootstrap         # idempotent; re-links cwd

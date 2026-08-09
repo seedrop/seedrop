@@ -1,0 +1,47 @@
+{
+  "name": "@seedrop/desktop",
+  "private": true,
+  "version": "0.2.0-alpha.5",
+  "description": "Seedrop Desktop — human installer and viewer for Seedrop.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "fetch-runtime": "node scripts/fetch-node-runtime.mjs",
+    "prepare-runtime": "node scripts/prepare-runtime.mjs",
+    "prepare-runtime:build": "node scripts/prepare-runtime.mjs --if-needed",
+    "prepare-runtime:dev": "node scripts/prepare-runtime.mjs --if-needed",
+    "verify-runtime": "node scripts/prepare-runtime.mjs --verify-only",
+    "test:runtime": "node --test scripts/runtime-artifact.node.mjs",
+    "artifact:verify": "node scripts/release-gate.mjs --allow-unsigned",
+    "dmg:verify": "node scripts/dmg-gate.mjs --allow-unsigned",
+    "release:preflight": "node scripts/release-preflight.mjs",
+    "release:verify": "node scripts/release-gate.mjs",
+    "release:dmg:verify": "node scripts/dmg-gate.mjs",
+    "smoke": "node scripts/smoke-observe.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && node --test scripts/release-controls.node.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4",
+    "vitest": "^4.1.6"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

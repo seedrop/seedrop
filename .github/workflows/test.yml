@@ -33,16 +33,75 @@ jobs:
       - name: install
         run: npm ci
 
+      - name: durable v1 contract
+        run: npm run check:durable-v1 && npm run test:durable-v1-freeze
+
+      - name: dependency audit
+        run: npm audit --audit-level=low
+
       - name: build
-        run: npm run build -ws
+        run: npm run build --workspaces
 
       - name: typecheck
         run: |
-          for ws in id space cli mcp; do
+          for ws in id space cli mcp observer desktop; do
             echo "::group::typecheck $ws"
             npm run typecheck -w "$ws"
             echo "::endgroup::"
           done
 
       - name: test
-        run: npm test -ws
+        run: npm test --workspaces
+
+  desktop-artifact:
+    name: desktop artifact / ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    env:
+      SEEDROP_DESKTOP_ARCH: ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: install
+        run: npm ci
+
+      - name: dependency audits
+        run: |
+          npm audit --audit-level=low
+          npm audit --prefix desktop/runtime --audit-level=low
+
+      - name: fetch verified Node runtime
+        run: npm run fetch-runtime -w @seedrop/desktop -- --arch=${{ matrix.arch }}
+
+      - name: prepare and verify sealed runtime
+        run: |
+          npm run prepare-runtime -w @seedrop/desktop
+          npm run verify-runtime -w @seedrop/desktop
+          npm run test:runtime -w @seedrop/desktop
+
+      - name: test Desktop
+        run: |
+          npm run typecheck -w @seedrop/desktop
+          npm test -w @seedrop/desktop
+          cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
+          cargo test --manifest-path desktop/src-tauri/Cargo.toml
+
+      - name: build application artifact
+        run: npm run tauri:build -w @seedrop/desktop -- --bundles dmg
+
+      - name: verify unsigned distributable invariants
+        run: npm run dmg:verify -w @seedrop/desktop -- --arch=${{ matrix.arch }}

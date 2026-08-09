@@ -59,6 +59,9 @@ export interface ServeOptions extends PassportIdentityResolverOptions {
   startedAt?: string;
   version?: string;
   buildHash?: string;
+  runtimeProfile?: string;
+  runtimeRoot?: string;
+  runtimeSourceHash?: string;
 }
 
 export interface StartedSpaceServer {
@@ -260,6 +263,9 @@ export async function startSpaceServer(options: ServeOptions): Promise<StartedSp
       startedAt: options.startedAt,
       version: options.version,
       buildHash: options.buildHash,
+      runtimeProfile: options.runtimeProfile,
+      runtimeRoot: options.runtimeRoot,
+      runtimeSourceHash: options.runtimeSourceHash,
       host,
       port,
       registeredPassports: identities.map((identity) => ({

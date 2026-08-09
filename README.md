@@ -115,7 +115,21 @@ This is the work Seedrop was built to make routine.
 
 ## Quickstart
 
-### Install
+### Seedrop Desktop (developer preview)
+
+Seedrop Desktop is the intended human entry point, but it is not yet a distributed/recommended build. Do not ship it until its signed clean-machine release gate passes. For development on macOS:
+
+```bash
+cd desktop
+npm install
+npm run fetch-runtime
+npm run prepare-runtime
+npm run tauri:dev
+```
+
+The first-run wizard installs the sealed app-managed Seedrop runtime, wires MCP clients, and starts the daemon. After that you get a simple card UI for projects, tasks, and runs.
+
+### Install (CLI)
 
 ```bash
 npm install -g @seedrop/cli
@@ -142,7 +156,7 @@ seed --help
 
 ```bash
 seed bootstrap --name claude --purpose "Code reviewer"
-seed daemon install   # writes ~/Library/LaunchAgents/com.seedrop.daemon.plist and starts it
+seed daemon install --profile dev # explicit source-first profile for workspace development
 seed daemon status    # confirm state=running
 ```
 
@@ -268,7 +282,7 @@ flowchart LR
 
 ### What works today
 
-- macOS launchd daemon (`seed daemon install`) — installed once per machine, survives reboots
+- macOS launchd daemon (`seed daemon install` from a sealed Desktop runtime, or explicit `--profile dev` from source) — installed once per machine, survives reboots
 - Node 20+ MCP server wired into Claude Code and Codex CLI; manual or unverified wire-up for the rest
 - `seed install <agent> --to <client>` auto-deploys the per-client Seedrop skill **and** appends the boot reflex into that client's instructions file inside a managed marker block (idempotent on re-run)
 - Persistent identity, per-repo View, always-on Space, mentions/inbox, claims/locks, task state

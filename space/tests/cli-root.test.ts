@@ -37,6 +37,16 @@ describe("seed-space serve data root", () => {
         "--port",
         "0",
         "--json",
+        "--runtime-profile",
+        "sealed",
+        "--runtime-root",
+        "/opt/seedrop/runtime/test",
+        "--runtime-version",
+        "2.0.0-test",
+        "--build-hash",
+        "b".repeat(64),
+        "--runtime-source-hash",
+        "a".repeat(64),
       ],
       { cwd: path.resolve("."), stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -48,8 +58,22 @@ describe("seed-space serve data root", () => {
       body: "{}",
     });
     expect(response.status).toBe(201);
-    const health = await fetch(`${listening.url}/health`).then((result) => result.json()) as { data_root: string };
+    const health = await fetch(`${listening.url}/health`).then((result) => result.json()) as {
+      data_root: string;
+      version: string;
+      build_hash: string;
+      runtime_profile: string;
+      runtime_root: string;
+      runtime_source_hash: string;
+    };
     expect(health.data_root).toBe(canonicalRoot);
+    expect(health).toMatchObject({
+      version: "2.0.0-test",
+      build_hash: "b".repeat(64),
+      runtime_profile: "sealed",
+      runtime_root: "/opt/seedrop/runtime/test",
+      runtime_source_hash: "a".repeat(64),
+    });
     await expect(access(path.join(canonicalRoot, "live.db"))).resolves.toBeUndefined();
     await expect(access(path.join(canonicalRoot, ".seedrop", "space", "live.db"))).rejects.toMatchObject({ code: "ENOENT" });
   });

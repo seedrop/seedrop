@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import { homedir, platform } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { readActivePassportSync, readActivePassport, writeActivePassport, clearActivePassport, resolvePassportSync, type PassportResolution } from "./active-passport.js";
@@ -66,6 +66,7 @@ interface SetupJournalStep {
 
 interface SetupJournal {
   schema_version: "1.0";
+  mode?: "managed" | "adopted_existing";
   setup_id: string;
   started_at: string;
   updated_at: string;
@@ -123,6 +124,10 @@ interface ClientGuidanceIssue {
 interface SpaceHealthResponse {
   schema_version?: string;
   ok?: boolean;
+  build_hash?: string;
+  runtime_profile?: string;
+  runtime_root?: string;
+  runtime_source_hash?: string;
   registered_passports?: Array<{ passport_id?: string; agent_id?: string; path?: string }>;
   known_agent_ids?: string[];
   [key: string]: unknown;
@@ -654,6 +659,7 @@ export async function runCli(
   runner: CommandRunner = spawnCommandRunner(),
 ): Promise<number> {
   try {
+    await verifyDaemonRuntimeStartup(argv);
     const dispatch = resolveCommand(argv);
     if (dispatch === "help") {
       io.stdout.write(renderHelp());
@@ -1112,12 +1118,25 @@ async function installDetectedClients(
 
 async function runInit(argv: readonly string[], io: RunCliIO, runner: CommandRunner): Promise<number> {
   const yes = argv.includes("--yes");
+  const adoptExisting = argv.includes("--adopt-existing");
   const noInstall = argv.includes("--no-install");
   const noDaemon = argv.includes("--no-daemon");
   const resume = argv.includes("--resume");
   let name = flagValue(argv, "name") ?? flagValue(argv, "operator-name");
   let purpose = flagValue(argv, "purpose");
   const operatorPath = operatorPassportPath();
+  const adoptionPassport = adoptExisting ? await safeReadPassport(operatorPath) : null;
+  if (adoptExisting && !adoptionPassport?.agent_id) {
+    writeCliFailure(
+      io,
+      argv.includes("--json"),
+      "seedrop.setup.adoption_missing_identity",
+      `Cannot adopt an existing installation without a valid operator passport at ${operatorPath}.`,
+      "not_found",
+      "seed init --name <you> --purpose \"<mission>\" --yes",
+    );
+    return 1;
+  }
   const rl = shouldPrompt(yes) ? createInterface({ input: process.stdin, output: process.stdout }) : null;
   let journal = await readSetupJournal();
   if (!resume && journal && journal.status !== "completed") {
@@ -1133,6 +1152,21 @@ async function runInit(argv: readonly string[], io: RunCliIO, runner: CommandRun
   }
   if (resume) {
     io.stdout.write(`resuming setup: ${journal.setup_id}\n`);
+  }
+
+  if (adoptExisting) {
+    journal.mode = "adopted_existing";
+    for (const id of SETUP_STEP_IDS) {
+      const step = setupStep(journal, id);
+      step.status = id === "operator_passport" ? "completed" : "skipped";
+      step.error = null;
+    }
+    journal.status = "completed";
+    journal.updated_at = new Date().toISOString();
+    await writeSetupJournal(journal);
+    io.stdout.write(`Adopted existing Seedrop identity and data.\n`);
+    io.stdout.write(`Preserved MCP client configuration and daemon ownership.\n`);
+    return 0;
   }
 
   let registry = await loadClientRegistry(import.meta.url);
@@ -1284,6 +1318,7 @@ function createSetupJournal(): SetupJournal {
   const now = new Date().toISOString();
   return {
     schema_version: SETUP_SCHEMA_VERSION,
+    mode: "managed",
     setup_id: randomUUID(),
     started_at: now,
     updated_at: now,
@@ -2263,6 +2298,227 @@ export function upsertCodexSeedEntry(
   return lines.join("\n");
 }
 
+type DaemonRuntimeProfile = "sealed" | "development";
+
+interface SealedRuntimeManifestEntry {
+  path: string;
+  kind: string;
+  sha256: string;
+}
+
+interface SealedRuntimeManifest {
+  schemaVersion?: string;
+  version?: string;
+  sourceHash?: string;
+  entries?: SealedRuntimeManifestEntry[];
+}
+
+export interface DaemonRuntimeIdentity {
+  profile: DaemonRuntimeProfile;
+  node: string;
+  seedBin: string;
+  runtimeRoot: string;
+  version: string;
+  buildHash: string;
+  sourceHash?: string;
+  manifestPath?: string;
+}
+
+function sha256(value: string | Buffer): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function runtimeRelative(root: string, target: string): string {
+  const candidate = relative(root, target);
+  if (!candidate || candidate === ".." || candidate.startsWith(`..${sep}`) || isAbsolute(candidate)) {
+    throw new Error(`sealed runtime path escapes its root: ${target}`);
+  }
+  return candidate.split(sep).join("/");
+}
+
+function runtimeTarget(root: string, manifestPath: string): string {
+  const parts = manifestPath.split("/");
+  if (parts.length === 0 || parts.some((part) => !part || part === "." || part === ".." || part.includes("\\"))) {
+    throw new Error(`unsafe sealed runtime manifest path: ${manifestPath}`);
+  }
+  return join(root, ...parts);
+}
+
+async function listSealedRuntimeFiles(root: string, current = root): Promise<string[]> {
+  const files: string[] = [];
+  for (const entry of await readdir(current, { withFileTypes: true })) {
+    const target = join(current, entry.name);
+    if (entry.isSymbolicLink()) throw new Error(`sealed runtime contains a symlink: ${runtimeRelative(root, target)}`);
+    if (entry.isDirectory()) files.push(...await listSealedRuntimeFiles(root, target));
+    else if (entry.isFile()) files.push(runtimeRelative(root, target));
+    else throw new Error(`sealed runtime contains an unsupported entry: ${runtimeRelative(root, target)}`);
+  }
+  return files;
+}
+
+async function verifySealedRuntimeContents(
+  root: string,
+  entries: readonly SealedRuntimeManifestEntry[],
+): Promise<void> {
+  const declared = new Map<string, SealedRuntimeManifestEntry>();
+  for (const entry of entries) {
+    if (entry.kind !== "file") throw new Error(`unsupported sealed runtime entry kind: ${entry.kind}`);
+    runtimeTarget(root, entry.path);
+    if (declared.has(entry.path)) throw new Error(`duplicate sealed runtime manifest path: ${entry.path}`);
+    declared.set(entry.path, entry);
+  }
+  const actual = (await listSealedRuntimeFiles(root)).filter((path) => path !== "runtime-manifest.json");
+  if (actual.length !== declared.size || actual.some((path) => !declared.has(path))) {
+    throw new Error("sealed runtime contents differ from its manifest");
+  }
+  const realRoot = realpathSync(root);
+  for (const [manifestPath, entry] of declared) {
+    const target = runtimeTarget(root, manifestPath);
+    const realTarget = realpathSync(target);
+    runtimeRelative(realRoot, realTarget);
+    const actualHash = sha256(await readFile(realTarget));
+    if (actualHash !== entry.sha256) throw new Error(`sealed runtime integrity mismatch: ${manifestPath}`);
+  }
+}
+
+async function findRuntimeManifest(start: string): Promise<{ root: string; path: string; raw: Buffer } | null> {
+  let cursor = dirname(start);
+  for (let depth = 0; depth < 10; depth += 1) {
+    const manifestPath = join(cursor, "runtime-manifest.json");
+    if (existsSync(manifestPath)) {
+      return { root: cursor, path: manifestPath, raw: await readFile(manifestPath) };
+    }
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  return null;
+}
+
+async function verifySealedRuntimeFile(
+  root: string,
+  target: string,
+  entries: readonly SealedRuntimeManifestEntry[],
+): Promise<void> {
+  const relativePath = runtimeRelative(root, target);
+  const entry = entries.find((candidate) => candidate.path === relativePath);
+  if (!entry || entry.kind !== "file") {
+    throw new Error(`sealed runtime manifest does not declare ${relativePath}`);
+  }
+  const realRoot = realpathSync(root);
+  const realTarget = realpathSync(target);
+  runtimeRelative(realRoot, realTarget);
+  const actual = sha256(await readFile(realTarget));
+  if (actual !== entry.sha256) {
+    throw new Error(`sealed runtime integrity mismatch: ${relativePath}`);
+  }
+}
+
+/**
+ * Resolve the exact runtime launchd will execute. Production is default-deny:
+ * only a CLI and Node binary declared by the same sealed Desktop manifest are
+ * accepted. Source-first execution remains available only through the
+ * explicit `--profile dev` development path.
+ */
+export async function resolveDaemonRuntimeIdentity(options: {
+  routerPath: string;
+  nodePath: string;
+  requestedProfile?: string;
+}): Promise<DaemonRuntimeIdentity> {
+  const requested = options.requestedProfile?.trim();
+  if (requested && !["sealed", "dev", "development"].includes(requested)) {
+    throw new Error(`daemon profile must be 'sealed' or 'dev' (got '${requested}')`);
+  }
+
+  const workspaceRoot = dirname(dirname(options.routerPath));
+  const sourceShim = join(workspaceRoot, "bin", "seed.mjs");
+  const distBin = join(workspaceRoot, "dist", "cli.js");
+  if (requested === "dev" || requested === "development") {
+    if (!options.routerPath.includes(`${sep}src${sep}`) || !existsSync(sourceShim)) {
+      throw new Error("the development daemon profile must be installed from the source-first CLI");
+    }
+    const packageJson = JSON.parse(await readFile(join(workspaceRoot, "package.json"), "utf8")) as { version?: string };
+    return {
+      profile: "development",
+      node: options.nodePath,
+      seedBin: sourceShim,
+      runtimeRoot: workspaceRoot,
+      version: packageJson.version ?? "development",
+      buildHash: "development-unsealed",
+    };
+  }
+
+  if (!options.routerPath.includes(`${sep}dist${sep}`)) {
+    throw new Error("unsealed source daemon install refused; use `seed daemon install --profile dev` for the explicit development profile");
+  }
+  const located = await findRuntimeManifest(options.routerPath);
+  if (!located) {
+    throw new Error("sealed runtime manifest not found; production daemon install requires the Desktop packaged runtime");
+  }
+  const manifest = JSON.parse(located.raw.toString("utf8")) as SealedRuntimeManifest;
+  if (
+    manifest.schemaVersion !== "1.0"
+    || typeof manifest.version !== "string"
+    || !/^[a-f0-9]{64}$/.test(manifest.sourceHash ?? "")
+    || !Array.isArray(manifest.entries)
+  ) {
+    throw new Error("sealed runtime manifest identity is invalid");
+  }
+  await verifySealedRuntimeContents(located.root, manifest.entries);
+
+  const sealedNode = join(located.root, "node", "bin", "node");
+  if (realpathSync(options.nodePath) !== realpathSync(sealedNode)) {
+    throw new Error(`sealed daemon must run with its bundled Node binary: ${sealedNode}`);
+  }
+  await verifySealedRuntimeFile(located.root, options.routerPath, manifest.entries);
+  await verifySealedRuntimeFile(located.root, distBin, manifest.entries);
+  await verifySealedRuntimeFile(located.root, sealedNode, manifest.entries);
+
+  return {
+    profile: "sealed",
+    node: sealedNode,
+    seedBin: distBin,
+    runtimeRoot: located.root,
+    version: manifest.version,
+    buildHash: sha256(located.raw),
+    sourceHash: manifest.sourceHash,
+    manifestPath: located.path,
+  };
+}
+
+async function verifyDaemonRuntimeStartup(argv: readonly string[]): Promise<void> {
+  if (argv[0] !== "space" || argv[1] !== "serve") return;
+  const profile = flagValue(argv, "runtime-profile");
+  if (profile !== "sealed" && profile !== "development") return;
+  const identity = await resolveDaemonRuntimeIdentity({
+    routerPath: fileURLToPath(import.meta.url),
+    nodePath: process.execPath,
+    requestedProfile: profile === "development" ? "dev" : "sealed",
+  });
+  const asserted = {
+    runtime_profile: profile,
+    runtime_root: flagValue(argv, "runtime-root"),
+    runtime_version: flagValue(argv, "runtime-version"),
+    build_hash: flagValue(argv, "build-hash"),
+    runtime_source_hash: flagValue(argv, "runtime-source-hash"),
+  };
+  const expected = {
+    runtime_profile: identity.profile,
+    runtime_root: identity.runtimeRoot,
+    runtime_version: identity.version,
+    build_hash: identity.buildHash,
+    runtime_source_hash: identity.sourceHash,
+  };
+  for (const key of Object.keys(expected) as Array<keyof typeof expected>) {
+    const matches = key === "runtime_root" && asserted[key] && expected[key]
+      ? realpathSync(asserted[key]) === realpathSync(expected[key])
+      : asserted[key] === expected[key];
+    if (!matches) {
+      throw new Error(`daemon runtime identity mismatch for ${key}: expected ${expected[key] ?? "(absent)"}, got ${asserted[key] ?? "(absent)"}`);
+    }
+  }
+}
+
 async function runDaemon(argv: readonly string[], io: RunCliIO): Promise<number> {
   const [sub] = argv;
   if (platform() !== "darwin") {
@@ -2272,7 +2528,7 @@ async function runDaemon(argv: readonly string[], io: RunCliIO): Promise<number>
   if (sub === "install") return daemonInstall(argv.slice(1), io);
   if (sub === "uninstall") return daemonUninstall(io);
   if (sub === "status") return daemonStatus(io);
-  io.stderr.write(`Usage:\n  seed daemon install [--port N]\n  seed daemon uninstall\n  seed daemon status\n`);
+  io.stderr.write(`Usage:\n  seed daemon install [--port N] [--profile sealed|dev]\n  seed daemon uninstall\n  seed daemon status\n`);
   return 1;
 }
 
@@ -2294,28 +2550,36 @@ async function daemonInstall(argv: readonly string[], io: RunCliIO): Promise<num
   const agentsDir = join(homedir(), ".seedrop", "id", "agents");
   await mkdir(agentsDir, { recursive: true });
 
-  // Resolve the seed binary the daemon should invoke. Prefer the source-first
-  // bin shim (cli/bin/seed.mjs) when present so edits to src/ are reflected
-  // without a build. Fall back to dist/cli.js for published tarballs.
   const routerPath = fileURLToPath(import.meta.url);
-  const workspaceRoot = dirname(dirname(routerPath)); // .../cli/src/router.ts -> .../cli  (or .../cli/dist/router.js -> .../cli)
-  const sourceShim = join(workspaceRoot, "bin", "seed.mjs");
-  const distBin = join(workspaceRoot, "dist", "cli.js");
-  const seedBin = existsSync(sourceShim) ? sourceShim : distBin;
-  const node = process.execPath;
+  let runtime: DaemonRuntimeIdentity;
+  try {
+    runtime = await resolveDaemonRuntimeIdentity({
+      routerPath,
+      nodePath: process.execPath,
+      requestedProfile: flagValue(argv, "profile"),
+    });
+  } catch (error) {
+    io.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
   const logDir = join(spaceRoot, "logs");
   await mkdir(logDir, { recursive: true });
 
   const plist = renderPlist({
     label: DAEMON_LABEL,
-    node,
-    seedBin,
+    node: runtime.node,
+    seedBin: runtime.seedBin,
     operatorPassportPath: operatorPath,
     agentsDir,
     spaceRoot,
     port,
     home: homedir(),
     logDir,
+    runtimeProfile: runtime.profile,
+    runtimeRoot: runtime.runtimeRoot,
+    runtimeVersion: runtime.version,
+    buildHash: runtime.buildHash,
+    sourceHash: runtime.sourceHash,
   });
   const plistPath = launchAgentPlistPath();
   await mkdir(dirname(plistPath), { recursive: true });
@@ -2332,6 +2596,7 @@ async function daemonInstall(argv: readonly string[], io: RunCliIO): Promise<num
 
   io.stdout.write(`installed daemon plist: ${plistPath}\n`);
   io.stdout.write(`daemon listening on http://127.0.0.1:${port} (root: ${spaceRoot})\n`);
+  io.stdout.write(`runtime: ${runtime.profile} ${runtime.version} (build: ${runtime.buildHash})\n`);
   io.stdout.write(`operator passport: ${operatorPath.replace(homedir(), "~")}\n`);
   io.stdout.write(`agents dir (auto-discovered + watched): ${agentsDir.replace(homedir(), "~")}\n`);
   io.stdout.write(`logs: ${logDir}/{out,err}.log\n`);
@@ -2368,6 +2633,15 @@ async function daemonStatus(io: RunCliIO): Promise<number> {
   const pid = out.match(/pid\s*=\s*(\d+)/)?.[1];
   io.stdout.write(`daemon ${DAEMON_LABEL}: state=${state}${pid ? ` pid=${pid}` : ""}\n`);
   io.stdout.write(`plist: ${plistPath}\n`);
+  const daemon = await checkDaemon(defaultSpaceUrl());
+  if (daemon.ok && daemon.health) {
+    const profile = daemon.health.runtime_profile ?? "unknown";
+    const build = daemon.health.build_hash ?? "unknown";
+    const runtimeRoot = daemon.health.runtime_root;
+    io.stdout.write(`runtime: profile=${profile} build=${build}${runtimeRoot ? ` root=${runtimeRoot}` : ""}\n`);
+  } else {
+    io.stdout.write(`runtime: health unavailable (${daemon.errorMessage ?? "unknown error"})\n`);
+  }
   return 0;
 }
 
@@ -2381,6 +2655,11 @@ function renderPlist(opts: {
   port: string;
   home: string;
   logDir: string;
+  runtimeProfile: DaemonRuntimeProfile;
+  runtimeRoot: string;
+  runtimeVersion: string;
+  buildHash: string;
+  sourceHash?: string;
 }): string {
   const escape = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -2405,7 +2684,15 @@ function renderPlist(opts: {
     <string>${escape(opts.port)}</string>
     <string>--host</string>
     <string>127.0.0.1</string>
-  </array>
+    <string>--runtime-profile</string>
+    <string>${escape(opts.runtimeProfile)}</string>
+    <string>--runtime-root</string>
+    <string>${escape(opts.runtimeRoot)}</string>
+    <string>--runtime-version</string>
+    <string>${escape(opts.runtimeVersion)}</string>
+    <string>--build-hash</string>
+    <string>${escape(opts.buildHash)}</string>
+${opts.sourceHash ? `    <string>--runtime-source-hash</string>\n    <string>${escape(opts.sourceHash)}</string>\n` : ""}  </array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>HOME</key>
@@ -2533,13 +2820,17 @@ function resolveBundledScript(command: string): string | null {
   try {
     const entryUrl = import.meta.resolve(pkg);
     const entryPath = fileURLToPath(entryUrl);
-    // Prefer the source-first bin shim (bin/<command>.mjs) when present —
-    // edits to src/ are reflected on the next invocation without a build.
-    // Falls back to dist/cli.js for published tarballs that ship only dist.
+    // A source session keeps the source-first dev loop. A compiled/package
+    // session must dispatch to compiled siblings: published packages include
+    // their source shims too, and choosing one would create a hidden runtime
+    // dependency on tsx (masked in a monorepo, broken in a sealed artifact).
     const workspaceRoot = dirname(dirname(entryPath));
     const sourceShim = join(workspaceRoot, "bin", `${command}.mjs`);
-    if (existsSync(sourceShim)) return sourceShim;
-    return join(dirname(entryPath), "cli.js");
+    const distCli = join(workspaceRoot, "dist", "cli.js");
+    const routerPath = fileURLToPath(import.meta.url);
+    if (!routerPath.includes(`${sep}dist${sep}`) && existsSync(sourceShim)) return sourceShim;
+    if (existsSync(distCli)) return distCli;
+    return existsSync(sourceShim) ? sourceShim : null;
   } catch {
     return null;
   }

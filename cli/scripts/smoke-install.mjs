@@ -115,6 +115,17 @@ async function main() {
     const parsed = JSON.parse(context.stdout);
     if (!parsed.manifest?.workspace_id) throw new Error(`view context shape: ${context.stdout}`);
     record("seed view context reads manifest", "pass");
+
+    // The published bin remains source-first today, but compiled consumers
+    // (including Desktop's sealed runtime) must dispatch to sibling dist CLIs
+    // without being rescued by the development-only tsx package.
+    await rm(join(projectDir, "node_modules", "tsx"), { recursive: true, force: true });
+    await rm(join(projectDir, "node_modules", "esbuild"), { recursive: true, force: true });
+    await rm(join(projectDir, "node_modules", "@esbuild"), { recursive: true, force: true });
+    const compiledCli = join(projectDir, "node_modules", "@seedrop", "cli", "dist", "cli.js");
+    const compiled = await run(projectDir, process.execPath, [compiledCli, "id", "show", "--passport", passport]);
+    if (!compiled.stdout.includes("claude")) throw new Error(`compiled id show: ${compiled.stdout}`);
+    record("compiled CLI dispatch is tsx-independent", "pass");
   } finally {
     await rm(temp, { recursive: true, force: true });
   }

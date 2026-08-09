@@ -353,6 +353,11 @@ async function serveCommand(args: ParsedArgs): Promise<void> {
     watchAgentsDirs: agentsDirs && agentsDirs.length > 0 && !args.flags.has("no-watch"),
     host: args.flags.get("host")?.[0],
     port: parsePort(args.flags.get("port")?.[0]),
+    version: args.flags.get("runtime-version")?.[0],
+    buildHash: args.flags.get("build-hash")?.[0],
+    runtimeProfile: args.flags.get("runtime-profile")?.[0],
+    runtimeRoot: args.flags.get("runtime-root")?.[0],
+    runtimeSourceHash: args.flags.get("runtime-source-hash")?.[0],
   });
   const payload = {
     event: "listening",
