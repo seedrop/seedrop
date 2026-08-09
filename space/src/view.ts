@@ -9,6 +9,8 @@ import {
   TaskBlockedError,
   TaskConflictError,
   TaskNotFoundError,
+  InvalidTaskTransitionError,
+  InvalidRunTransitionError,
   WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
   WorkspaceRunMissingCauseError,
@@ -123,6 +125,8 @@ export {
   TaskBlockedError,
   TaskConflictError,
   TaskNotFoundError,
+  InvalidTaskTransitionError,
+  InvalidRunTransitionError,
   WorkspaceRunClaimConflictError,
   WorkspaceRunDirtyTreeError,
   WorkspaceRunMissingCauseError,
@@ -366,6 +370,23 @@ const ResolvedThreadsEnvelopeSchema = z.object({
 }).strict();
 type ViewSuccessLevel = (typeof SUCCESS_LEVELS)[number];
 type ManifestFreshness = NonNullable<ViewBrief["manifest"]>["freshness"];
+
+export const TASK_TRANSITION_TABLE: Readonly<Record<TaskStatus, readonly TaskStatus[]>> = Object.freeze({
+  open: Object.freeze<TaskStatus[]>(["claimed", "in_progress", "dropped"]),
+  claimed: Object.freeze<TaskStatus[]>(["open", "in_progress", "done", "dropped"]),
+  in_progress: Object.freeze<TaskStatus[]>(["open", "blocked", "done", "dropped"]),
+  blocked: Object.freeze<TaskStatus[]>(["open", "in_progress", "done", "dropped"]),
+  done: Object.freeze<TaskStatus[]>([]),
+  dropped: Object.freeze<TaskStatus[]>([]),
+});
+
+type RunStatus = RunJournal["status"];
+export const RUN_TRANSITION_TABLE: Readonly<Record<RunStatus, readonly RunStatus[]>> = Object.freeze({
+  in_progress: Object.freeze<RunStatus[]>(["completed", "blocked", "failed"]),
+  completed: Object.freeze<RunStatus[]>([]),
+  blocked: Object.freeze<RunStatus[]>([]),
+  failed: Object.freeze<RunStatus[]>([]),
+});
 
 export class WorkspaceView {
   readonly root: string;
@@ -886,6 +907,7 @@ export class WorkspaceView {
     const resolvedAgent = input.agent ?? this.agent;
     return await this.mutateRun(selected.run_id, async (run) => {
       this.assertRunOwner(run, resolvedAgent);
+      this.transitionRun(run, input.status, "finish");
       // Asymmetric on purpose. Completing is gated on committed work; dying only
       // costs one line. Failure has to be the path of least resistance or the
       // graveyard stays empty and the corpus becomes a highlight reel.
@@ -917,7 +939,6 @@ export class WorkspaceView {
           }
         }
       }
-      run.status = input.status;
       run.finished_at = this.nowIso();
       if (input.nextActions) run.next_actions = input.nextActions;
 
@@ -1033,7 +1054,7 @@ export class WorkspaceView {
       if (Number.isNaN(lastTouched) || lastTouched > cutoff) continue;
       const idleHours = Math.floor(((opts.now ?? new Date(this.nowIso())).getTime() - lastTouched) / 3_600_000);
       const updated = await this.mutateRun(candidate.run_id, async (run) => {
-        run.status = "failed";
+        this.transitionRun(run, "failed", "sweep");
         run.finished_at = this.nowIso();
         run.swept = true;
         run.cause = `abandoned: no activity for ${idleHours}h (swept, not reported by the agent)`;
@@ -1109,6 +1130,7 @@ export class WorkspaceView {
         .find((task) => task.dedup_key === input.dedupKey && task.title === input.title);
       if (existing) return existing;
     }
+    const blockedBy = await this.resolveTaskReferences(input.blockedBy ?? []);
     const now = this.nowIso();
     const task: Task = {
       schema_version: "1.0",
@@ -1120,7 +1142,7 @@ export class WorkspaceView {
       ...(input.fromKnowledge ? { from_knowledge: input.fromKnowledge } : {}),
       created_at: now,
       updated_at: now,
-      ...(input.blockedBy && input.blockedBy.length > 0 ? { blocked_by: input.blockedBy } : {}),
+      ...(blockedBy.length > 0 ? { blocked_by: blockedBy } : {}),
       related_runs: [],
     };
     await this.writeJson(this.taskPath(task.task_id), task);
@@ -1128,12 +1150,13 @@ export class WorkspaceView {
   }
 
   async getTask(taskId: string): Promise<Task> {
+    const canonicalTaskId = await this.resolveTaskId(taskId);
     try {
-      return await this.readJsonMigrated(this.taskPath(taskId), TaskMigrationChain, TaskSchema);
+      return await this.readJsonMigrated(this.taskPath(canonicalTaskId), TaskMigrationChain, TaskSchema);
     } catch (error) {
       const causeCode = ((error as Error & { cause?: NodeJS.ErrnoException })?.cause)?.code;
       if ((error as NodeJS.ErrnoException)?.code === "ENOENT" || causeCode === "ENOENT") {
-        throw new TaskNotFoundError(taskId);
+        throw new TaskNotFoundError(canonicalTaskId);
       }
       throw error;
     }
@@ -1149,13 +1172,14 @@ export class WorkspaceView {
     const trimmed = prefixOrFullId.trim();
     if (trimmed.length === 0) throw new Error("Empty run id.");
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
-      return trimmed;
+      return trimmed.toLowerCase();
     }
     if (trimmed.length < 4) {
       throw new Error(`Run id prefix too short (need >=4 chars): ${trimmed}`);
     }
     const runs = this.requireComplete(await this.readRuns(), "resolve a run id");
-    const matches = runs.filter((r) => r.run_id.startsWith(trimmed));
+    const normalizedPrefix = trimmed.toLowerCase();
+    const matches = runs.filter((r) => r.run_id.startsWith(normalizedPrefix));
     if (matches.length === 0) {
       throw new Error(`No run matches prefix ${prefixOrFullId}.`);
     }
@@ -1179,13 +1203,14 @@ export class WorkspaceView {
     if (trimmed.length === 0) throw new TaskNotFoundError("(empty)");
     // Full UUID: pass through.
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
-      return trimmed;
+      return trimmed.toLowerCase();
     }
     if (trimmed.length < 4) {
       throw new TaskNotFoundError(`${trimmed} (prefix too short — need at least 4 hex chars)`);
     }
     const tasks = this.requireComplete(await this.readTasks(), "resolve a task id");
-    const matches = tasks.filter((t) => t.task_id.startsWith(trimmed));
+    const normalizedPrefix = trimmed.toLowerCase();
+    const matches = tasks.filter((t) => t.task_id.startsWith(normalizedPrefix));
     if (matches.length === 0) {
       throw new TaskNotFoundError(prefixOrFullId);
     }
@@ -1194,6 +1219,12 @@ export class WorkspaceView {
       throw new TaskNotFoundError(`${prefixOrFullId} is ambiguous — matches ${matches.length} tasks: ${sample}`);
     }
     return matches[0]!.task_id;
+  }
+
+  private async resolveTaskReferences(ids: readonly string[]): Promise<string[]> {
+    const canonical: string[] = [];
+    for (const id of ids) canonical.push(await this.resolveTaskId(id));
+    return [...new Set(canonical)];
   }
 
   async readTasks(filter: TaskListFilter = {}): Promise<ArtifactReadResult<Task>> {
@@ -1219,14 +1250,8 @@ export class WorkspaceView {
   async claimTask(taskId: string, agent?: string): Promise<Task> {
     const who = agent ?? this.agent;
     const task = await this.getTask(taskId);
-    if (task.status !== "open") {
-      throw new TaskConflictError(
-        `Task ${taskId} cannot be claimed (status: ${task.status}, owner: ${task.owner ?? "none"}).`,
-        { taskId, owner: task.owner, status: task.status, actor: who },
-      );
-    }
+    this.transitionTask(task, "claimed", "claim", who);
     task.owner = who;
-    task.status = "claimed";
     delete task.assigned_by;
     delete task.assigned_note;
     delete task.decline_reason;
@@ -1248,7 +1273,7 @@ export class WorkspaceView {
     task.assigned_by = assigner;
     if (input.note) task.assigned_note = input.note;
     else delete task.assigned_note;
-    if (task.status === "open") task.status = "claimed";
+    if (task.status === "open") this.transitionTask(task, "claimed", "assign", assigner);
     delete task.decline_reason;
     task.updated_at = this.nowIso();
     await this.writeJson(this.taskPath(task.task_id), task);
@@ -1262,6 +1287,12 @@ export class WorkspaceView {
       throw new TaskConflictError(
         `Task ${taskId} is owned by ${task.owner ?? "no one"}; only the owner can accept.`,
         { taskId, owner: task.owner, status: task.status, actor: who },
+      );
+    }
+    if (task.status !== "claimed") {
+      throw new TaskConflictError(
+        `Task ${task.task_id} cannot be accepted (status: ${task.status}); only claimed assignments can be accepted.`,
+        { taskId: task.task_id, owner: task.owner, status: task.status, actor: who },
       );
     }
     delete task.assigned_by;
@@ -1280,10 +1311,10 @@ export class WorkspaceView {
         { taskId: input.taskId, owner: task.owner, status: task.status, actor: who },
       );
     }
+    this.transitionTask(task, "open", "decline", who);
     delete task.owner;
     delete task.assigned_by;
     delete task.assigned_note;
-    task.status = "open";
     if (input.reason) task.decline_reason = input.reason;
     task.updated_at = this.nowIso();
     await this.writeJson(this.taskPath(task.task_id), task);
@@ -1310,10 +1341,17 @@ export class WorkspaceView {
     if (input.assignedNote !== undefined) task.assigned_note = input.assignedNote;
     if (input.fromKnowledge !== undefined) task.from_knowledge = input.fromKnowledge;
     if (input.blockedBy !== undefined || input.replaceBlockedBy) {
+      const canonicalBlockers = await this.resolveTaskReferences(input.blockedBy ?? []);
       const next = input.replaceBlockedBy
-        ? (input.blockedBy ?? [])
-        : [...(task.blocked_by ?? []), ...(input.blockedBy ?? [])];
+        ? canonicalBlockers
+        : [...(task.blocked_by ?? []), ...canonicalBlockers];
       const unique = Array.from(new Set(next));
+      if (unique.includes(task.task_id)) {
+        throw new TaskConflictError(
+          `Task ${task.task_id} cannot block itself.`,
+          { taskId: task.task_id, owner: task.owner, status: task.status, actor: who },
+        );
+      }
       if (unique.length > 0) task.blocked_by = unique;
       else delete task.blocked_by;
     }
@@ -1333,8 +1371,8 @@ export class WorkspaceView {
       );
     }
     await this.assertNotBlocked(task);
+    this.transitionTask(task, "in_progress", "start", who);
     if (!task.owner) task.owner = who;
-    task.status = "in_progress";
     task.updated_at = this.nowIso();
     await this.writeJson(this.taskPath(task.task_id), task);
     return task;
@@ -1349,7 +1387,7 @@ export class WorkspaceView {
         { taskId: input.taskId, owner: task.owner, status: task.status, actor: who },
       );
     }
-    task.status = input.status ?? "blocked";
+    this.transitionTask(task, input.status ?? "blocked", "pause", who);
     task.updated_at = this.nowIso();
     await this.writeJson(this.taskPath(task.task_id), task);
     return task;
@@ -1365,7 +1403,7 @@ export class WorkspaceView {
       );
     }
     await this.assertNotBlocked(task);
-    task.status = "done";
+    this.transitionTask(task, "done", "complete", who);
     task.updated_at = this.nowIso();
     await this.writeJson(this.taskPath(task.task_id), task);
     return task;
@@ -1380,7 +1418,7 @@ export class WorkspaceView {
         { taskId: input.taskId, owner: task.owner, status: task.status, actor: who },
       );
     }
-    task.status = "dropped";
+    this.transitionTask(task, "dropped", "drop", who);
     if (input.reason) task.drop_reason = input.reason;
     task.updated_at = this.nowIso();
     await this.writeJson(this.taskPath(task.task_id), task);
@@ -1389,12 +1427,29 @@ export class WorkspaceView {
 
   async linkTaskRun(taskId: string, runId: string): Promise<Task> {
     const task = await this.getTask(taskId);
-    if (!task.related_runs.includes(runId)) {
-      task.related_runs.push(runId);
+    const canonicalRunId = await this.resolveRunId(runId);
+    if (!task.related_runs.includes(canonicalRunId)) {
+      task.related_runs.push(canonicalRunId);
       task.updated_at = this.nowIso();
       await this.writeJson(this.taskPath(task.task_id), task);
     }
     return task;
+  }
+
+  private transitionTask(task: Task, to: TaskStatus, operation: string, actor?: string): void {
+    const allowed = TASK_TRANSITION_TABLE[task.status];
+    if (!allowed.includes(to)) {
+      throw new InvalidTaskTransitionError(task.task_id, task.status, to, operation, actor);
+    }
+    task.status = to;
+  }
+
+  private transitionRun(run: RunJournal, to: RunStatus, operation: string): void {
+    const allowed = RUN_TRANSITION_TABLE[run.status];
+    if (!allowed.includes(to)) {
+      throw new InvalidRunTransitionError(run.run_id, run.status, to, operation);
+    }
+    run.status = to;
   }
 
   private async assertNotBlocked(task: Task): Promise<void> {

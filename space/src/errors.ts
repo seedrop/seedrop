@@ -197,6 +197,42 @@ export class TaskBlockedError extends WorkspaceViewError {
   }
 }
 
+export class InvalidTaskTransitionError extends TaskConflictError {
+  constructor(
+    public readonly taskId: string,
+    public readonly from: string,
+    public readonly to: string,
+    public readonly operation: string,
+    actor?: string,
+  ) {
+    super(
+      `Task ${taskId} cannot transition ${from} -> ${to} during ${operation}.`,
+      { taskId, status: from, actor },
+    );
+    this.name = "InvalidTaskTransitionError";
+  }
+}
+
+export class InvalidRunTransitionError extends WorkspaceViewError {
+  constructor(
+    public readonly runId: string,
+    public readonly from: string,
+    public readonly to: string,
+    public readonly operation: string,
+  ) {
+    super(`Run ${runId} cannot transition ${from} -> ${to} during ${operation}.`, {
+      recovery: [{
+        kind: "command",
+        command: "seed view context --json",
+        risk: "low",
+        requires_human: false,
+        reason: "Inspect the canonical run state before choosing another action.",
+      }],
+    });
+    this.name = "InvalidRunTransitionError";
+  }
+}
+
 export class WorkspaceRunClaimConflictError extends WorkspaceViewError {
   constructor(
     public readonly conflicts: Array<{ path: string; owner: string; signalId: string; intent: string; expiresAt: string }>,
