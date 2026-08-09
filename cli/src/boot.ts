@@ -306,6 +306,8 @@ export interface BootReport {
   alternate_actions: BootNextAction[];
   decision_trace: BootDecisionTrace;
   continuity: ContinuityReport["orientation"];
+  /** Explicit receipt for the read-only continuity observation behind this boot packet. */
+  continuity_page?: ContinuityReport["page"];
 }
 
 type BootReportBase = Omit<BootReport, "situation" | "next_action" | "alternate_actions" | "decision_trace">;
@@ -406,6 +408,7 @@ export function buildBootReportFromContinuity(continuity: ContinuityReport, audi
     trust: trustLabels(continuity, audit, outcome),
     outcome,
     continuity: continuity.orientation,
+    continuity_page: continuity.page,
   };
   const candidates = collectBootCandidates(report, continuity, audit);
   const evaluation = evaluateBootCandidates(candidates, report, continuity, generatedAt);
@@ -749,6 +752,11 @@ export function renderBoot(report: BootReport): string {
   lines.push("");
   lines.push("Next move:");
   lines.push(`  ${formatSituationAction(situation.next_move)}`);
+  if (report.continuity_page?.ack_command) {
+    lines.push(`  After consuming this page: ${report.continuity_page.ack_command}`);
+  } else if (report.continuity_page && !report.continuity_page.complete) {
+    lines.push(`  Continuity acknowledgement blocked: ${report.continuity_page.blockers.join(", ")}`);
+  }
   lines.push("");
   lines.push("Evidence / confidence:");
   lines.push(`  Confidence: ${situation.current_state.confidence.level} - ${situation.current_state.confidence.reasons[0]}`);

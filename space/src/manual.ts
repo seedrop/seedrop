@@ -62,7 +62,8 @@ const WORKFLOWS = `## Common workflows
 ### Orient yourself on session start
 
 \`\`\`
-seed continuity                # boot block: identity, view state, next move
+seed continuity --json         # read-only page: identity, view state, next move, ack_token
+seed continuity ack --token <ack_token>  # after consuming a complete page; retry-safe
 seed capabilities               # full command -> MCP-tool map (what seed can do, at a glance)
 seed view explain success       # why view is at L1/L2/L3/L4 with ✓/✗ per criterion
 seed inbox --unacked-only       # @-mentions you haven't acted on
@@ -179,7 +180,7 @@ const ANTI_PATTERNS = `## Anti-patterns (do not)
   knowledge doc.
 
 - **Do not** create new \`seedrop_*\` MCP tools without a use case driver.
-  The 23-tool surface is already on the edge of agent-discoverable.
+  The tool surface is already on the edge of agent-discoverable.
 
 - **Do not** edit \`~/.seedrop/id/agents/\` passport JSON manually. Use
   \`seed bootstrap --as <agent>\` so the schema validates.
@@ -189,11 +190,12 @@ const ANTI_PATTERNS = `## Anti-patterns (do not)
 
 const FOOTER = `## Versions and stability
 
-- Schema versions on persisted records (\`Passport\`, \`RunJournal\`, \`Task\`,
-  \`ContinuityPacket\`, \`Handoff\`) are all \`"1.0"\` as of 2026-05-18.
-- Field-level changes ship breaking-with-migration: every minor version
-  bump that touches a schema must also ship migration code that reads the
-  old shape. This is *not yet implemented* — track via task \`1b8676dc\`.
+- Core persisted records (\`Passport\`, \`RunJournal\`, \`Task\`,
+  \`ContinuityPacket\`, \`Handoff\`) retain their frozen v1 shapes. Additive
+  v2 authorities currently cover the Space post outbox and continuity page
+  acknowledgements.
+- Field-level changes ship with an explicit versioned migration or accepted
+  safety repair; the durable-v1 freeze gate rejects silent drift.
 - For now: do not check in seedrop view state from a newer seedrop into a
   repo whose checked-in policy.json declares an older required_success_level.
 
@@ -201,5 +203,6 @@ const FOOTER = `## Versions and stability
 
 If you got value out of this, the right next action is usually:
 
-\`seed continuity\`  →  read the boot block  →  pick the *next move* it
-suggests, or claim an open task from \`seed task list --status open\`.`;
+\`seed continuity\`  →  read the page  →  acknowledge it explicitly  →  pick
+the *next move* it suggests, or claim an open task from
+\`seed task list --status open\`.`;

@@ -68,9 +68,9 @@ Machine-readable orientation is available with:
 seed continuity --json
 ```
 
-The JSON includes an `orientation` object with `identity`, `place`, `traces`, `coordination`, `health`, and `next_action`. Agents should prefer `orientation.next_action` for cold-start recovery.
+The JSON includes an `orientation` object with `identity`, `place`, `traces`, `coordination`, `health`, and `next_action`, plus a content-addressed `page` receipt. Agents should prefer `orientation.next_action` for cold-start recovery.
 
-Continuity reads are lossless across partial daemon failures. Seedrop stages the observation watermark before fetching presence, inbox, and every linked Space, then commits that boundary only if all required reads succeed. A failed or partial read leaves the prior watermark unchanged and defers automatic presence registration, so retrying exposes the same unseen state. `seed continuity --peek` never advances the watermark.
+Continuity reads never advance the watermark or refresh presence. After consuming a complete page, explicitly run the page's `ack_command` (equivalent to `seed continuity ack --token <ack_token>`). The acknowledgement compares the page's prior watermark with current state, then commits the watermark and required presence idempotently. A failed or partial read has no token, and retrying exposes the same unseen state. `seed continuity --peek` returns a deliberately non-acknowledgeable page.
 
 View quality is graded in the orientation health block:
 

@@ -40,6 +40,45 @@ describe("Presence", () => {
     await expect(Presence.register({ root, passportId: "", now })).rejects.toBeInstanceOf(SpaceValidationError);
   });
 
+  it("acknowledges presence at a page boundary without a second replay effect", async () => {
+    const sessionId = "44444444-4444-5444-8444-444444444444";
+    const first = await Presence.acknowledge({
+      root,
+      passportId: "alpha",
+      sessionId,
+      observedAt: "2026-05-14T10:00:00.000Z",
+    });
+    const repeated = await Presence.acknowledge({
+      root,
+      passportId: "alpha",
+      sessionId,
+      observedAt: "2026-05-14T10:00:00.000Z",
+    });
+    const advanced = await Presence.acknowledge({
+      root,
+      passportId: "alpha",
+      sessionId,
+      observedAt: "2026-05-14T10:02:00.000Z",
+    });
+
+    expect(repeated).toEqual(first);
+    expect(advanced.last_seen_at).toBe("2026-05-14T10:02:00.000Z");
+    expect(await Presence.list({ root, now })).toHaveLength(1);
+  });
+
+  it("refreshes an existing session by id while preserving its work label", async () => {
+    const existing = await Presence.register({ root, passportId: "alpha", workingOn: "keep this", now });
+    const acknowledged = await Presence.acknowledge({
+      root,
+      passportId: "alpha",
+      sessionId: existing.id,
+      observedAt: "2026-05-14T10:03:00.000Z",
+    });
+
+    expect(acknowledged).toMatchObject({ id: existing.id, working_on: "keep this", last_seen_at: "2026-05-14T10:03:00.000Z" });
+    expect(await Presence.list({ root, now })).toHaveLength(1);
+  });
+
   it("updates last_seen_at on heartbeat and clears working_on when omitted", async () => {
     const session = await Presence.register({ root, passportId: "alpha", workingOn: "task-1", now });
 

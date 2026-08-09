@@ -93,6 +93,35 @@ describe("http server", () => {
     });
   });
 
+  it("does not refresh presence for observe-only authenticated reads", async () => {
+    await Presence.register({ root, passportId: "alpha", now: () => currentTime });
+    currentTime = new Date("2026-05-14T10:01:00.000Z");
+    const result = await request("GET", "/presence", {
+      headers: { "x-seedrop-passport": "alpha", "x-seedrop-observe-only": "true" },
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body.presence[0].last_seen_at).toBe("2026-05-14T10:00:00.000Z");
+  });
+
+  it("acknowledges an observation boundary idempotently on an existing session", async () => {
+    const existing = await Presence.register({ root, passportId: "alpha", workingOn: "preserve", now: () => currentTime });
+    const body = { sessionId: existing.id, observedAt: "2026-05-14T10:02:00.000Z" };
+    const first = await request("POST", "/presence/ack", {
+      headers: { "x-seedrop-passport": "alpha" },
+      body,
+    });
+    const repeated = await request("POST", "/presence/ack", {
+      headers: { "x-seedrop-passport": "alpha" },
+      body,
+    });
+
+    expect(first.status).toBe(200);
+    expect(repeated.body.session).toEqual(first.body.session);
+    expect(first.body.session).toMatchObject({ id: existing.id, working_on: "preserve", last_seen_at: body.observedAt });
+    expect(await Presence.list({ root, now: () => currentTime })).toHaveLength(1);
+  });
+
   it("rejects POST /sessions without a passport header", async () => {
     const result = await request("POST", "/sessions", { body: {} });
     expect(result.status).toBe(400);

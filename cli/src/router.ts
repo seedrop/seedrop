@@ -509,7 +509,8 @@ const usage = `Usage:
   seed                          (agent boot: who am I, where am I, what is next)
   seed boot [--json] [--messages N]
   seed init                     (guided one-shot local setup)
-  seed continuity [--brief|--medium|--full] [--json] [--messages N]
+  seed continuity [--brief|--medium|--full] [--json] [--messages N] [--peek]
+  seed continuity ack --token <token> [--json]
   seed focus [--json]           (~400-token mission-scoped pre-flight; does not advance the watermark)
   seed capabilities [--json]    (full command -> MCP-tool map; what seed can do at a glance)
   seed bench [--open]           (local read-only project workbench)

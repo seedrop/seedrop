@@ -40,6 +40,11 @@ export interface HeartbeatRequest {
   workingOn?: string;
 }
 
+export interface PresenceAckRequest {
+  sessionId: string;
+  observedAt: string;
+}
+
 export interface InboxQuery {
   unackedOnly?: boolean;
   limit?: number;
@@ -209,6 +214,10 @@ export class SpaceHttpClient {
 
   heartbeat(input: HeartbeatRequest): Promise<unknown> {
     return this.request("POST", "/presence/heartbeat", input);
+  }
+
+  acknowledgePresence(input: PresenceAckRequest): Promise<unknown> {
+    return this.request("POST", "/presence/ack", input);
   }
 
   presence(query: PresenceQuery = {}): Promise<unknown> {

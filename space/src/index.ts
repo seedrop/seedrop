@@ -4,6 +4,7 @@ export { SpaceHttpClient, SpaceHttpClientError } from "./client.js";
 export type {
   NotifyRequest,
   PostOutboxQueryState,
+  PresenceAckRequest,
   PresenceQuery,
   SpaceHttpClientOptions,
   SpacePostRequest,
@@ -40,6 +41,7 @@ export type {
 export { Presence } from "./presence.js";
 export type {
   PresenceOptions,
+  PresenceAcknowledgeInput,
   PresenceRegisterInput,
   PresenceHeartbeatInput,
   PresenceListInput,

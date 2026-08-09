@@ -9,6 +9,7 @@ describe("tools registry", () => {
         "seedrop_boot",
         "seedrop_bootstrap",
         "seedrop_capabilities",
+        "seedrop_continuity_ack",
         "seedrop_daemon_status",
         "seedrop_diff",
         "seedrop_focus",

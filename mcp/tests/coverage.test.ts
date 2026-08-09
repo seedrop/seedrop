@@ -81,8 +81,9 @@ describe("MCP/CLI coverage policy", () => {
     for (const file of ACTIVE_AGENT_SURFACES) {
       const content = readRepoFile(file);
       for (const alias of DEPRECATED_CAPABILITY_ALIASES) {
+        const exactAlias = new RegExp(`\\b${alias.alias.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`);
         expect(
-          content.includes(alias.alias),
+          exactAlias.test(content),
           `${file} still references removed alias ${alias.alias}; use ${alias.replacement} or move the mention to an explicit historical note.`,
         ).toBe(false);
       }

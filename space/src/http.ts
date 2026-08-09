@@ -82,6 +82,13 @@ const HeartbeatBody = z
   })
   .strict();
 
+const PresenceAckBody = z
+  .object({
+    sessionId: z.string().uuid(),
+    observedAt: z.string().datetime(),
+  })
+  .strict();
+
 const PostMessageBody = z
   .object({
     content: z.string().min(1),
@@ -151,6 +158,9 @@ async function route(req: IncomingMessage, res: ServerResponse, options: CreateS
   }
   if (method === "POST" && match(segments, ["presence", "heartbeat"])) {
     return handleHeartbeat(req, res, options);
+  }
+  if (method === "POST" && match(segments, ["presence", "ack"])) {
+    return handlePresenceAck(req, res, options);
   }
   if (method === "GET" && match(segments, ["presence"])) {
     return handlePresenceList(req, res, url, options);
@@ -381,6 +391,22 @@ async function handleHeartbeat(
   const passportId = await requirePassport(req, options);
   const body = HeartbeatBody.parse(await readBody(req, options));
   const session = await Presence.heartbeat({ ...options, passportId, sessionId: body.sessionId, workingOn: body.workingOn });
+  writeJson(res, 200, { session });
+}
+
+async function handlePresenceAck(
+  req: IncomingMessage,
+  res: ServerResponse,
+  options: CreateServerOptions,
+): Promise<void> {
+  const passportId = await requirePassport(req, options, { refreshPresence: false });
+  const body = PresenceAckBody.parse(await readBody(req, options));
+  const session = await Presence.acknowledge({
+    ...options,
+    passportId,
+    sessionId: body.sessionId,
+    observedAt: body.observedAt,
+  });
   writeJson(res, 200, { session });
 }
 
@@ -664,7 +690,11 @@ async function handleInboxAck(
   writeJson(res, 200, { mention });
 }
 
-async function requirePassport(req: IncomingMessage, options: CreateServerOptions): Promise<string> {
+async function requirePassport(
+  req: IncomingMessage,
+  options: CreateServerOptions,
+  behavior: { refreshPresence?: boolean } = {},
+): Promise<string> {
   const raw = req.headers[PASSPORT_HEADER];
   const value = (Array.isArray(raw) ? raw[0] : raw)?.trim();
   if (!value) {
@@ -685,9 +715,12 @@ async function requirePassport(req: IncomingMessage, options: CreateServerOption
   // Auto-refresh: any authenticated request bumps existing sessions for this
   // passport. No-op if the passport hasn't registered. This keeps active
   // agents "online" without requiring an explicit heartbeat loop.
-  void Presence.refreshByPassport({ ...options, passportId: value }).catch(() => {
-    // Best-effort; never block the request on refresh failures.
-  });
+  const observeOnly = singleHeader(req, "x-seedrop-observe-only") === "true";
+  if (behavior.refreshPresence !== false && !observeOnly) {
+    void Presence.refreshByPassport({ ...options, passportId: value }).catch(() => {
+      // Best-effort; never block the request on refresh failures.
+    });
+  }
   return value;
 }
 

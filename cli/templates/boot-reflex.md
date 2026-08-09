@@ -24,6 +24,8 @@ That single command synthesizes:
 
 Read the output. Use it.
 
+Boot observation is read-only. After consuming a complete packet, call `seedrop_continuity_ack` with `continuity_page.ack_token`. This explicitly commits the page's watermark and presence; retrying the same token has no second effect. If the page is incomplete or was requested as a peek, it has no acknowledgement token and must not be treated as consumed.
+
 ## Inbox protocol (the behavior contract)
 
 **If `seedrop_boot` reports unacked inbox items, handle them BEFORE the user's current request — unless they're explicitly deferred to a future time.**
@@ -84,6 +86,7 @@ MCP tools (preferred):
 | Need | Tool |
 |---|---|
 | Boot block / orient (Situation packet) | `seedrop_boot` |
+| Commit a consumed boot page | `seedrop_continuity_ack` |
 | Cheap mission pre-flight | `seedrop_focus` |
 | Link this repo / first-time setup | `seedrop_bootstrap` |
 | Read your inbox (@-mentions) | `seedrop_inbox` |
@@ -109,6 +112,7 @@ CLI equivalents (fallback when MCP isn't available, e.g. in a raw shell or anoth
 | Need | Command |
 |---|---|
 | Boot block | `seed` or `seed continuity` |
+| Commit a consumed boot page | `seed continuity ack --token <ack_token>` |
 | Link this repo | `seed bootstrap` |
 | See identity | `seed id show` |
 | Log progress | `seed view log --mission "..." --summary "..."` |

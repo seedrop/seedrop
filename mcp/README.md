@@ -42,6 +42,7 @@ Restart the client. Call `seedrop_capabilities` or run `seed capabilities` for t
 | Tool | Purpose |
 |---|---|
 | `seedrop_boot` | Boot block: identity + view + daemon + recent messages + next move. |
+| `seedrop_continuity_ack` | Explicitly commit a consumed boot/continuity page exactly once. |
 | `seedrop_capabilities` | Full CLI command -> MCP tool map, including CLI-only commands. |
 | `seedrop_bootstrap` | First-time setup or per-repo link. |
 | `seedrop_view_context` | Per-repo View state. |
@@ -58,7 +59,7 @@ Restart the client. Call `seedrop_capabilities` or run `seed capabilities` for t
 
 The recommended global instruction (in `~/.claude/CLAUDE.md` or equivalent) is:
 
-> When the user mentions Seedrop, says "seed", asks "where was I", or you're working in a repo that contains `.seedrop/view/`, call `seedrop_boot` immediately. Use its output to orient before doing anything else.
+> When the user mentions Seedrop, says "seed", asks "where was I", or you're working in a repo that contains `.seedrop/view/`, call `seedrop_boot` immediately. Use its output to orient, then call `seedrop_continuity_ack` with a complete page's token after consuming it.
 
 ## Verification
 

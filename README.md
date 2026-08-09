@@ -240,6 +240,7 @@ For the full current command/tool map, run `seed capabilities` or call `seedrop_
 | Tool | Purpose |
 |---|---|
 | `seedrop_boot` | Cold-start Situation packet: identity + view + daemon + next move + evidence |
+| `seedrop_continuity_ack` | Explicitly commit a consumed boot/continuity page exactly once |
 | `seedrop_capabilities` | Full CLI command -> MCP tool map, including CLI-only commands |
 | `seedrop_focus` | Cheap mission-scoped pre-flight (never advances the watermark) |
 | `seedrop_bootstrap` | First-time setup or per-repo link |

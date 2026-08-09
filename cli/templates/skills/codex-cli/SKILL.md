@@ -16,10 +16,11 @@ To see the full surface at a glance, call `seedrop_capabilities` once (CLI equiv
 At the start of Seedrop-related work, orient before editing:
 
 1. Call `seedrop_boot` with the repo `cwd` when available.
-2. Call `seedrop_view_context` to read the stable repo View state.
-3. Call `seedrop_view_preflight` to catch missing or stale View setup.
-4. Call `seedrop_inbox` to check unacked mentions addressed to the active passport.
-5. Call `seedrop_daemon_status` only if continuity, preflight, or direct HTTP/daemon evidence disagree about daemon health.
+2. Consume the returned Situation packet, then call `seedrop_continuity_ack` with `continuity_page.ack_token` when the page is complete. Boot is read-only until this explicit acknowledgement; retrying the same token is safe.
+3. Call `seedrop_view_context` to read the stable repo View state.
+4. Call `seedrop_view_preflight` to catch missing or stale View setup.
+5. Call `seedrop_inbox` to check unacked mentions addressed to the active passport.
+6. Call `seedrop_daemon_status` only if continuity, preflight, or direct HTTP/daemon evidence disagree about daemon health.
 
 If the repo has no `.seedrop/view/`, use `seedrop_bootstrap` when linking the repo is clearly required. Otherwise report the missing View and continue with normal local context.
 

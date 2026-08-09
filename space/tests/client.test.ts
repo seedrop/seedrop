@@ -74,6 +74,16 @@ describe("SpaceHttpClient", () => {
     expect(listed.messages).toHaveLength(1);
   });
 
+  it("acknowledges a continuity presence boundary through the client", async () => {
+    const registered = await codex.register({ workingOn: "preserve" }) as { session: { id: string; last_seen_at: string } };
+    const input = { sessionId: registered.session.id, observedAt: registered.session.last_seen_at };
+    const first = await codex.acknowledgePresence(input) as { session: { id: string; last_seen_at: string; working_on: string } };
+    const repeated = await codex.acknowledgePresence(input) as typeof first;
+
+    expect(repeated).toEqual(first);
+    expect(first.session).toMatchObject({ id: registered.session.id, last_seen_at: input.observedAt, working_on: "preserve" });
+  });
+
   it("lists and explicitly retries post outbox commands", async () => {
     await codex.join("seedrop-team");
     const requestId = "55555555-5555-4555-8555-555555555555";

@@ -22,6 +22,12 @@ export interface PresenceHeartbeatInput extends PresenceOptions {
   workingOn?: string;
 }
 
+export interface PresenceAcknowledgeInput extends PresenceOptions {
+  sessionId: string;
+  passportId: string;
+  observedAt: string;
+}
+
 export interface PresenceListInput extends PresenceOptions {
   spaceId?: string;
   passportId?: string;
@@ -67,6 +73,73 @@ export class Presence {
         created_at: now,
         last_seen_at: now,
         working_on: input.workingOn ?? null,
+      });
+    } finally {
+      live.close();
+    }
+  }
+
+  /**
+   * Commit presence at an observation boundary without making retries visible.
+   * The same session/high-watermark pair is a no-op; a later boundary advances
+   * last_seen_at while preserving the session's working_on value.
+   */
+  static async acknowledge(input: PresenceAcknowledgeInput): Promise<Session> {
+    if (!input.passportId) {
+      throw new SpaceValidationError(
+        [{ code: "custom", path: ["passportId"], message: "passportId is required" }],
+        "PresenceAcknowledgeInput",
+      );
+    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.sessionId)) {
+      throw new SpaceValidationError(
+        [{ code: "custom", path: ["sessionId"], message: "sessionId must be a UUID" }],
+        "PresenceAcknowledgeInput",
+      );
+    }
+    if (
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(input.observedAt) ||
+      !Number.isFinite(Date.parse(input.observedAt))
+    ) {
+      throw new SpaceValidationError(
+        [{ code: "custom", path: ["observedAt"], message: "observedAt must be an ISO-8601 timestamp" }],
+        "PresenceAcknowledgeInput",
+      );
+    }
+
+    const live = LiveStore.open(input);
+    try {
+      const db = await live.connection();
+      const existing = db
+        .prepare("SELECT id, passport_id, space_id, created_at, last_seen_at, working_on FROM sessions WHERE id = ?")
+        .get(input.sessionId) as SessionRow | undefined;
+      if (existing) {
+        if (existing.passport_id !== input.passportId) {
+          throw new SpaceAuthError(`Session ${input.sessionId} belongs to another passport.`, 403);
+        }
+        if (Date.parse(existing.last_seen_at) >= Date.parse(input.observedAt)) return toSession(existing);
+        const updated = db
+          .prepare(
+            `UPDATE sessions
+                SET last_seen_at = ?
+              WHERE id = ?
+          RETURNING id, passport_id, space_id, created_at, last_seen_at, working_on`,
+          )
+          .get(input.observedAt, input.sessionId) as SessionRow;
+        return toSession(updated);
+      }
+
+      db.prepare(
+        `INSERT INTO sessions (id, passport_id, space_id, created_at, last_seen_at, working_on)
+         VALUES (?, ?, NULL, ?, ?, ?)`,
+      ).run(input.sessionId, input.passportId, input.observedAt, input.observedAt, "active session");
+      return toSession({
+        id: input.sessionId,
+        passport_id: input.passportId,
+        space_id: null,
+        created_at: input.observedAt,
+        last_seen_at: input.observedAt,
+        working_on: "active session",
       });
     } finally {
       live.close();

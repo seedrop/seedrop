@@ -143,7 +143,7 @@ export const tools: ToolDef[] = [
     name: "seedrop_boot",
     description: desc(
       "seed boot [--json] [--messages N]",
-      "Return the canonical cold-start Situation packet: purpose, last work, current state, next move, attention cues, evidence, confidence, and the underlying deterministic boot report. Prefer this at session start when the agent needs one reliable answer for what to do now.",
+      "Return the canonical cold-start Situation packet plus a read-only continuity_page receipt. After consuming a complete page, pass its ack_token to seedrop_continuity_ack. Prefer this at session start when the agent needs one reliable answer for what to do now.",
     ),
     inputSchema: {
       type: "object",
@@ -153,7 +153,7 @@ export const tools: ToolDef[] = [
         messages: { type: "number", description: "Max recent messages per joined space (default 5).", default: 5 },
         passport: { type: "string", description: "Explicit passport path." },
         url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
-        peek: { type: "boolean", description: "Do not advance the continuity watermark.", default: false },
+        peek: { type: "boolean", description: "Return a deliberately non-acknowledgeable continuity page.", default: false },
         since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
         budget: { type: "number", description: "Compact-JSON byte budget for the JSON report. Omit for the full pretty-printed report." },
       },
@@ -170,6 +170,29 @@ export const tools: ToolDef[] = [
       if (args.peek === true) cmd.push("--peek");
       pushStringFlag(cmd, args, "since", "--since");
       return exec(cmd, cwd);
+    },
+  },
+  {
+    name: "seedrop_continuity_ack",
+    description: desc(
+      "seed continuity ack --token <token> --json",
+      "Explicitly acknowledge a complete read-only continuity page returned by seedrop_boot or seed continuity. Advances the watermark with compare-and-set semantics and commits presence idempotently; retrying the same token has no second effect.",
+    ),
+    inputSchema: {
+      type: "object",
+      properties: {
+        token: { type: "string", description: "Opaque ack_token from continuity_page/page." },
+        passport: { type: "string", description: "Explicit passport path." },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+      },
+      required: ["token"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const cmd = ["continuity", "ack", "--json", "--token", strArg(args, "token")!];
+      pushStringFlag(cmd, args, "passport", "--passport");
+      pushStringFlag(cmd, args, "url", "--url");
+      return exec(cmd);
     },
   },
   {
@@ -1070,7 +1093,8 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
       { tool: "seedrop_index", use_when: "Discover Seedrop MCP tools grouped by intent.", example: {} },
       { tool: "seedrop_manual", use_when: "Load the Seedrop concepts and workflow guide once per session.", example: { section: "workflows" } },
       { tool: "seedrop_capabilities", use_when: "Get the full command -> MCP-tool capability map (what seed can do, how to call each).", example: {} },
-      { tool: "seedrop_boot", use_when: "Start a stateless-agent session and get the canonical Situation packet plus single safest next action.", example: { cwd: "/path/to/repo", json: true, peek: true } },
+      { tool: "seedrop_boot", use_when: "Start a stateless-agent session and get the canonical Situation packet plus an explicit continuity receipt.", example: { cwd: "/path/to/repo", json: true } },
+      { tool: "seedrop_continuity_ack", use_when: "After consuming a complete boot/continuity page, explicitly commit its watermark and presence exactly once.", example: { token: "<ack_token>" } },
       { tool: "seedrop_bootstrap", use_when: "Create first passport or link the current repo View.", example: { cwd: "/path/to/repo" } },
     ],
     view: [

@@ -5,7 +5,13 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { WorkspaceView, type AuditReport, type ContinuityPacket as SpaceContinuityPacket, type Grave, type ViewBrief as SpaceViewBrief, type ViewCheck } from "@seedrop/space";
 import type { PassportSource } from "./active-passport.js";
-import { readContinuityState, writeContinuityState } from "./continuity-state.js";
+import {
+  acknowledgeContinuityPage,
+  ContinuityAcknowledgementError,
+  createContinuityPage,
+  readEffectiveContinuityWatermark,
+  type ContinuityPage,
+} from "./continuity-ack.js";
 import type { RunCliIO } from "./router.js";
 
 export interface ContinuityOptions {
@@ -20,7 +26,7 @@ export interface ContinuityOptions {
   json?: boolean;
   /** ISO-8601 watermark to compare against. If omitted, reads the per-agent state file. */
   since?: string;
-  /** When false (default), a pre-fetch watermark is committed only after the complete observation succeeds. */
+  /** Produce a deliberately non-acknowledgeable page. Fetch is read-only in either mode. */
   peek?: boolean;
   /** Injectable transport for deterministic failure/retry tests. */
   fetchImpl?: typeof fetch;
@@ -151,6 +157,7 @@ interface OrientationReport {
 }
 
 interface PresenceRecord {
+  id?: string;
   passport_id: string;
   working_on?: string;
   last_seen_at: string;
@@ -205,8 +212,10 @@ export interface ContinuityReport {
   rootKind: "git" | "folder";
   /** Prior watermark (ISO-8601) — what the agent saw last time, or undefined on first call. */
   since?: string;
-  /** Whether the watermark was advanced (false when --peek). */
+  /** @deprecated Fetch never advances the watermark. Use page + explicit acknowledgement. */
   watermarkAdvanced: boolean;
+  /** Immutable, content-addressed observation boundary. Null only when no agent identity is available. */
+  page?: ContinuityPage | null;
   view: {
     present: boolean;
     manifest?: ViewManifest;
@@ -265,8 +274,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
   // Resolve watermark: explicit --since wins, else read state file, else undefined (first run).
   let since: string | undefined = opts.since;
   if (!since && passport?.agent_id) {
-    const state = await readContinuityState(passport.agent_id);
-    since = state?.last_seen_at;
+    since = await readEffectiveContinuityWatermark(passport.agent_id);
   }
   // Capture the commit boundary before reading any source. If an event lands
   // while this report is being assembled, its timestamp remains newer than
@@ -375,27 +383,39 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     }
   }
 
-  const watermarkAdvanced = !opts.peek && passport?.agent_id !== undefined && watermarkBlockers.length === 0;
-  if (watermarkAdvanced && passport?.agent_id) {
-    // Presence registration is a side effect, not an observation. Defer it
-    // until every required fetch has succeeded so a partial report remains a
-    // pure, retryable read.
-    const hasSession = (presence?.presence ?? []).some((p) => p.passport_id === passport.agent_id);
-    if (!hasSession) {
-      const registered = await postJson(
-        `${opts.spaceUrl}/sessions`,
-        { workingOn: "active session" },
-        passport.agent_id,
-        opts.fetchImpl,
-      );
-      if (!registered) warnings.push("Continuity was complete, but automatic presence registration failed.");
-    }
-    await writeContinuityState(passport.agent_id, {
-      schema_version: "1.0",
-      last_seen_at: stagedWatermark,
-    });
-  } else if (!opts.peek && passport?.agent_id && watermarkBlockers.length > 0) {
-    warnings.push(`Continuity watermark not advanced: ${watermarkBlockers.join(", ")}.`);
+  const watermarkAdvanced = false;
+  if (passport?.agent_id && watermarkBlockers.length > 0) {
+    warnings.push(`Continuity page is incomplete and cannot be acknowledged: ${watermarkBlockers.join(", ")}.`);
+  }
+
+  const observation = {
+    passport,
+    cwd: opts.cwd,
+    root,
+    rootKind,
+    since: since ?? null,
+    stagedWatermark,
+    view: { manifest, viewBrief, signals, latestPacket, currentRun, latestRun, activeTasks, blockerTasks, openTasksCount, otherAgents },
+    cachedAudit,
+    graves,
+    daemon: { reachable: daemonReachable, presence: presence?.presence ?? [] },
+    inbox: { unacked: inboxMentions, fetched: inboxFetched },
+    joinedSpaces,
+  };
+  const page = passport?.agent_id
+    ? createContinuityPage({
+      agentId: passport.agent_id,
+      priorWatermark: since,
+      highWatermark: stagedWatermark,
+      complete: watermarkBlockers.length === 0,
+      acknowledgeable: !opts.peek,
+      presenceSessionId: (presence?.presence ?? []).find((record) => record.passport_id === passport.agent_id)?.id,
+      blockers: watermarkBlockers,
+      observation,
+    })
+    : null;
+  if (page?.ack_token) {
+    page.ack_command = `seed continuity ack --token ${page.ack_token} --passport ${shellQuote(opts.passportPath)} --url ${shellQuote(opts.spaceUrl)}`;
   }
 
   const report: Omit<ContinuityReport, "orientation"> = {
@@ -407,6 +427,7 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     rootKind,
     since,
     watermarkAdvanced,
+    page,
     view: {
       present: viewPresent,
       manifest,
@@ -475,7 +496,7 @@ function renderContinuityBrief(report: ContinuityReport): string[] {
   lines.push(`# Continuity — ${agent}`);
   if (report.since) {
     lines.push(`_since last seen ${humanAge(report.since)}_`);
-  } else if (report.watermarkAdvanced) {
+  } else if (report.page) {
     lines.push(`_first run on this agent_`);
   }
   lines.push("");
@@ -503,6 +524,8 @@ function renderContinuityBrief(report: ContinuityReport): string[] {
   lines.push("## Focus");
   lines.push(`  ${workspaceFocus ?? report.view.currentRun?.goal ?? report.view.latestPacket?.mission ?? "(no focus recorded)"}`);
   lines.push("");
+
+  appendPageAcknowledgement(lines, report);
 
   appendGoverningRecords(lines, report, 5);
 
@@ -553,6 +576,17 @@ function appendMediumCoordination(lines: string[], report: ContinuityReport): vo
       if (claim) lines.push(`    ${other.agent_id}: claim on ${claim.target}`);
     }
   }
+  lines.push("");
+}
+
+function appendPageAcknowledgement(lines: string[], report: ContinuityReport): void {
+  const page = report.page;
+  if (!page) return;
+  lines.push("## Observation page");
+  lines.push(`  page: ${page.page_id.slice(0, 12)}  high-watermark: ${page.high_watermark}`);
+  if (page.ack_command) lines.push(`  acknowledge: ${page.ack_command}`);
+  else if (!page.complete) lines.push(`  acknowledgement blocked: ${page.blockers.join(", ")}`);
+  else lines.push("  acknowledgement disabled for this peek");
   lines.push("");
 }
 
@@ -714,10 +748,12 @@ function renderContinuityFull(report: ContinuityReport): string {
   lines.push(`# Continuity — ${agent}`);
   if (since) {
     lines.push(`_since last seen ${humanAge(since)}_`);
-  } else if (report.watermarkAdvanced) {
+  } else if (report.page) {
     lines.push(`_first run on this agent_`);
   }
   lines.push("");
+
+  appendPageAcknowledgement(lines, report);
 
   lines.push("## Identity");
   if (p) {
@@ -1352,7 +1388,9 @@ async function fetchJsonResult<T>(url: string, passportId?: string, fetchImpl: t
     timer = setTimeout(() => controller.abort(), 1500);
     const response = await fetchImpl(url, {
       signal: controller.signal,
-      headers: passportId ? { "x-seedrop-passport": passportId } : {},
+      headers: passportId
+        ? { "x-seedrop-passport": passportId, "x-seedrop-observe-only": "true" }
+        : { "x-seedrop-observe-only": "true" },
     });
     if (!response.ok) {
       return { value: null, errorKind: "http_error", errorMessage: `HTTP ${response.status}` };
@@ -1405,7 +1443,10 @@ async function postJson(
     const response = await fetchImpl(url, {
       method: "POST",
       signal: controller.signal,
-      headers: { "content-type": "application/json", "x-seedrop-passport": passportId },
+      headers: {
+        "content-type": "application/json",
+        "x-seedrop-passport": passportId,
+      },
       body: JSON.stringify(body),
     });
     return response.ok;
@@ -1428,9 +1469,45 @@ export async function runContinuity(
   const passportPath = explicit ?? opts.defaultPassport;
   const passportSource: PassportSource = explicit ? "env" : (opts.defaultPassportSource ?? "operator");
   const spaceUrl = readFlag(argv, "url") ?? opts.defaultUrl;
+  const json = argv.includes("--json");
+  if (argv[0] === "ack") {
+    const token = readFlag(argv, "token");
+    if (!token) {
+      io.stderr.write("Continuity acknowledgement requires --token <token> from a complete continuity page.\n");
+      return 1;
+    }
+    const passport = await readJson<Passport>(passportPath);
+    if (!passport?.agent_id) {
+      io.stderr.write(`No valid agent passport at ${passportPath}.\n`);
+      return 1;
+    }
+    try {
+      const result = await acknowledgeContinuityPage({
+        agentId: passport.agent_id,
+        token,
+        commitPresence: async (sessionId, observedAt) => {
+          const committed = await postJson(
+            `${spaceUrl}/presence/ack`,
+            { sessionId, observedAt },
+            passport.agent_id!,
+            fetch,
+          );
+          if (!committed) throw new Error(`Presence acknowledgement failed at ${spaceUrl}.`);
+        },
+      });
+      if (json) io.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      else io.stdout.write(`${result.idempotent ? "Already acknowledged" : "Acknowledged"} continuity page ${result.page_id.slice(0, 12)} at ${result.high_watermark}.\n`);
+      return 0;
+    } catch (error) {
+      const code = error instanceof ContinuityAcknowledgementError ? error.code : "ack_failed";
+      const message = error instanceof Error ? error.message : String(error);
+      if (json) io.stderr.write(`${JSON.stringify({ error: { code: `seedrop.continuity.${code}`, message } }, null, 2)}\n`);
+      else io.stderr.write(`${message}\n`);
+      return 1;
+    }
+  }
   const cwd = resolve(readFlag(argv, "cwd") ?? process.cwd());
   const place = resolveOrientationRoot(cwd);
-  const json = argv.includes("--json");
   const peek = argv.includes("--peek");
   const since = readFlag(argv, "since");
   const mode: ContinuityRenderMode = argv.includes("--full") ? "full" : argv.includes("--medium") ? "medium" : "brief";
@@ -1522,9 +1599,9 @@ export async function runFocus(
   io: RunCliIO,
   opts: { defaultPassport: string; defaultPassportSource?: PassportSource; defaultUrl: string },
 ): Promise<number> {
-  // Mirrors runContinuity's resolution, but focus is a cheap pre-flight: it
-  // NEVER advances the continuity watermark (peek: true), so calling it does
-  // not consume "what's new since I last looked".
+  // Mirrors runContinuity's resolution, but focus is a cheap pre-flight. Its
+  // page is deliberately non-acknowledgeable, so it cannot consume "what's
+  // new since I last looked" even if a caller later tries to commit it.
   const explicit = readFlag(argv, "passport");
   const passportPath = explicit ?? opts.defaultPassport;
   const passportSource: PassportSource = explicit ? "env" : (opts.defaultPassportSource ?? "operator");
@@ -1567,4 +1644,9 @@ function readFlag(argv: readonly string[], name: string): string | undefined {
     return next;
   }
   return undefined;
+}
+
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
