@@ -89,13 +89,22 @@ export async function createPassportIdentityResolver(
   options: PassportIdentityResolverOptions,
 ): Promise<PassportIdentityResolverResult> {
   const allowedPassportIds = new Map<string, PassportIdentity>();
+  const ambiguousPassportIds = new Set<string>();
   let identities: PassportIdentity[] = [];
 
   function indexIdentities(next: PassportIdentity[]): void {
     allowedPassportIds.clear();
+    ambiguousPassportIds.clear();
     for (const identity of next) {
       for (const value of [identity.passportId, identity.agentId, identity.name]) {
-        if (value) allowedPassportIds.set(value, identity);
+        if (!value || ambiguousPassportIds.has(value)) continue;
+        const existing = allowedPassportIds.get(value);
+        if (existing && existing.agentId !== identity.agentId) {
+          allowedPassportIds.delete(value);
+          ambiguousPassportIds.add(value);
+          continue;
+        }
+        allowedPassportIds.set(value, identity);
       }
     }
     identities = next;
@@ -183,6 +192,8 @@ export async function createPassportIdentityResolver(
         }
         return {
           passportId,
+          principalId: identity.agentId,
+          matchedAlias: passportId,
           agentId: identity.agentId,
           name: identity.name,
           issuedBy: identity.issuedBy,

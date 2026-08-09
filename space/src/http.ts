@@ -15,6 +15,10 @@ export const DEFAULT_MAX_BODY_BYTES = 1_048_576;
 
 export interface ResolvedIdentity {
   passportId: string;
+  /** Canonical actor persisted for authorization and effects after alias resolution. */
+  principalId?: string;
+  /** Exact input alias matched by the resolver, when it supports aliases. */
+  matchedAlias?: string;
   agentId?: string;
   name?: string;
   issuedBy?: string;
@@ -65,6 +69,7 @@ export interface HealthMetadata {
 
 const PASSPORT_HEADER = "x-seedrop-passport";
 const REQUEST_ID_HEADER = "x-seedrop-request-id";
+const requestBodyCache = new WeakMap<IncomingMessage, Promise<unknown>>();
 const RequestId = z.string().uuid();
 const PostOutboxStateQuery = z.enum(["pending", "processing", "completed", "dead_letter"]);
 
@@ -146,6 +151,11 @@ async function route(req: IncomingMessage, res: ServerResponse, options: CreateS
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const method = req.method ?? "GET";
   const segments = url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+
+  // Bound every request body before authentication, routing, or
+  // handler-specific parsing. Handlers reuse the cached parse below, so a
+  // route or method cannot evade the limit merely because it ignores JSON.
+  await readBody(req, options);
 
   if (method === "GET" && match(segments, ["health"])) {
     return handleHealth(res, options);
@@ -615,10 +625,17 @@ async function handleNotificationSend(
 ): Promise<void> {
   const senderPassportId = await requirePassport(req, options);
   const body = SendNotificationBody.parse(await readBody(req, options));
+  const recipientPassportId = await resolveCanonicalPrincipal(body.recipientPassportId, options);
+  if (!recipientPassportId) {
+    throw new SpaceValidationError(
+      [{ code: "custom", path: ["recipientPassportId"], message: "recipient is not a registered principal" }],
+      "SendNotificationBody",
+    );
+  }
   const notification = await Notification.send({
     ...options,
     senderPassportId,
-    recipientPassportId: body.recipientPassportId,
+    recipientPassportId,
     pointer: body.pointer,
     ttlMs: body.ttlMs,
   });
@@ -652,7 +669,8 @@ async function handleInboxList(
   options: CreateServerOptions,
 ): Promise<void> {
   const passportId = await requirePassport(req, options);
-  if (passportId !== recipientFromPath) {
+  const recipientPrincipal = await resolveCanonicalPrincipal(recipientFromPath, options);
+  if (passportId !== recipientPrincipal) {
     throw new SpaceAuthError(`Inbox can only be read by its owner; passport=${passportId}, path=${recipientFromPath}`, 403);
   }
   const unackedOnly = url.searchParams.get("unacked_only") === "true";
@@ -675,7 +693,8 @@ async function handleInboxAck(
   options: CreateServerOptions,
 ): Promise<void> {
   const passportId = await requirePassport(req, options);
-  if (passportId !== recipientFromPath) {
+  const recipientPrincipal = await resolveCanonicalPrincipal(recipientFromPath, options);
+  if (passportId !== recipientPrincipal) {
     throw new SpaceAuthError(`Only the recipient may ack; passport=${passportId}, path=${recipientFromPath}`, 403);
   }
   const body = InboxAckBody.parse(await readBody(req, options));
@@ -703,25 +722,33 @@ async function requirePassport(
       "request",
     );
   }
-  if (options.identity) {
-    const resolved = await options.identity.resolve(value);
-    if (!resolved) {
-      throw new SpaceAuthError(`Passport is not authorized: ${value}`, 401);
-    }
-    if (resolved.passportId !== value) {
-      throw new SpaceAuthError(`Resolved identity does not match passport header: ${value}`, 403);
-    }
+  const principalId = await resolveCanonicalPrincipal(value, options);
+  if (!principalId) {
+    throw new SpaceAuthError(`Passport is not authorized: ${value}`, 401);
   }
   // Auto-refresh: any authenticated request bumps existing sessions for this
   // passport. No-op if the passport hasn't registered. This keeps active
   // agents "online" without requiring an explicit heartbeat loop.
   const observeOnly = singleHeader(req, "x-seedrop-observe-only") === "true";
   if (behavior.refreshPresence !== false && !observeOnly) {
-    void Presence.refreshByPassport({ ...options, passportId: value }).catch(() => {
+    void Presence.refreshByPassport({ ...options, passportId: principalId }).catch(() => {
       // Best-effort; never block the request on refresh failures.
     });
   }
-  return value;
+  return principalId;
+}
+
+async function resolveCanonicalPrincipal(value: string, options: CreateServerOptions): Promise<string | null> {
+  if (!options.identity) return value;
+  const resolved = await options.identity.resolve(value);
+  if (!resolved) return null;
+  const aliases = [resolved.matchedAlias, resolved.passportId, resolved.agentId, resolved.name].filter(Boolean);
+  if (!aliases.includes(value)) {
+    throw new SpaceAuthError(`Resolved identity does not match requested alias: ${value}`, 403);
+  }
+  const principalId = resolved.principalId ?? resolved.agentId ?? resolved.passportId;
+  if (!principalId) throw new SpaceAuthError(`Resolved identity has no canonical principal: ${value}`, 403);
+  return principalId;
 }
 
 function singleHeader(req: IncomingMessage, name: string): string | undefined {
@@ -739,6 +766,14 @@ function singleHeader(req: IncomingMessage, name: string): string | undefined {
 }
 
 async function readBody(req: IncomingMessage, options: CreateServerOptions): Promise<unknown> {
+  const cached = requestBodyCache.get(req);
+  if (cached) return cached;
+  const pending = readBodyUncached(req, options);
+  requestBodyCache.set(req, pending);
+  return pending;
+}
+
+async function readBodyUncached(req: IncomingMessage, options: CreateServerOptions): Promise<unknown> {
   const limitBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   const declaredLength = Number(req.headers["content-length"] ?? 0);
   if (Number.isFinite(declaredLength) && declaredLength > limitBytes) {
