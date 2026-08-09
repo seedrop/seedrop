@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { isMutatingCommand, shouldAnnounceIdentity } from "./announce.js";
 import { SpaceHttpClient } from "./client.js";
 import { startSpaceServer } from "./serve.js";
+import { applyRootMigration, previewRootMigration, rollbackRootMigration } from "./root-migration.js";
 import { readPassportIdentity } from "./serve.js";
 import { WorkspaceView } from "./view.js";
 import type { AuditReport, ViewBrief, ViewPreflightReport, WorkspaceContext } from "./view.js";
@@ -109,6 +110,11 @@ async function run(args: ParsedArgs): Promise<void> {
 
   if (command === "serve") {
     await serveCommand(args);
+    return;
+  }
+
+  if (command === "migrate-root") {
+    await migrateRootCommand(args);
     return;
   }
 
@@ -336,8 +342,10 @@ async function serveCommand(args: ParsedArgs): Promise<void> {
       ? [] // no explicit passports; the resolver discovers from agentsDirs
       : [defaultPassportPath()];
   const started = await startSpaceServer({
-    root: args.flags.get("root")?.[0] ?? defaultSpaceRoot(),
-    dataDir: args.flags.get("data-dir")?.[0],
+    // The daemon CLI receives an already-resolved machine data root. Older
+    // launch agents call it --root, so retain that spelling as a deprecated
+    // alias without appending the library's repo-relative .seedrop/space.
+    dataDir: args.flags.get("data-dir")?.[0] ?? args.flags.get("root")?.[0] ?? defaultSpaceRoot(),
     passportPaths,
     passportId: args.flags.get("passport-id")?.[0],
     passportIds: args.flags.get("passport-id"),
@@ -368,6 +376,21 @@ async function serveCommand(args: ParsedArgs): Promise<void> {
   }
 
   await waitForShutdown(started.server);
+}
+
+async function migrateRootCommand(args: ParsedArgs): Promise<void> {
+  const manifestPath = args.flags.get("rollback")?.[0];
+  if (manifestPath) {
+    printJson(await rollbackRootMigration(manifestPath));
+    return;
+  }
+  const options = {
+    canonicalRoot: args.flags.get("canonical-root")?.[0] ?? defaultSpaceRoot(),
+    legacyRoot: args.flags.get("legacy-root")?.[0],
+    backupBase: args.flags.get("backup-base")?.[0],
+    migrationId: args.flags.get("migration-id")?.[0],
+  };
+  printJson(args.flags.has("apply") ? await applyRootMigration(options) : await previewRootMigration(options));
 }
 
 async function spaceClientCommand(command: SpaceClientCommand, args: ParsedArgs): Promise<void> {
@@ -879,7 +902,9 @@ function printNextActions(actions: Array<{ kind: string; command?: string; reaso
 
 function printHelp(): void {
   console.log(`Usage:
-  seed-space serve --passport <path> [--root <path>] [--host <host>] [--port <port>] [--json]
+  seed-space serve --passport <path> [--data-dir <path>] [--host <host>] [--port <port>] [--json]
+  seed-space migrate-root [--canonical-root <path>] [--apply]
+  seed-space migrate-root --rollback <manifest-path>
   seed-space join <space> --passport <path> [--url <url>]
   seed-space post <space> <message> --passport <path> [--url <url>]
   seed-space messages <space> --passport <path> [--url <url>]
@@ -888,6 +913,7 @@ function printHelp(): void {
 
 Commands:
   serve                        Run the HTTP coordination server
+  migrate-root                 Preview/apply/rollback the legacy nested data-root migration
   join                         Join or open a coordination space over HTTP
   post                         Post a message to a coordination space over HTTP
   messages                     List messages from a coordination space over HTTP

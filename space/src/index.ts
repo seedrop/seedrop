@@ -9,6 +9,14 @@ export type {
 } from "./client.js";
 export { SpaceStore } from "./io.js";
 export type { SpaceStoreOptions, SpaceStorePaths } from "./io.js";
+export { applyRootMigration, previewRootMigration, rollbackRootMigration } from "./root-migration.js";
+export type {
+  RootMigrationDirectory,
+  RootMigrationEntry,
+  RootMigrationManifest,
+  RootMigrationOptions,
+  RootMigrationReconciliation,
+} from "./root-migration.js";
 export { LiveStore } from "./live.js";
 export type { LiveStoreOptions, LiveStorePaths } from "./live.js";
 export { Mentions } from "./mentions.js";

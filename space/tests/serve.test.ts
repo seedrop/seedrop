@@ -130,11 +130,13 @@ describe("serve identity binding", () => {
     expect(response.status).toBe(200);
     const body = await response.json() as {
       root: string;
+      data_root: string;
       registered_passports: Array<{ passport_id: string; agent_id: string; path: string }>;
       known_agent_ids: string[];
     };
 
     expect(body.root).toBe(root);
+    expect(body.data_root).toBe(path.join(root, ".seedrop", "space"));
     expect(body.registered_passports).toEqual([
       { passport_id: "codex", agent_id: "codex", path: passportPath },
       { passport_id: "claude", agent_id: "claude", path: claudePassportPath },

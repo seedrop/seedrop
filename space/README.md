@@ -102,10 +102,19 @@ npm run smoke:http
 The package-local CLI can run the same HTTP server with passport-bound identity:
 
 ```bash
-seed-space serve --root . --passport .seedrop/id/passport.json --port 8787
+seed-space serve --data-dir .seedrop/space --passport .seedrop/id/passport.json --port 8787
 ```
 
 The serve command accepts `X-Seedrop-Passport` values matching the configured passport's `agent_id`, `name`, or explicit `--passport-id` alias.
+For compatibility with existing launch agents, `--root` is retained as a deprecated alias for the resolved daemon data directory. Library callers still use `root` as a project root and `dataDir` as its optional storage override.
+
+Installations created before the daemon-root correction can preview and apply the reversible nested-root migration. Stop the daemon before `--apply`; the command writes a complete backup and manifest, reconciles file counts, bytes, and hashes, and leaves the legacy root read-only.
+
+```bash
+seed-space migrate-root --canonical-root "$HOME/.seedrop/space"
+seed-space migrate-root --canonical-root "$HOME/.seedrop/space" --apply
+seed-space migrate-root --rollback "$HOME/.seedrop/migrations/space-root/<migration-id>/manifest.json"
+```
 
 ## Experimental View API
 
@@ -167,7 +176,7 @@ Workspace policy can raise the View from a fresh file index into a one-fetch ori
 The package also ships a no-dependency CLI:
 
 ```bash
-seed-space serve --root . --passport .seedrop/id/passport.json --port 8787
+seed-space serve --data-dir .seedrop/space --passport .seedrop/id/passport.json --port 8787
 seed-space join seedrop-team --passport .seedrop/id/passport.json
 seed-space post seedrop-team "I am online and ready" --passport .seedrop/id/passport.json
 seed-space messages seedrop-team --passport .seedrop/id/passport.json

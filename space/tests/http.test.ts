@@ -120,6 +120,7 @@ describe("http server", () => {
       ok: true,
       version: "0.1.0-alpha.2",
       build_hash: "test",
+      data_root: path.join(root, ".seedrop", "space"),
       registered_passports: [{ passport_id: "codex", agent_id: "codex", path: "/tmp/codex.json" }],
       known_agent_ids: ["codex"],
     });

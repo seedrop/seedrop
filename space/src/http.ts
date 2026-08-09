@@ -6,6 +6,7 @@ import { extractMentions } from "./mention-parser.js";
 import { Notification } from "./notification.js";
 import { Presence } from "./presence.js";
 import { Space } from "./space.js";
+import { SpaceStore } from "./io.js";
 
 const SPACE_VERSION = "0.1.0-alpha.2";
 export const DEFAULT_MAX_BODY_BYTES = 1_048_576;
@@ -299,6 +300,7 @@ async function handleHealth(res: ServerResponse, options: CreateServerOptions): 
   const health = options.health;
   const startedAt = health?.startedAt ?? new Date().toISOString();
   const uptimeMs = Math.max(0, Date.now() - Date.parse(startedAt));
+  const storage = SpaceStore.open({ root: options.root, dataDir: options.dataDir }).paths;
   writeJson(res, 200, {
     schema_version: "1.0",
     service: health?.service ?? "seed-space",
@@ -308,6 +310,7 @@ async function handleHealth(res: ServerResponse, options: CreateServerOptions): 
     started_at: startedAt,
     uptime_ms: uptimeMs,
     root: options.root,
+    data_root: storage.dataDir,
     host: health?.host ?? "127.0.0.1",
     port: health?.port ?? 18791,
     registered_passports: (health?.registeredPassports ?? []).map((passport) => ({
