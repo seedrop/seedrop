@@ -41,6 +41,20 @@ describe("Mentions storage", () => {
     expect(rows[0]?.sender_principal_chain).toEqual(["mc"]);
   });
 
+  it("returns the existing mention when message delivery is retried", async () => {
+    const first = await Mentions.insertMany(
+      [{ ...baseInsert, recipientPassportId: "claude" }],
+      { root },
+    );
+    const retry = await Mentions.insertMany(
+      [{ ...baseInsert, recipientPassportId: "claude" }],
+      { root },
+    );
+
+    expect(retry[0]?.id).toBe(first[0]?.id);
+    expect(await Mentions.list({ root, recipientPassportId: "claude", markDelivered: false })).toHaveLength(1);
+  });
+
   it("delivered_at is sticky on second fetch", async () => {
     await Mentions.insertMany([{ ...baseInsert, recipientPassportId: "claude" }], { root });
     const first = await Mentions.list({ root, recipientPassportId: "claude" });

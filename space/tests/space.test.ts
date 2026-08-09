@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Space, SpaceAuthError, SpaceNotFoundError, SpaceValidationError } from "../src/index.js";
+import { Space, SpaceAuthError, SpaceNotFoundError, SpaceRequestConflictError, SpaceValidationError } from "../src/index.js";
 
 let root: string;
 let currentTime: Date;
@@ -79,6 +79,29 @@ describe("Space", () => {
         metadata: { pointer: "src/space.ts" },
       },
     ]);
+  });
+
+  it("suppresses concurrent retries with the same request id", async () => {
+    const space = await Space.open("Build Room", { root, passportId: "alpha", now });
+    const [first, retry] = await Promise.all([
+      space.postWithReceipt({ content: "Once.", requestId: "11111111-1111-4111-8111-111111111111", metadata: { b: 2, a: 1 } }),
+      space.postWithReceipt({ content: "Once.", requestId: "11111111-1111-4111-8111-111111111111", metadata: { a: 1, b: 2 } }),
+    ]);
+
+    expect([first.replayed, retry.replayed].sort()).toEqual([false, true]);
+    expect(first.message.id).toBe(retry.message.id);
+    expect(await space.messages()).toHaveLength(1);
+  });
+
+  it("rejects request-id reuse with a different logical payload", async () => {
+    const space = await Space.open("Build Room", { root, passportId: "alpha", now });
+    const requestId = "22222222-2222-4222-8222-222222222222";
+    await space.postWithReceipt({ content: "Original.", requestId });
+
+    await expect(space.postWithReceipt({ content: "Different.", requestId })).rejects.toBeInstanceOf(
+      SpaceRequestConflictError,
+    );
+    expect(await space.messages()).toHaveLength(1);
   });
 
   it("marks a member as left without deleting membership history", async () => {

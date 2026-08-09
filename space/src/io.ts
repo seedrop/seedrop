@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ZodType } from "zod";
-import { SpaceParseError, SpaceValidationError } from "./errors.js";
+import { SpaceParseError, SpaceRequestConflictError, SpaceValidationError } from "./errors.js";
 import { MessageSchema, NotificationSchema, SpaceMetaSchema } from "./schema.js";
 import type { Message, Notification, SpaceMeta } from "./schema.js";
 
@@ -15,6 +15,11 @@ export interface SpaceStorePaths {
   dataDir: string;
   spacesDir: string;
   notificationsDir: string;
+}
+
+export interface AppendMessageOnceResult {
+  message: Message;
+  replayed: boolean;
 }
 
 const DEFAULT_DATA_DIR = ".seedrop/space";
@@ -99,6 +104,28 @@ export class SpaceStore {
     await appendJsonLine(this.messagesPath(message.space_id), validateValue(message, MessageSchema, this.messagesPath(message.space_id)));
   }
 
+  async appendMessageOnce(message: Message, requestId: string): Promise<AppendMessageOnceResult> {
+    await this.ensure();
+    await mkdir(this.spaceDir(message.space_id), { recursive: true });
+    const filePath = this.messagesPath(message.space_id);
+    return serializeWrite(filePath, async () => {
+      const prior = await readJsonLines(filePath, MessageSchema);
+      const existing = prior.find(
+        (candidate) => candidate.author_passport_id === message.author_passport_id
+          && candidate.metadata?.seedrop_request_id === requestId,
+      );
+      if (existing) {
+        if (!sameLogicalMessage(existing, message)) {
+          throw new SpaceRequestConflictError(requestId, existing.id);
+        }
+        return { message: existing, replayed: true };
+      }
+      const validated = validateValue(message, MessageSchema, filePath);
+      await writeFile(filePath, `${JSON.stringify(validated)}\n`, { encoding: "utf8", flag: "a" });
+      return { message: validated, replayed: false };
+    });
+  }
+
   async readMessages(spaceId: string): Promise<Message[]> {
     return readJsonLines(this.messagesPath(spaceId), MessageSchema);
   }
@@ -180,19 +207,46 @@ async function readJsonLines<T>(filePath: string, schema: ZodType<T>): Promise<T
   return records;
 }
 
-async function serializeWrite(filePath: string, operation: () => Promise<void>): Promise<void> {
+async function serializeWrite<T>(filePath: string, operation: () => Promise<T>): Promise<T> {
   const key = path.resolve(filePath);
   const previous = writeQueues.get(key) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(operation);
   const stored = next.then(() => undefined, () => undefined);
   writeQueues.set(key, stored);
   try {
-    await next;
+    return await next;
   } finally {
     if (writeQueues.get(key) === stored) {
       writeQueues.delete(key);
     }
   }
+}
+
+function sameLogicalMessage(left: Message, right: Message): boolean {
+  return left.space_id === right.space_id
+    && left.author_passport_id === right.author_passport_id
+    && left.role === right.role
+    && left.content === right.content
+    && left.replaces === right.replaces
+    && left.tombstone === right.tombstone
+    && stableJson(withoutRequestId(left.metadata)) === stableJson(withoutRequestId(right.metadata));
+}
+
+function withoutRequestId(metadata: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!metadata) return undefined;
+  const { seedrop_request_id: _requestId, ...rest } = metadata;
+  return Object.keys(rest).length > 0 ? rest : undefined;
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "undefined";
 }
 
 function safeSegment(input: string): string {

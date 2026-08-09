@@ -404,7 +404,11 @@ async function spaceClientCommand(command: SpaceClientCommand, args: ParsedArgs)
   if (command === "post") {
     const spaceName = requireValue(args, 0, "space name");
     const content = args.values.slice(1).join(" ") || requireFlag(args, "content");
-    printJson(await client.post(spaceName, { content, role: messageRole(args.flags.get("role")?.[0]) }));
+    printJson(await client.post(spaceName, {
+      content,
+      role: messageRole(args.flags.get("role")?.[0]),
+      requestId: args.flags.get("request-id")?.[0],
+    }));
     return;
   }
 
@@ -906,7 +910,7 @@ function printHelp(): void {
   seed-space migrate-root [--canonical-root <path>] [--apply]
   seed-space migrate-root --rollback <manifest-path>
   seed-space join <space> --passport <path> [--url <url>]
-  seed-space post <space> <message> --passport <path> [--url <url>]
+  seed-space post <space> <message> --passport <path> [--request-id <uuid>] [--url <url>]
   seed-space messages <space> --passport <path> [--url <url>]
   seed-space view <command> [options]
   seed-space run <command> [options]

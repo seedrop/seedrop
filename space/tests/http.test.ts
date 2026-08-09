@@ -352,6 +352,19 @@ describe("http server", () => {
     expect(result.status).toBe(400);
   });
 
+  it("rejects a malformed message request id with 400", async () => {
+    await request("POST", "/spaces/Build%20Room/join", {
+      headers: { "x-seedrop-passport": "alpha" },
+      body: {},
+    });
+    const result = await request("POST", "/spaces/Build%20Room/messages", {
+      headers: { "x-seedrop-passport": "alpha", "x-seedrop-request-id": "not-a-uuid" },
+      body: { content: "hello" },
+    });
+    expect(result.status).toBe(400);
+    expect(result.body.error.code).toBe("seedrop.validation.failed");
+  });
+
   it("rejects non-JSON request bodies with 400", async () => {
     const response = await fetch(`${baseUrl}/sessions`, {
       method: "POST",

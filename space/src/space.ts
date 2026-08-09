@@ -3,6 +3,8 @@ import { SpaceAuthError, SpaceNotFoundError, SpaceValidationError } from "./erro
 import { SpaceStore, type SpaceStoreOptions } from "./io.js";
 import type { Message, MessageRole, SpaceMember, SpaceMeta } from "./schema.js";
 
+const REQUEST_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export interface SpaceOptions extends SpaceStoreOptions {
   passportId: string;
   now?: () => Date;
@@ -21,6 +23,13 @@ export interface SpacePostInput {
   replaces?: string;
   tombstone?: boolean;
   metadata?: Record<string, unknown>;
+  /** Stable identity for safe retries. Scoped to this Space and author. */
+  requestId?: string;
+}
+
+export interface SpacePostResult {
+  message: Message;
+  replayed: boolean;
 }
 
 export class Space {
@@ -74,7 +83,17 @@ export class Space {
   }
 
   async post(input: SpacePostInput): Promise<Message> {
+    return (await this.postWithReceipt(input)).message;
+  }
+
+  async postWithReceipt(input: SpacePostInput): Promise<SpacePostResult> {
     await this.assertActiveMember();
+    if (input.requestId && !REQUEST_ID_PATTERN.test(input.requestId)) {
+      throw new SpaceValidationError(
+        [{ code: "custom", path: ["requestId"], message: "requestId must be a UUID" }],
+        "SpacePostInput",
+      );
+    }
     const message: Message = {
       schema_version: "1.0",
       id: randomUUID(),
@@ -87,11 +106,14 @@ export class Space {
       ...(input.authorAutonomous ? { author_autonomous: true } : {}),
       ...(input.replaces ? { replaces: input.replaces } : {}),
       ...(input.tombstone !== undefined ? { tombstone: input.tombstone } : {}),
-      ...(input.metadata ? { metadata: input.metadata } : {}),
+      ...(input.metadata || input.requestId
+        ? { metadata: { ...(input.metadata ?? {}), ...(input.requestId ? { seedrop_request_id: input.requestId } : {}) } }
+        : {}),
     };
 
+    if (input.requestId) return this.store.appendMessageOnce(message, input.requestId);
     await this.store.appendMessage(message);
-    return message;
+    return { message, replayed: false };
   }
 
   async messages(): Promise<Message[]> {

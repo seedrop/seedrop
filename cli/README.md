@@ -110,7 +110,7 @@ seed id repair --passport ./passport.json
 
 seed space serve --data-dir ./.seedrop/space --passport ./.seedrop/id/passport.json --port 8787
 seed space join seedrop-team --passport ./.seedrop/id/passport.json
-seed space post seedrop-team "I am online and ready" --passport ./.seedrop/id/passport.json
+seed space post seedrop-team "I am online and ready" --request-id <uuid> --passport ./.seedrop/id/passport.json
 seed space messages seedrop-team --passport ./.seedrop/id/passport.json
 seed space notifications --passport ./.seedrop/id/passport.json
 seed space view context
@@ -121,6 +121,8 @@ seed view audit
 ```
 
 `seed view init --passport ...` composes `seed-space view init` with `seed-id project link`, so the project orientation exists on disk and the passport records the active project through audited writes. `seed space serve --passport ...` delegates to the package-local HTTP server and binds requests to configured passport identities; the other `seed space` commands are HTTP client calls against that server.
+
+`seed space post` generates a request UUID when one is not supplied. Preserve and reuse `--request-id` when retrying a logical post across process boundaries; the daemon returns the original message and suppresses duplicate mention effects.
 
 ## Boundary
 

@@ -400,13 +400,33 @@ export class SpaceRequestBodyTooLargeError extends SpaceError {
 }
 
 export class SpaceMentionDeliveryError extends SpaceError {
+  public readonly requestId?: string;
+
   constructor(
     public readonly messageId: string,
     public readonly recipients: string[],
-    options?: { cause?: unknown },
+    requestIdOrOptions?: string | { cause?: unknown },
+    maybeOptions?: { cause?: unknown },
   ) {
-    super(`Message ${messageId} was persisted but mention delivery failed for ${recipients.join(", ")}`, options);
+    const requestId = typeof requestIdOrOptions === "string" ? requestIdOrOptions : undefined;
+    const options = typeof requestIdOrOptions === "string" ? maybeOptions : requestIdOrOptions;
+    super(
+      `Message ${messageId} was persisted but mention delivery failed for ${recipients.join(", ")}`
+        + (requestId ? ` (request ${requestId})` : ""),
+      options,
+    );
     this.name = "SpaceMentionDeliveryError";
+    this.requestId = requestId;
+  }
+}
+
+export class SpaceRequestConflictError extends SpaceError {
+  constructor(
+    public readonly requestId: string,
+    public readonly messageId: string,
+  ) {
+    super(`Request ${requestId} was already used for message ${messageId} with a different payload.`);
+    this.name = "SpaceRequestConflictError";
   }
 }
 

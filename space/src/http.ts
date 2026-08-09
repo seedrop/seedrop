@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { z } from "zod";
-import { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceRequestBodyTooLargeError, SpaceValidationError } from "./errors.js";
+import { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceRequestBodyTooLargeError, SpaceRequestConflictError, SpaceValidationError } from "./errors.js";
 import { Mentions } from "./mentions.js";
 import { extractMentions } from "./mention-parser.js";
 import { Notification } from "./notification.js";
@@ -56,6 +57,8 @@ export interface HealthMetadata {
 }
 
 const PASSPORT_HEADER = "x-seedrop-passport";
+const REQUEST_ID_HEADER = "x-seedrop-request-id";
+const RequestId = z.string().uuid();
 
 const SessionBody = z
   .object({
@@ -401,11 +404,12 @@ async function handleMessagesPost(
   options: CreateServerOptions,
 ): Promise<void> {
   const passportId = await requirePassport(req, options);
+  const requestId = RequestId.parse(singleHeader(req, REQUEST_ID_HEADER) ?? randomUUID());
   const body = PostMessageBody.parse(await readBody(req, options));
   const space = await Space.load(name, { ...options, passportId });
   const resolved = options.identity ? await options.identity.resolve(passportId) : null;
   const principalChain = options.chainResolver?.(passportId);
-  const message = await space.post({
+  const posted = await space.postWithReceipt({
     content: body.content,
     role: body.role,
     replaces: body.replaces,
@@ -413,7 +417,9 @@ async function handleMessagesPost(
     metadata: body.metadata,
     principalChain,
     authorAutonomous: resolved?.autonomous,
+    requestId,
   });
+  const message = posted.message;
 
   // Parse @-mentions and persist inbox rows for known recipients.
   // Self-mentions are allowed (scratchpad pattern); unknown agent_ids are reported as warnings.
@@ -441,14 +447,16 @@ async function handleMessagesPost(
         );
         delivered_mentions = recipients;
       } catch (error) {
-        throw new SpaceMentionDeliveryError(message.id, recipients, { cause: error });
+        throw new SpaceMentionDeliveryError(message.id, recipients, requestId, { cause: error });
       }
     }
   } else if (mentions.length > 0) {
     unknown_mentions = mentions;
   }
 
-  writeJson(res, 201, {
+  writeJson(res, posted.replayed ? 200 : 201, {
+    request_id: requestId,
+    replayed: posted.replayed,
     message,
     mention_delivery: {
       delivered: delivered_mentions,
@@ -588,6 +596,20 @@ async function requirePassport(req: IncomingMessage, options: CreateServerOption
   return value;
 }
 
+function singleHeader(req: IncomingMessage, name: string): string | undefined {
+  const raw = req.headers[name];
+  if (Array.isArray(raw)) {
+    if (raw.length !== 1) {
+      throw new SpaceValidationError(
+        [{ code: "custom", path: [name], message: `${name} must be supplied exactly once` }],
+        "request headers",
+      );
+    }
+    return raw[0];
+  }
+  return raw;
+}
+
 async function readBody(req: IncomingMessage, options: CreateServerOptions): Promise<unknown> {
   const limitBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   const declaredLength = Number(req.headers["content-length"] ?? 0);
@@ -705,7 +727,16 @@ function writeError(res: ServerResponse, error: unknown): void {
       message: error.message,
       class: "io",
       retryable: true,
-      details: { message_id: error.messageId, recipients: error.recipients },
+      details: { message_id: error.messageId, recipients: error.recipients, request_id: error.requestId },
+    }));
+    return;
+  }
+  if (error instanceof SpaceRequestConflictError) {
+    writeJson(res, 409, errorEnvelope({
+      code: "seedrop.space.request_conflict",
+      message: error.message,
+      class: "conflict",
+      details: { message_id: error.messageId, request_id: error.requestId },
     }));
     return;
   }

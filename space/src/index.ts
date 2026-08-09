@@ -1,5 +1,5 @@
 export { Space } from "./space.js";
-export type { SpaceOptions, SpacePostInput } from "./space.js";
+export type { SpaceOptions, SpacePostInput, SpacePostResult } from "./space.js";
 export { SpaceHttpClient, SpaceHttpClientError } from "./client.js";
 export type {
   NotifyRequest,
@@ -8,7 +8,7 @@ export type {
   SpacePostRequest,
 } from "./client.js";
 export { SpaceStore } from "./io.js";
-export type { SpaceStoreOptions, SpaceStorePaths } from "./io.js";
+export type { AppendMessageOnceResult, SpaceStoreOptions, SpaceStorePaths } from "./io.js";
 export { applyRootMigration, previewRootMigration, rollbackRootMigration } from "./root-migration.js";
 export type {
   RootMigrationDirectory,
@@ -96,7 +96,7 @@ export type {
   ViewPolicy,
   WorkspaceManifest,
 } from "./schema.js";
-export { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceRequestBodyTooLargeError, SpaceValidationError } from "./errors.js";
+export { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceRequestBodyTooLargeError, SpaceRequestConflictError, SpaceValidationError } from "./errors.js";
 export { WorkspaceView } from "./view.js";
 export type {
   Grave,

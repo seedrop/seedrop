@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { NextAction } from "./types.js";
 
 export interface SpaceHttpClientOptions {
@@ -9,6 +10,7 @@ export interface SpaceHttpClientOptions {
 export interface SpacePostRequest {
   content: string;
   role?: "agent" | "human" | "system";
+  requestId?: string;
 }
 
 export interface PresenceQuery {
@@ -51,13 +53,15 @@ export class SpaceHttpClientError extends Error {
   readonly status: number;
   readonly body: unknown;
   readonly recovery: NextAction[];
+  readonly requestId?: string;
 
-  constructor(status: number, body: unknown) {
-    super(spaceErrorMessage(status, body));
+  constructor(status: number, body: unknown, requestId?: string) {
+    super(spaceErrorMessage(status, body) + (requestId ? ` (request_id=${requestId}; retry with the same id)` : ""));
     this.name = "SpaceHttpClientError";
     this.status = status;
     this.body = body;
     this.recovery = spaceErrorRecovery(body);
+    this.requestId = requestId;
   }
 }
 
@@ -151,8 +155,22 @@ export class SpaceHttpClient {
     return this.request("POST", `/spaces/${encodeURIComponent(spaceName)}/join`, {});
   }
 
-  post(spaceName: string, input: SpacePostRequest): Promise<unknown> {
-    return this.request("POST", `/spaces/${encodeURIComponent(spaceName)}/messages`, input);
+  async post(spaceName: string, input: SpacePostRequest): Promise<unknown> {
+    const requestId = input.requestId ?? randomUUID();
+    const { requestId: _requestId, ...body } = input;
+    try {
+      return await this.request(
+        "POST",
+        `/spaces/${encodeURIComponent(spaceName)}/messages`,
+        body,
+        { "x-seedrop-request-id": requestId },
+      );
+    } catch (error) {
+      if (error instanceof SpaceHttpClientError) {
+        throw new SpaceHttpClientError(error.status, error.body, requestId);
+      }
+      throw error;
+    }
   }
 
   messages(spaceName: string): Promise<unknown> {
@@ -212,7 +230,12 @@ export class SpaceHttpClient {
     );
   }
 
-  private async request(method: string, path: string, body?: unknown): Promise<unknown> {
+  private async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<unknown> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -221,6 +244,7 @@ export class SpaceHttpClient {
         headers: {
           "content-type": "application/json",
           "x-seedrop-passport": this.passportId,
+          ...extraHeaders,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,

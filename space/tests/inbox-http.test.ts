@@ -1,8 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { startSpaceServer, type StartedSpaceServer } from "../src/index.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Mentions, startSpaceServer, type StartedSpaceServer } from "../src/index.js";
 
 let root: string;
 let mcPath: string;
@@ -65,6 +66,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (started) {
     await new Promise<void>((resolve, reject) =>
       started?.server.close((error) => (error ? reject(error) : resolve())),
@@ -154,6 +156,41 @@ describe("inbox HTTP", () => {
     const codexInbox = await inbox(started.url, "codex");
     expect(claudeInbox.mentions).toHaveLength(1);
     expect(codexInbox.mentions).toHaveLength(1);
+  });
+
+  it("retries a persisted message after mention failure without duplicate effects", async () => {
+    started = await startSpaceServer({
+      root,
+      passportPaths: [mcPath, claudePath, codexPath],
+      port: 0,
+    });
+    await joinAs(started.url, "mc", "team");
+    const requestId = randomUUID();
+    vi.spyOn(Mentions, "insertMany").mockRejectedValueOnce(new Error("injected mention failure"));
+
+    const first = await rawPost(started.url, "mc", "team", "@claude retry me", requestId);
+    expect(first.status).toBe(500);
+    const failed = await first.json() as { error: { details: { message_id: string; request_id: string } } };
+    expect(failed.error.details.request_id).toBe(requestId);
+
+    const retry = await rawPost(started.url, "mc", "team", "@claude retry me", requestId);
+    expect(retry.status).toBe(200);
+    const replayed = await retry.json() as { request_id: string; replayed: boolean; message: { id: string } };
+    expect(replayed).toMatchObject({ request_id: requestId, replayed: true });
+    expect(replayed.message.id).toBe(failed.error.details.message_id);
+
+    const third = await rawPost(started.url, "mc", "team", "@claude retry me", requestId);
+    expect(third.status).toBe(200);
+    const conflict = await rawPost(started.url, "mc", "team", "@claude changed payload", requestId);
+    expect(conflict.status).toBe(409);
+    await expect(conflict.json()).resolves.toMatchObject({
+      error: { code: "seedrop.space.request_conflict", details: { request_id: requestId } },
+    });
+    const messages = await fetch(`${started.url}/spaces/team/messages`, {
+      headers: { "x-seedrop-passport": "mc" },
+    }).then((response) => response.json()) as { messages: unknown[] };
+    expect(messages.messages).toHaveLength(1);
+    expect((await inbox(started.url, "claude")).mentions).toHaveLength(1);
   });
 
   it("ignores @unknown_id (no inbox row created)", async () => {
@@ -257,3 +294,21 @@ describe("inbox HTTP", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+function rawPost(
+  url: string,
+  passportId: string,
+  space: string,
+  content: string,
+  requestId: string,
+): Promise<Response> {
+  return fetch(`${url}/spaces/${encodeURIComponent(space)}/messages`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-seedrop-passport": passportId,
+      "x-seedrop-request-id": requestId,
+    },
+    body: JSON.stringify({ content }),
+  });
+}

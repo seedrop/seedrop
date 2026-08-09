@@ -57,6 +57,23 @@ describe("SpaceHttpClient", () => {
     expect(ended.space.lifecycle).toBe("ended");
   });
 
+  it("replays an explicit post request id without duplicating the message", async () => {
+    await codex.join("seedrop-team");
+    const requestId = "33333333-3333-4333-8333-333333333333";
+    const first = await codex.post("seedrop-team", { content: "exactly once", requestId }) as {
+      request_id: string;
+      replayed: boolean;
+      message: { id: string };
+    };
+    const retry = await codex.post("seedrop-team", { content: "exactly once", requestId }) as typeof first;
+
+    expect(first).toMatchObject({ request_id: requestId, replayed: false });
+    expect(retry).toMatchObject({ request_id: requestId, replayed: true });
+    expect(retry.message.id).toBe(first.message.id);
+    const listed = await codex.messages("seedrop-team") as { messages: unknown[] };
+    expect(listed.messages).toHaveLength(1);
+  });
+
   it("raises typed errors for unauthorized requests", async () => {
     const unknown = new SpaceHttpClient({ baseUrl: started.url, passportId: "unknown" });
 
@@ -99,6 +116,20 @@ describe("SpaceHttpClient", () => {
         expect(error.message).toContain("connect EPERM 127.0.0.1:18791");
         expect(error.message).toContain("EPERM");
         expect(renderRecovery(error)).toContain("seed daemon status");
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("preserves the post request id in transport failures", async () => {
+    const originalFetch = globalThis.fetch;
+    const requestId = "44444444-4444-4444-8444-444444444444";
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("connection dropped after write"));
+    try {
+      await expect(codex.post("seedrop-team", { content: "retry me", requestId })).rejects.toMatchObject({
+        requestId,
+        message: expect.stringContaining(`request_id=${requestId}`),
       });
     } finally {
       globalThis.fetch = originalFetch;

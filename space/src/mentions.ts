@@ -86,9 +86,23 @@ export class Mentions {
            sender_passport_id, sender_principal_chain, content, created_at
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
+      const existingStmt = db.prepare(
+        `SELECT id, message_id, space_id, space_name, recipient_passport_id,
+                sender_passport_id, sender_principal_chain, content, created_at,
+                delivered_at, acked_at, ack_result, ack_note, deferred_until
+           FROM mentions
+          WHERE message_id = ? AND recipient_passport_id = ?
+       ORDER BY created_at ASC
+          LIMIT 1`,
+      );
       const inserted: MentionRecord[] = [];
       const tx = db.transaction(() => {
         for (const input of inputs) {
+          const existing = existingStmt.get(input.messageId, input.recipientPassportId) as MentionRow | undefined;
+          if (existing) {
+            inserted.push(rowToRecord(existing));
+            continue;
+          }
           const id = randomUUID();
           stmt.run(
             id,
