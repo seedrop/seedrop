@@ -22,6 +22,45 @@ export type {
 
 export type AuditSeverity = "error" | "warning" | "info";
 
+/** Durable View families that can be read independently. */
+export type ArtifactFamily =
+  | "manifest"
+  | "policy"
+  | "continuity"
+  | "runs"
+  | "tasks"
+  | "handoffs"
+  | "signals"
+  | "signals_archive";
+
+/**
+ * A typed explanation for a durable artifact that could not be returned.
+ * `path` is workspace-relative when the artifact lives below the workspace,
+ * otherwise it is the resolved absolute path.
+ */
+export interface ArtifactDiagnostic {
+  family: ArtifactFamily;
+  path: string;
+  code:
+    | "invalid_json"
+    | "schema_validation"
+    | "unsupported_schema_version"
+    | "missing"
+    | "unreadable"
+    | "io_error";
+  reason: string;
+}
+
+/**
+ * Honest read contract for durable artifacts. A partial read preserves every
+ * valid sibling while naming every artifact that could not be returned.
+ */
+export interface ArtifactReadResult<T> {
+  records: T[];
+  diagnostics: ArtifactDiagnostic[];
+  completeness: "complete" | "partial";
+}
+
 export interface AuditIssue {
   severity: AuditSeverity;
   code: string;

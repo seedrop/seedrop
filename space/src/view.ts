@@ -18,6 +18,7 @@ import {
   WorkspaceViewError,
   WorkspaceViewParseError,
   WorkspaceViewValidationError,
+  SchemaVersionUnsupportedError,
 } from "./errors.js";
 import { parseAndMigrate, type MigrationChain } from "./migrations.js";
 import {
@@ -37,9 +38,13 @@ import {
   ViewPolicySchema,
   WorkspaceManifestSchema,
   SignalsArchiveSchema,
+  ArchivedSignalSchema,
 } from "./schema.js";
 import {
   ArchivedSignal,
+  ArtifactDiagnostic,
+  ArtifactFamily,
+  ArtifactReadResult,
   AuditReport,
   ContextBudget,
   ContinuityPacket,
@@ -68,6 +73,9 @@ export type {
   AuditIssue,
   AuditReport,
   AuditSeverity,
+  ArtifactDiagnostic,
+  ArtifactFamily,
+  ArtifactReadResult,
   ContinuityPacket,
   ContinuityValidation,
   FileKind,
@@ -124,6 +132,7 @@ export {
   WorkspaceViewError,
   WorkspaceViewParseError,
   WorkspaceViewValidationError,
+  SchemaVersionUnsupportedError,
 } from "./errors.js";
 
 export interface WorkspaceViewOptions {
@@ -388,13 +397,10 @@ export class WorkspaceView {
   async init(workspaceId = path.basename(this.root)): Promise<WorkspaceManifest> {
     await this.ensureDirs();
     await this.seedKnowledgeReadme();
-    try {
-      return await this.readManifest();
-    } catch {
-      const manifest = this.createEmptyManifest(workspaceId);
-      await this.writeJson(this.manifestPath, manifest);
-      return manifest;
-    }
+    if (existsSync(this.manifestPath)) return this.readManifest();
+    const manifest = this.createEmptyManifest(workspaceId);
+    await this.writeJson(this.manifestPath, manifest);
+    return manifest;
   }
 
   private async seedKnowledgeReadme(): Promise<void> {
@@ -515,6 +521,14 @@ export class WorkspaceView {
 
   async readManifest(): Promise<WorkspaceManifest> {
     return this.readJson(this.manifestPath, WorkspaceManifestSchema);
+  }
+
+  async readManifestArtifact(): Promise<ArtifactReadResult<WorkspaceManifest>> {
+    return this.readSingleArtifact("manifest", this.manifestPath, WorkspaceManifestSchema, { required: true });
+  }
+
+  async readPolicyArtifact(): Promise<ArtifactReadResult<ViewPolicy>> {
+    return this.readSingleArtifact("policy", this.policyPath, ViewPolicySchema);
   }
 
   async log(input: LogInput): Promise<ContinuityPacket> {
@@ -643,7 +657,10 @@ export class WorkspaceView {
   }
 
   async releaseSignal(input: ReleaseSignalInput): Promise<Signal[]> {
-    const signals = await this.listSignals({ includeExpired: true });
+    const signals = this.requireComplete(
+      await this.readSignals({ includeExpired: true }),
+      "release signals",
+    );
     // Relativize target at the input boundary so the comparison in
     // matchesSignal is apples-to-apples with the stored signal.target.
     const normalized: ReleaseSignalInput = input.target
@@ -679,7 +696,8 @@ export class WorkspaceView {
   async startRun(input: RunStartInput): Promise<RunStartResult> {
     await this.ensureDirs();
     const agentId = input.agent ?? this.agent;
-    const active = (await this.listRuns()).filter((run) => run.agent_id === agentId && run.status === "in_progress");
+    const active = this.requireComplete(await this.readRuns(), "start a run")
+      .filter((run) => run.agent_id === agentId && run.status === "in_progress");
     if (active.length > 0 && !input.newRun) {
       return {
         run: active.at(-1)!,
@@ -703,7 +721,7 @@ export class WorkspaceView {
         }
       }
       if (input.claim && input.claim.length > 0) {
-        const signals = await this.safeListSignals();
+        const signals = this.requireComplete(await this.readSignals(), "claim run paths");
         const targets = new Set(this.toWorkspaceRelativeMany(input.claim));
         const conflicts = signals
           .filter((s) => s.owner !== agentId && targets.has(s.target))
@@ -762,7 +780,7 @@ export class WorkspaceView {
   private async resolveTargetRun(input: { agent?: string; runId?: string }): Promise<RunJournal> {
     if (input.runId) {
       const fullId = await this.resolveRunId(input.runId);
-      const run = (await this.listRuns()).find((r) => r.run_id === fullId);
+      const run = this.requireComplete(await this.readRuns(), "target a run").find((r) => r.run_id === fullId);
       if (!run) throw new Error(`Run ${fullId} not found.`);
       // Guard against silent cross-owner takeover: targeting a run by id must
       // not let one identity mutate (log/verify/finish) another agent's run
@@ -953,9 +971,20 @@ export class WorkspaceView {
     });
   }
 
+  async readRuns(): Promise<ArtifactReadResult<RunJournal>> {
+    const result = await this.readArtifactDirectory(
+      "runs",
+      this.runsDir,
+      (filePath) => this.readJsonMigrated(filePath, RunJournalMigrationChain, RunJournalSchema),
+    );
+    result.records.sort((a, b) => a.started_at.localeCompare(b.started_at));
+    return result;
+  }
+
   async listRuns(): Promise<RunJournal[]> {
-    const { runs } = await this.listRunsWithErrors();
-    return runs;
+    const result = await this.readRuns();
+    this.reportArtifactDiagnostics(result.diagnostics);
+    return result.records;
   }
 
   /**
@@ -974,7 +1003,7 @@ export class WorkspaceView {
   async sweepOrphanedRuns(opts: { olderThanHours?: number; now?: Date } = {}): Promise<RunJournal[]> {
     const olderThanHours = opts.olderThanHours ?? 72;
     const cutoff = (opts.now ?? new Date(this.nowIso())).getTime() - olderThanHours * 3_600_000;
-    const runs = await this.listRuns();
+    const runs = this.requireComplete(await this.readRuns(), "sweep orphaned runs");
     const swept: RunJournal[] = [];
     for (const candidate of runs) {
       if (candidate.status !== "in_progress") continue;
@@ -1034,31 +1063,14 @@ export class WorkspaceView {
   }
 
   async listRunsWithErrors(): Promise<{ runs: RunJournal[]; malformed: Array<{ filename: string; error: string }> }> {
-    await this.ensureDirs();
-    const entries = await readdir(this.runsDir, { withFileTypes: true });
-    const runs: RunJournal[] = [];
-    const malformed: Array<{ filename: string; error: string }> = [];
-
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      try {
-        runs.push(await this.readJsonMigrated(path.join(this.runsDir, entry.name), RunJournalMigrationChain, RunJournalSchema));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        malformed.push({ filename: entry.name, error: message });
-        // Surface to stderr so the agent (and CI) sees corrupted run files
-        // instead of them being silently invisible. The error message is
-        // structured, so a future API consumer can also call
-        // listRunsWithErrors() to get them programmatically.
-        process.stderr.write(
-          `seedrop: skipping malformed run file ${entry.name}: ${message.split("\n")[0]}\n`,
-        );
-      }
-    }
-
+    const result = await this.readRuns();
+    this.reportArtifactDiagnostics(result.diagnostics);
     return {
-      runs: runs.sort((a, b) => a.started_at.localeCompare(b.started_at)),
-      malformed,
+      runs: result.records,
+      malformed: result.diagnostics.map((diagnostic) => ({
+        filename: path.basename(diagnostic.path),
+        error: diagnostic.reason,
+      })),
     };
   }
 
@@ -1071,7 +1083,8 @@ export class WorkspaceView {
   async createTask(input: TaskCreateInput): Promise<Task> {
     await this.ensureDirs();
     if (input.dedupKey) {
-      const existing = (await this.listTasks()).find((task) => task.dedup_key === input.dedupKey && task.title === input.title);
+      const existing = this.requireComplete(await this.readTasks(), "deduplicate task creation")
+        .find((task) => task.dedup_key === input.dedupKey && task.title === input.title);
       if (existing) return existing;
     }
     const now = this.nowIso();
@@ -1096,7 +1109,8 @@ export class WorkspaceView {
     try {
       return await this.readJsonMigrated(this.taskPath(taskId), TaskMigrationChain, TaskSchema);
     } catch (error) {
-      if (error instanceof WorkspaceViewParseError || (error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      const causeCode = ((error as Error & { cause?: NodeJS.ErrnoException })?.cause)?.code;
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT" || causeCode === "ENOENT") {
         throw new TaskNotFoundError(taskId);
       }
       throw error;
@@ -1118,7 +1132,7 @@ export class WorkspaceView {
     if (trimmed.length < 4) {
       throw new Error(`Run id prefix too short (need >=4 chars): ${trimmed}`);
     }
-    const runs = await this.listRuns();
+    const runs = this.requireComplete(await this.readRuns(), "resolve a run id");
     const matches = runs.filter((r) => r.run_id.startsWith(trimmed));
     if (matches.length === 0) {
       throw new Error(`No run matches prefix ${prefixOrFullId}.`);
@@ -1148,7 +1162,7 @@ export class WorkspaceView {
     if (trimmed.length < 4) {
       throw new TaskNotFoundError(`${trimmed} (prefix too short — need at least 4 hex chars)`);
     }
-    const tasks = await this.listTasks();
+    const tasks = this.requireComplete(await this.readTasks(), "resolve a task id");
     const matches = tasks.filter((t) => t.task_id.startsWith(trimmed));
     if (matches.length === 0) {
       throw new TaskNotFoundError(prefixOrFullId);
@@ -1160,23 +1174,24 @@ export class WorkspaceView {
     return matches[0]!.task_id;
   }
 
+  async readTasks(filter: TaskListFilter = {}): Promise<ArtifactReadResult<Task>> {
+    const result = await this.readArtifactDirectory(
+      "tasks",
+      this.tasksDir,
+      (filePath) => this.readJsonMigrated(filePath, TaskMigrationChain, TaskSchema),
+    );
+    result.records = result.records
+      .filter((task) => !filter.status || task.status === filter.status)
+      .filter((task) => !filter.owner || task.owner === filter.owner)
+      .filter((task) => !filter.fromKnowledge || task.from_knowledge === filter.fromKnowledge)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return result;
+  }
+
   async listTasks(filter: TaskListFilter = {}): Promise<Task[]> {
-    await this.ensureDirs();
-    const entries = await readdir(this.tasksDir, { withFileTypes: true });
-    const tasks: Task[] = [];
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      try {
-        const task = await this.readJsonMigrated(path.join(this.tasksDir, entry.name), TaskMigrationChain, TaskSchema);
-        if (filter.status && task.status !== filter.status) continue;
-        if (filter.owner && task.owner !== filter.owner) continue;
-        if (filter.fromKnowledge && task.from_knowledge !== filter.fromKnowledge) continue;
-        tasks.push(task);
-      } catch {
-        continue;
-      }
-    }
-    return tasks.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const result = await this.readTasks(filter);
+    this.reportArtifactDiagnostics(result.diagnostics);
+    return result.records;
   }
 
   async claimTask(taskId: string, agent?: string): Promise<Task> {
@@ -1437,52 +1452,79 @@ export class WorkspaceView {
     }
   }
 
-  /** Legacy reader for frozen handoffs/ files; used only by the sync migration. */
+  /** Honest reader for frozen handoffs/ files; used by sync migration and audit. */
+  async readHandoffs(): Promise<ArtifactReadResult<Handoff>> {
+    const result = await this.readArtifactDirectory(
+      "handoffs",
+      this.handoffsDir,
+      (filePath) => this.readJson(filePath, HandoffSchema),
+    );
+    result.records.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return result;
+  }
+
   private async listHandoffs(): Promise<Handoff[]> {
-    await this.ensureDirs();
-    const entries = await readdir(this.handoffsDir, { withFileTypes: true });
-    const handoffs: Handoff[] = [];
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      try {
-        handoffs.push(await this.readJson(path.join(this.handoffsDir, entry.name), HandoffSchema));
-      } catch {
-        continue;
-      }
-    }
-    return handoffs.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const result = await this.readHandoffs();
+    this.reportArtifactDiagnostics(result.diagnostics);
+    return result.records;
+  }
+
+  async readSignals(options: { includeExpired?: boolean } = {}): Promise<ArtifactReadResult<Signal>> {
+    const result = await this.readArtifactDirectory(
+      "signals",
+      this.signalsDir,
+      (filePath) => this.readJson(filePath, SignalSchema),
+    );
+    const now = this.now().getTime();
+    result.records = result.records
+      .filter((signal) => options.includeExpired || Date.parse(signal.expires_at) > now)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return result;
   }
 
   async listSignals(options: { includeExpired?: boolean } = {}): Promise<Signal[]> {
-    await this.ensureDirs();
-    const entries = await readdir(this.signalsDir, { withFileTypes: true });
-    const signals: Signal[] = [];
-    const now = this.now().getTime();
-
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) {
-        continue;
-      }
-      try {
-        const signal = await this.readJson(path.join(this.signalsDir, entry.name), SignalSchema);
-        if (options.includeExpired || Date.parse(signal.expires_at) > now) {
-          signals.push(signal);
-        }
-      } catch {
-        continue;
-      }
-    }
-
-    return signals.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const result = await this.readSignals(options);
+    this.reportArtifactDiagnostics(result.diagnostics);
+    return result.records;
   }
 
-  /** Read the archive ledger of GC-swept signals. Missing or corrupt file reads as empty. */
-  async listArchivedSignals(): Promise<ArchivedSignal[]> {
+  /** Read the archive ledger without converting corruption into an empty archive. */
+  async readArchivedSignals(): Promise<ArtifactReadResult<ArchivedSignal>> {
+    if (!existsSync(this.signalsArchivePath)) return artifactReadResult([]);
+    let parsed: unknown;
     try {
-      return await this.readJson(this.signalsArchivePath, SignalsArchiveSchema);
-    } catch {
-      return [];
+      parsed = JSON.parse(await readFile(this.signalsArchivePath, "utf8"));
+    } catch (error) {
+      return artifactReadResult([], [this.toArtifactDiagnostic("signals_archive", this.signalsArchivePath, error)]);
     }
+    if (!Array.isArray(parsed)) {
+      const result = SignalsArchiveSchema.safeParse(parsed);
+      const error = result.success
+        ? new Error("Signal archive must be an array.")
+        : new WorkspaceViewValidationError(result.error.issues, this.signalsArchivePath);
+      return artifactReadResult([], [this.toArtifactDiagnostic("signals_archive", this.signalsArchivePath, error)]);
+    }
+    const records: ArchivedSignal[] = [];
+    const diagnostics: ArtifactDiagnostic[] = [];
+    for (let index = 0; index < parsed.length; index += 1) {
+      const result = ArchivedSignalSchema.safeParse(parsed[index]);
+      if (result.success) {
+        records.push(result.data);
+      } else {
+        diagnostics.push(this.toArtifactDiagnostic(
+          "signals_archive",
+          `${this.signalsArchivePath}#/${index}`,
+          new WorkspaceViewValidationError(result.error.issues, `${this.signalsArchivePath}#/${index}`),
+        ));
+      }
+    }
+    return artifactReadResult(records, diagnostics);
+  }
+
+  async listArchivedSignals(): Promise<ArchivedSignal[]> {
+    const result = await this.readArchivedSignals();
+    this.reportArtifactDiagnostics(result.diagnostics);
+    return result.records;
   }
 
   /**
@@ -1495,7 +1537,10 @@ export class WorkspaceView {
   async gcExpiredSignals(options: { graceMs?: number } = {}): Promise<Signal[]> {
     const graceMs = options.graceMs ?? SIGNAL_GC_GRACE_MS;
     const cutoff = this.now().getTime() - graceMs;
-    const expired = (await this.listSignals({ includeExpired: true })).filter(
+    const expired = this.requireComplete(
+      await this.readSignals({ includeExpired: true }),
+      "garbage-collect expired signals",
+    ).filter(
       (signal) => Date.parse(signal.expires_at) <= cutoff,
     );
     if (expired.length === 0) return [];
@@ -1512,7 +1557,10 @@ export class WorkspaceView {
    */
   async releaseRunClaims(run: RunJournal): Promise<Signal[]> {
     const prefix = `run ${run.run_id.slice(0, 8)}:`;
-    const claims = (await this.listSignals({ includeExpired: true })).filter(
+    const claims = this.requireComplete(
+      await this.readSignals({ includeExpired: true }),
+      "release run claims",
+    ).filter(
       (signal) =>
         signal.owner === run.agent_id
         && ((signal.details as { run_id?: string } | undefined)?.run_id === run.run_id
@@ -1526,8 +1574,9 @@ export class WorkspaceView {
   /** Append signals to the archive ledger, then delete their live files. */
   private async archiveAndRemoveSignals(signals: Signal[]): Promise<void> {
     const archivedAt = this.nowIso();
+    const archive = this.requireComplete(await this.readArchivedSignals(), "append to the signal archive");
     const merged = [
-      ...(await this.listArchivedSignals()),
+      ...archive,
       ...signals.map((signal) => ({ ...signal, archived_at: archivedAt })),
     ].slice(-SIGNAL_ARCHIVE_CAP);
     await this.writeJson(this.signalsArchivePath, merged);
@@ -2234,20 +2283,17 @@ export class WorkspaceView {
   }
 
   private async readManifestIfPresent(): Promise<WorkspaceManifest | undefined> {
-    try {
-      return await this.readManifest();
-    } catch {
-      return undefined;
-    }
+    if (!existsSync(this.manifestPath)) return undefined;
+    return this.readManifest();
   }
 
   private async readManifestResult(): Promise<{ value?: WorkspaceManifest; error?: string }> {
-    if (!existsSync(this.manifestPath)) return {};
-    try {
-      return { value: await this.readManifest() };
-    } catch (error) {
-      return { error: error instanceof Error ? error.message : String(error) };
-    }
+    const result = await this.readManifestArtifact();
+    return result.records[0]
+      ? { value: result.records[0] }
+      : result.diagnostics[0]?.code === "missing"
+        ? {}
+        : { error: result.diagnostics[0]?.reason };
   }
 
   private async readPolicyResult(): Promise<{ value?: ViewPolicy; error?: Error; errorMessage?: string }> {
@@ -2352,83 +2398,30 @@ export class WorkspaceView {
     return uniqueRecommendedReads(candidates.filter((candidate) => available.has(candidate.path)));
   }
 
-  private async listContinuityPackets(): Promise<ContinuityPacket[]> {
-    await this.ensureDirs();
-    const entries = await readdir(this.continuityDir, { withFileTypes: true });
-    const packets: ContinuityPacket[] = [];
-
-    for (const entry of entries) {
-      if (entry.isFile() && entry.name.endsWith(".json")) {
-        packets.push(await this.readJsonMigrated(path.join(this.continuityDir, entry.name), ContinuityPacketMigrationChain, ContinuityPacketSchema));
-      }
-    }
-
-    return packets.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  async readContinuityPackets(): Promise<ArtifactReadResult<ContinuityPacket>> {
+    const result = await this.readArtifactDirectory(
+      "continuity",
+      this.continuityDir,
+      (filePath) => this.readJsonMigrated(filePath, ContinuityPacketMigrationChain, ContinuityPacketSchema),
+    );
+    result.records.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return result;
   }
 
   private async safeListContinuityPackets(): Promise<ContinuityPacket[]> {
-    if (!existsSync(this.continuityDir)) return [];
-    try {
-      const entries = await readdir(this.continuityDir, { withFileTypes: true });
-      const packets: ContinuityPacket[] = [];
-      for (const entry of entries) {
-        if (entry.isFile() && entry.name.endsWith(".json")) {
-          packets.push(await this.readJsonMigrated(path.join(this.continuityDir, entry.name), ContinuityPacketMigrationChain, ContinuityPacketSchema));
-        }
-      }
-      return packets.sort((a, b) => a.created_at.localeCompare(b.created_at));
-    } catch {
-      return [];
-    }
+    return (await this.readContinuityPackets()).records;
   }
 
   private async safeListRuns(): Promise<RunJournal[]> {
-    if (!existsSync(this.runsDir)) return [];
-    const entries = await readdir(this.runsDir, { withFileTypes: true });
-    const runs: RunJournal[] = [];
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      try {
-        runs.push(await this.readJsonMigrated(path.join(this.runsDir, entry.name), RunJournalMigrationChain, RunJournalSchema));
-      } catch {
-        continue;
-      }
-    }
-    return runs.sort((a, b) => a.started_at.localeCompare(b.started_at));
+    return (await this.readRuns()).records;
   }
 
   private async safeListTasks(): Promise<Task[]> {
-    if (!existsSync(this.tasksDir)) return [];
-    const entries = await readdir(this.tasksDir, { withFileTypes: true });
-    const tasks: Task[] = [];
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      try {
-        tasks.push(await this.readJsonMigrated(path.join(this.tasksDir, entry.name), TaskMigrationChain, TaskSchema));
-      } catch {
-        continue;
-      }
-    }
-    return tasks.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return (await this.readTasks()).records;
   }
 
   private async safeListSignals(options: { includeExpired?: boolean } = {}): Promise<Signal[]> {
-    if (!existsSync(this.signalsDir)) return [];
-    const entries = await readdir(this.signalsDir, { withFileTypes: true });
-    const signals: Signal[] = [];
-    const now = this.now().getTime();
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
-      try {
-        const signal = await this.readJson(path.join(this.signalsDir, entry.name), SignalSchema);
-        if (options.includeExpired || Date.parse(signal.expires_at) > now) {
-          signals.push(signal);
-        }
-      } catch {
-        continue;
-      }
-    }
-    return signals.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return (await this.readSignals(options)).records;
   }
 
   private async readCachedAuditReport(): Promise<AuditReport> {
@@ -2519,7 +2512,8 @@ export class WorkspaceView {
   }
 
   private async activeRun(agent = this.agent): Promise<RunJournal | undefined> {
-    return (await this.listRuns()).filter((run) => run.agent_id === agent && run.status === "in_progress").at(-1);
+    return this.requireComplete(await this.readRuns(), "locate the active run")
+      .filter((run) => run.agent_id === agent && run.status === "in_progress").at(-1);
   }
 
   private async requireActiveRun(agent = this.agent): Promise<RunJournal> {
@@ -2859,6 +2853,111 @@ export class WorkspaceView {
     }
   }
 
+  private async readSingleArtifact<T>(
+    family: ArtifactFamily,
+    filePath: string,
+    schema: ZodType<T>,
+    options: { required?: boolean } = {},
+  ): Promise<ArtifactReadResult<T>> {
+    if (!existsSync(filePath)) {
+      if (!options.required) return artifactReadResult([]);
+      const error = Object.assign(new Error(`Required ${family} artifact is missing.`), { code: "ENOENT" });
+      return artifactReadResult([], [this.toArtifactDiagnostic(family, filePath, error)]);
+    }
+    try {
+      return artifactReadResult([await this.readJson(filePath, schema)]);
+    } catch (error) {
+      return artifactReadResult([], [this.toArtifactDiagnostic(family, filePath, error)]);
+    }
+  }
+
+  private async readArtifactDirectory<T>(
+    family: ArtifactFamily,
+    directory: string,
+    readOne: (filePath: string) => Promise<T>,
+  ): Promise<ArtifactReadResult<T>> {
+    if (!existsSync(directory)) return artifactReadResult([]);
+    let entries;
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+      return artifactReadResult([], [this.toArtifactDiagnostic(family, directory, error)]);
+    }
+
+    const records: T[] = [];
+    const diagnostics: ArtifactDiagnostic[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      const filePath = path.join(directory, entry.name);
+      try {
+        records.push(await readOne(filePath));
+      } catch (error) {
+        diagnostics.push(this.toArtifactDiagnostic(family, filePath, error));
+      }
+    }
+    return artifactReadResult(records, diagnostics);
+  }
+
+  private toArtifactDiagnostic(family: ArtifactFamily, filePath: string, error: unknown): ArtifactDiagnostic {
+    const err = error instanceof Error ? error : new Error(String(error));
+    const cause = (err as Error & { cause?: unknown }).cause;
+    const nodeCode = (cause as NodeJS.ErrnoException | undefined)?.code ?? (err as NodeJS.ErrnoException).code;
+    const code: ArtifactDiagnostic["code"] =
+      nodeCode === "ENOENT"
+        ? "missing"
+        : nodeCode === "EACCES" || nodeCode === "EPERM"
+          ? "unreadable"
+          : err instanceof SchemaVersionUnsupportedError
+            ? "unsupported_schema_version"
+            : err instanceof WorkspaceViewValidationError
+              ? "schema_validation"
+              : err instanceof WorkspaceViewParseError
+                ? "invalid_json"
+                : "io_error";
+    return {
+      family,
+      path: this.artifactDisplayPath(filePath),
+      code,
+      reason: err.message,
+    };
+  }
+
+  private artifactDisplayPath(filePath: string): string {
+    const hashIndex = filePath.indexOf("#");
+    const basePath = hashIndex >= 0 ? filePath.slice(0, hashIndex) : filePath;
+    const fragment = hashIndex >= 0 ? filePath.slice(hashIndex) : "";
+    const relative = normalizeRelativePath(path.relative(this.root, basePath));
+    return `${relative.startsWith("../") ? path.resolve(basePath) : relative}${fragment}`;
+  }
+
+  private reportArtifactDiagnostics(diagnostics: readonly ArtifactDiagnostic[]): void {
+    for (const diagnostic of diagnostics) {
+      process.stderr.write(
+        `seedrop: ${diagnostic.family} artifact ${diagnostic.path} was not returned (${diagnostic.code}): ${diagnostic.reason.split("\n")[0]}\n`,
+      );
+    }
+  }
+
+  private requireComplete<T>(result: ArtifactReadResult<T>, operation: string): T[] {
+    if (result.completeness === "complete") return result.records;
+    const sample = result.diagnostics.slice(0, 3)
+      .map((diagnostic) => `${diagnostic.path} (${diagnostic.code})`)
+      .join(", ");
+    throw new WorkspaceViewError(
+      `Cannot ${operation}: ${result.diagnostics.length} durable artifact(s) could not be read: ${sample}. ` +
+        "Repair or quarantine the named artifacts before retrying the mutation.",
+      {
+        recovery: result.diagnostics.slice(0, 3).map((diagnostic) => ({
+          kind: "read" as const,
+          path: diagnostic.path,
+          risk: "low" as const,
+          requires_human: true,
+          reason: diagnostic.reason,
+        })),
+      },
+    );
+  }
+
   private async readJson<T>(filePath: string, schema: ZodType<T>): Promise<T> {
     let parsed: unknown;
     try {
@@ -2925,6 +3024,17 @@ function classifyFile(filePath: string): ManifestFile["kind"] {
 
 function comparePaths(a: string, b: string): number {
   return a.toLowerCase().localeCompare(b.toLowerCase()) || a.localeCompare(b);
+}
+
+function artifactReadResult<T>(
+  records: T[],
+  diagnostics: ArtifactDiagnostic[] = [],
+): ArtifactReadResult<T> {
+  return {
+    records,
+    diagnostics,
+    completeness: diagnostics.length === 0 ? "complete" : "partial",
+  };
 }
 
 function matchesSignal(signal: Signal, input: ReleaseSignalInput): boolean {

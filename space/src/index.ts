@@ -107,6 +107,9 @@ export type {
   WorkspaceViewOptions,
 } from "./view.js";
 export type {
+  ArtifactDiagnostic,
+  ArtifactFamily,
+  ArtifactReadResult,
   AuditIssue,
   AuditReport,
   ContinuityPacket,
