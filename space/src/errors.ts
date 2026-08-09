@@ -389,6 +389,16 @@ export class SpaceAuthError extends SpaceError {
   }
 }
 
+export class SpaceRequestBodyTooLargeError extends SpaceError {
+  constructor(
+    public readonly limitBytes: number,
+    public readonly receivedBytes: number,
+  ) {
+    super(`Request body exceeds the ${limitBytes}-byte limit.`);
+    this.name = "SpaceRequestBodyTooLargeError";
+  }
+}
+
 export class SpaceMentionDeliveryError extends SpaceError {
   constructor(
     public readonly messageId: string,

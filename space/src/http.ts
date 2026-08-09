@@ -1,6 +1,6 @@
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { z } from "zod";
-import { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceValidationError } from "./errors.js";
+import { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceRequestBodyTooLargeError, SpaceValidationError } from "./errors.js";
 import { Mentions } from "./mentions.js";
 import { extractMentions } from "./mention-parser.js";
 import { Notification } from "./notification.js";
@@ -8,6 +8,7 @@ import { Presence } from "./presence.js";
 import { Space } from "./space.js";
 
 const SPACE_VERSION = "0.1.0-alpha.2";
+export const DEFAULT_MAX_BODY_BYTES = 1_048_576;
 
 export interface ResolvedIdentity {
   passportId: string;
@@ -31,6 +32,8 @@ export interface CreateServerOptions {
   chainResolver?: (passportId: string) => string[];
   /** List of known agent_ids on this daemon (used to filter @-mentions). */
   knownAgentIds?: readonly string[];
+  /** Hard upper bound for every JSON request body. Defaults to 1 MiB. */
+  maxBodyBytes?: number;
   health?: HealthMetadata;
 }
 
@@ -87,8 +90,16 @@ const SendNotificationBody = z
 
 export function createServer(options: CreateServerOptions = {}): Server {
   const startedAt = options.health?.startedAt ?? new Date().toISOString();
+  const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
+  if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0) {
+    throw new SpaceValidationError(
+      [{ code: "custom", path: ["maxBodyBytes"], message: "must be a positive safe integer" }],
+      "CreateServerOptions",
+    );
+  }
   const normalizedOptions: CreateServerOptions = {
     ...options,
+    maxBodyBytes,
     health: {
       service: options.health?.service ?? "seed-space",
       startedAt,
@@ -127,7 +138,7 @@ async function route(req: IncomingMessage, res: ServerResponse, options: CreateS
     return handleHeartbeat(req, res, options);
   }
   if (method === "GET" && match(segments, ["presence"])) {
-    return handlePresenceList(res, url, options);
+    return handlePresenceList(req, res, url, options);
   }
   if (method === "POST" && match(segments, ["spaces", "*", "join"])) {
     return handleSpaceJoin(req, res, decodeURIComponent(segments[1] as string), options);
@@ -305,6 +316,7 @@ async function handleHealth(res: ServerResponse, options: CreateServerOptions): 
       path: passport.path,
     })),
     known_agent_ids: [...(health?.knownAgentIds ?? options.knownAgentIds ?? [])],
+    max_body_bytes: options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES,
   });
 }
 
@@ -315,7 +327,10 @@ async function handleSessions(
   options: CreateServerOptions,
 ): Promise<void> {
   const passportId = await requirePassport(req, options);
-  const body = SessionBody.parse(await readBody(req));
+  const body = SessionBody.parse(await readBody(req, options));
+  if (body.spaceId) {
+    await Space.load(body.spaceId, { ...options, passportId });
+  }
   const session = await Presence.register({
     ...options,
     passportId,
@@ -331,18 +346,23 @@ async function handleHeartbeat(
   res: ServerResponse,
   options: CreateServerOptions,
 ): Promise<void> {
-  const body = HeartbeatBody.parse(await readBody(req));
-  const session = await Presence.heartbeat({ ...options, sessionId: body.sessionId, workingOn: body.workingOn });
+  const passportId = await requirePassport(req, options);
+  const body = HeartbeatBody.parse(await readBody(req, options));
+  const session = await Presence.heartbeat({ ...options, passportId, sessionId: body.sessionId, workingOn: body.workingOn });
   writeJson(res, 200, { session });
 }
 
-async function handlePresenceList(res: ServerResponse, url: URL, options: CreateServerOptions): Promise<void> {
+async function handlePresenceList(req: IncomingMessage, res: ServerResponse, url: URL, options: CreateServerOptions): Promise<void> {
+  const requestingPassportId = await requirePassport(req, options);
   const spaceId = url.searchParams.get("spaceId") ?? undefined;
   const passportId = url.searchParams.get("passportId") ?? undefined;
   const ttlMsParam = url.searchParams.get("ttlMs");
   const ttlMs = ttlMsParam ? Number(ttlMsParam) : undefined;
   if (ttlMs !== undefined && !Number.isFinite(ttlMs)) {
     throw new SpaceValidationError([{ code: "custom", path: ["ttlMs"], message: "must be a finite number" }], "query");
+  }
+  if (spaceId) {
+    await Space.load(spaceId, { ...options, passportId: requestingPassportId });
   }
   const presence = await Presence.list({ ...options, spaceId, passportId, ttlMs });
   writeJson(res, 200, { presence });
@@ -378,7 +398,7 @@ async function handleMessagesPost(
   options: CreateServerOptions,
 ): Promise<void> {
   const passportId = await requirePassport(req, options);
-  const body = PostMessageBody.parse(await readBody(req));
+  const body = PostMessageBody.parse(await readBody(req, options));
   const space = await Space.load(name, { ...options, passportId });
   const resolved = options.identity ? await options.identity.resolve(passportId) : null;
   const principalChain = options.chainResolver?.(passportId);
@@ -462,7 +482,7 @@ async function handleNotificationSend(
   options: CreateServerOptions,
 ): Promise<void> {
   const senderPassportId = await requirePassport(req, options);
-  const body = SendNotificationBody.parse(await readBody(req));
+  const body = SendNotificationBody.parse(await readBody(req, options));
   const notification = await Notification.send({
     ...options,
     senderPassportId,
@@ -526,7 +546,7 @@ async function handleInboxAck(
   if (passportId !== recipientFromPath) {
     throw new SpaceAuthError(`Only the recipient may ack; passport=${passportId}, path=${recipientFromPath}`, 403);
   }
-  const body = InboxAckBody.parse(await readBody(req));
+  const body = InboxAckBody.parse(await readBody(req, options));
   const mention = await Mentions.ack({
     ...options,
     id: itemId,
@@ -565,10 +585,26 @@ async function requirePassport(req: IncomingMessage, options: CreateServerOption
   return value;
 }
 
-async function readBody(req: IncomingMessage): Promise<unknown> {
+async function readBody(req: IncomingMessage, options: CreateServerOptions): Promise<unknown> {
+  const limitBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
+  const declaredLength = Number(req.headers["content-length"] ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > limitBytes) {
+    throw new SpaceRequestBodyTooLargeError(limitBytes, declaredLength);
+  }
   const chunks: Buffer[] = [];
+  let receivedBytes = 0;
+  let tooLarge = false;
   for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    receivedBytes += bytes.byteLength;
+    if (receivedBytes > limitBytes) {
+      tooLarge = true;
+      continue;
+    }
+    chunks.push(bytes);
+  }
+  if (tooLarge) {
+    throw new SpaceRequestBodyTooLargeError(limitBytes, receivedBytes);
   }
   if (chunks.length === 0) {
     return {};
@@ -630,6 +666,15 @@ function writeError(res: ServerResponse, error: unknown): void {
       code: error.statusCode === 401 ? "seedrop.auth.unauthorized" : "seedrop.auth.forbidden",
       message: error.message,
       class: "auth",
+    }));
+    return;
+  }
+  if (error instanceof SpaceRequestBodyTooLargeError) {
+    writeJson(res, 413, errorEnvelope({
+      code: "seedrop.http.body_too_large",
+      message: error.message,
+      class: "validation",
+      details: { limit_bytes: error.limitBytes, received_bytes: error.receivedBytes },
     }));
     return;
   }

@@ -88,7 +88,7 @@ export type {
   ViewPolicy,
   WorkspaceManifest,
 } from "./schema.js";
-export { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceValidationError } from "./errors.js";
+export { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceRequestBodyTooLargeError, SpaceValidationError } from "./errors.js";
 export { WorkspaceView } from "./view.js";
 export type {
   Grave,

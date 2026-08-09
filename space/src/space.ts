@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { SpaceNotFoundError, SpaceValidationError } from "./errors.js";
+import { SpaceAuthError, SpaceNotFoundError, SpaceValidationError } from "./errors.js";
 import { SpaceStore, type SpaceStoreOptions } from "./io.js";
 import type { Message, MessageRole, SpaceMember, SpaceMeta } from "./schema.js";
 
@@ -61,10 +61,20 @@ export class Space {
     if (!meta) {
       throw new SpaceNotFoundError(idOrName);
     }
+    const activeMember = meta.members.some(
+      (member) => member.passport_id === options.passportId && !member.left_at,
+    );
+    if (!activeMember) {
+      throw new SpaceAuthError(
+        `Passport ${options.passportId} is not an active member of Space ${meta.name}.`,
+        403,
+      );
+    }
     return new Space(meta, store, options.passportId, options.now ?? (() => new Date()));
   }
 
   async post(input: SpacePostInput): Promise<Message> {
+    await this.assertActiveMember();
     const message: Message = {
       schema_version: "1.0",
       id: randomUUID(),
@@ -85,6 +95,7 @@ export class Space {
   }
 
   async messages(): Promise<Message[]> {
+    await this.assertActiveMember();
     return this.store.readMessages(this.currentMeta.id);
   }
 
@@ -104,6 +115,7 @@ export class Space {
   }
 
   async end(): Promise<void> {
+    await this.assertActiveMember();
     const endedAt = this.now().toISOString();
     this.currentMeta = {
       ...this.currentMeta,
@@ -111,6 +123,19 @@ export class Space {
       ended_at: endedAt,
     };
     await this.store.writeSpaceMeta(this.currentMeta);
+  }
+
+  private async assertActiveMember(): Promise<void> {
+    this.currentMeta = await this.store.readSpaceMeta(this.currentMeta.id);
+    const active = this.currentMeta.members.some(
+      (member) => member.passport_id === this.passportId && !member.left_at,
+    );
+    if (!active) {
+      throw new SpaceAuthError(
+        `Passport ${this.passportId} is not an active member of Space ${this.currentMeta.name}.`,
+        403,
+      );
+    }
   }
 }
 

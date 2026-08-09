@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Space, SpaceNotFoundError, SpaceValidationError } from "../src/index.js";
+import { Space, SpaceAuthError, SpaceNotFoundError, SpaceValidationError } from "../src/index.js";
 
 let root: string;
 let currentTime: Date;
@@ -117,6 +117,28 @@ describe("Space", () => {
 
   it("throws a typed error when loading an unknown space", async () => {
     await expect(Space.load("missing", { root, passportId: "alpha", now })).rejects.toBeInstanceOf(SpaceNotFoundError);
+  });
+
+  it("default-denies load for passports without active membership", async () => {
+    const space = await Space.open("Build Room", { root, passportId: "alpha", now });
+
+    await expect(Space.load(space.meta.id, { root, passportId: "beta", now })).rejects.toBeInstanceOf(
+      SpaceAuthError,
+    );
+    await space.leave();
+    await expect(Space.load(space.meta.id, { root, passportId: "alpha", now })).rejects.toBeInstanceOf(
+      SpaceAuthError,
+    );
+  });
+
+  it("rechecks membership before every protected operation", async () => {
+    const staleHandle = await Space.open("Build Room", { root, passportId: "alpha", now });
+    const leavingHandle = await Space.load(staleHandle.meta.id, { root, passportId: "alpha", now });
+    await leavingHandle.leave();
+
+    await expect(staleHandle.post({ content: "must not persist" })).rejects.toBeInstanceOf(SpaceAuthError);
+    await expect(staleHandle.messages()).rejects.toBeInstanceOf(SpaceAuthError);
+    await expect(staleHandle.end()).rejects.toBeInstanceOf(SpaceAuthError);
   });
 
   it("requires a passportId when opening a space", async () => {

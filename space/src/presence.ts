@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { SpaceNotFoundError, SpaceValidationError } from "./errors.js";
+import { SpaceAuthError, SpaceNotFoundError, SpaceValidationError } from "./errors.js";
 import { LiveStore, type LiveStoreOptions } from "./live.js";
 import type { PresenceRecord, Session } from "./schema.js";
 
@@ -18,6 +18,7 @@ export interface PresenceRegisterInput extends PresenceOptions {
 
 export interface PresenceHeartbeatInput extends PresenceOptions {
   sessionId: string;
+  passportId: string;
   workingOn?: string;
 }
 
@@ -78,6 +79,18 @@ export class Presence {
 
     try {
       const db = await live.connection();
+      const existing = db
+        .prepare("SELECT passport_id FROM sessions WHERE id = ?")
+        .get(input.sessionId) as { passport_id: string } | undefined;
+      if (!existing) {
+        throw new SpaceNotFoundError(input.sessionId);
+      }
+      if (existing.passport_id !== input.passportId) {
+        throw new SpaceAuthError(
+          `Session ${input.sessionId} belongs to another passport.`,
+          403,
+        );
+      }
       const row = db
         .prepare(
           `UPDATE sessions

@@ -1,10 +1,10 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
+import { request as nodeRequest, type Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createServer, SpaceAuthError, type CreateServerOptions } from "../src/index.js";
+import { createServer, Presence, SpaceAuthError, type CreateServerOptions } from "../src/index.js";
 
 let root: string;
 let server: Server;
@@ -57,16 +57,38 @@ async function request(
   return { status: response.status, body: text.length > 0 ? JSON.parse(text) : undefined };
 }
 
+async function chunkedRequest(pathname: string, chunks: readonly string[]): Promise<{ status: number; body: any }> {
+  return await new Promise((resolve, reject) => {
+    const req = nodeRequest(`${baseUrl}${pathname}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-seedrop-passport": "alpha",
+        "transfer-encoding": "chunked",
+      },
+    }, (res) => {
+      const body: Buffer[] = [];
+      res.on("data", (chunk) => body.push(Buffer.from(chunk)));
+      res.on("end", () => {
+        const raw = Buffer.concat(body).toString("utf8");
+        resolve({ status: res.statusCode ?? 0, body: raw ? JSON.parse(raw) : undefined });
+      });
+    });
+    req.on("error", reject);
+    for (const chunk of chunks) req.write(chunk);
+    req.end();
+  });
+}
+
 describe("http server", () => {
   it("registers a session via POST /sessions", async () => {
     const result = await request("POST", "/sessions", {
       headers: { "x-seedrop-passport": "alpha" },
-      body: { spaceId: "space-1", workingOn: "writing http" },
+      body: { workingOn: "writing http" },
     });
     expect(result.status).toBe(201);
     expect(result.body.session).toMatchObject({
       passport_id: "alpha",
-      space_id: "space-1",
       working_on: "writing http",
     });
   });
@@ -115,8 +137,9 @@ describe("http server", () => {
     expect(result.status).toBe(401);
     expect(result.body.error.code).toBe("seedrop.auth.unauthorized");
 
-    const presence = await request("GET", "/presence");
-    expect(presence.body.presence).toEqual([]);
+    const presence = await request("GET", "/presence", { headers: { "x-seedrop-passport": "alpha" } });
+    expect(presence.status).toBe(401);
+    await expect(Presence.list({ root })).resolves.toEqual([]);
   });
 
   it("allows a known passport when an identity resolver is configured", async () => {
@@ -178,24 +201,32 @@ describe("http server", () => {
 
     currentTime = new Date("2026-05-14T10:00:30.000Z");
     const beat = await request("POST", "/presence/heartbeat", {
+      headers: { "x-seedrop-passport": "alpha" },
       body: { sessionId, workingOn: "still writing" },
     });
     expect(beat.status).toBe(200);
     expect(beat.body.session.working_on).toBe("still writing");
 
-    const list = await request("GET", "/presence?ttlMs=60000");
+    const list = await request("GET", "/presence?ttlMs=60000", {
+      headers: { "x-seedrop-passport": "alpha" },
+    });
     expect(list.status).toBe(200);
     expect(list.body.presence).toHaveLength(1);
     expect(list.body.presence[0].online).toBe(true);
   });
 
   it("returns 404 when heartbeating an unknown session", async () => {
-    const result = await request("POST", "/presence/heartbeat", { body: { sessionId: "missing" } });
+    const result = await request("POST", "/presence/heartbeat", {
+      headers: { "x-seedrop-passport": "alpha" },
+      body: { sessionId: "missing" },
+    });
     expect(result.status).toBe(404);
   });
 
   it("rejects presence list with a malformed ttlMs query", async () => {
-    const result = await request("GET", "/presence?ttlMs=not-a-number");
+    const result = await request("GET", "/presence?ttlMs=not-a-number", {
+      headers: { "x-seedrop-passport": "alpha" },
+    });
     expect(result.status).toBe(400);
   });
 
@@ -226,6 +257,79 @@ describe("http server", () => {
     });
     expect(end.status).toBe(200);
     expect(end.body.space.lifecycle).toBe("ended");
+  });
+
+  it("default-denies protected Space routes to authenticated non-members", async () => {
+    await request("POST", "/spaces/Build%20Room/join", {
+      headers: { "x-seedrop-passport": "alpha" },
+      body: {},
+    });
+
+    for (const [method, path, body] of [
+      ["GET", "/spaces/Build%20Room/messages", undefined],
+      ["POST", "/spaces/Build%20Room/messages", { content: "intrusion" }],
+      ["POST", "/spaces/Build%20Room/end", {}],
+      ["POST", "/sessions", { spaceId: "Build Room" }],
+    ] as const) {
+      const result = await request(method, path, {
+        headers: { "x-seedrop-passport": "beta" },
+        body,
+      });
+      expect(result.status, `${method} ${path}`).toBe(403);
+      expect(result.body.error.code, `${method} ${path}`).toBe("seedrop.auth.forbidden");
+    }
+
+    const list = await request("GET", "/spaces/Build%20Room/messages", {
+      headers: { "x-seedrop-passport": "alpha" },
+    });
+    expect(list.body.messages).toEqual([]);
+  });
+
+  it("binds heartbeats to the authenticated session owner", async () => {
+    const register = await request("POST", "/sessions", {
+      headers: { "x-seedrop-passport": "alpha" },
+      body: {},
+    });
+
+    const result = await request("POST", "/presence/heartbeat", {
+      headers: { "x-seedrop-passport": "beta" },
+      body: { sessionId: register.body.session.id },
+    });
+    expect(result.status).toBe(403);
+    expect(result.body.error.code).toBe("seedrop.auth.forbidden");
+  });
+
+  it("rejects declared oversized request bodies with a stable 413 error", async () => {
+    await restartServer({ maxBodyBytes: 32 });
+    const result = await request("POST", "/sessions", {
+      headers: { "x-seedrop-passport": "alpha" },
+      body: { workingOn: "x".repeat(64) },
+    });
+
+    expect(result.status).toBe(413);
+    expect(result.body.error).toMatchObject({
+      code: "seedrop.http.body_too_large",
+      class: "validation",
+      retryable: false,
+      details: { limit_bytes: 32 },
+    });
+  });
+
+  it("rejects invalid body-limit configuration before listening", async () => {
+    expect(() => createServer({ root, maxBodyBytes: Number.POSITIVE_INFINITY })).toThrow(/positive safe integer/);
+    expect(() => createServer({ root, maxBodyBytes: 0 })).toThrow(/positive safe integer/);
+  });
+
+  it("bounds chunked bodies even when content-length is absent", async () => {
+    await restartServer({ maxBodyBytes: 24 });
+    const result = await chunkedRequest("/sessions", ["{\"workingOn\":\"", "x".repeat(64), "\"}"]);
+
+    expect(result.status).toBe(413);
+    expect(result.body.error).toMatchObject({
+      code: "seedrop.http.body_too_large",
+      details: { limit_bytes: 24 },
+    });
+    expect(result.body.error.details.received_bytes).toBeGreaterThan(24);
   });
 
   it("returns 404 when loading an unknown space", async () => {

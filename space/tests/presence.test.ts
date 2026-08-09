@@ -44,7 +44,7 @@ describe("Presence", () => {
     const session = await Presence.register({ root, passportId: "alpha", workingOn: "task-1", now });
 
     currentTime = new Date("2026-05-14T10:00:30.000Z");
-    const beat = await Presence.heartbeat({ root, sessionId: session.id, now });
+    const beat = await Presence.heartbeat({ root, passportId: "alpha", sessionId: session.id, now });
 
     expect(beat.last_seen_at).toBe("2026-05-14T10:00:30.000Z");
     expect(beat.working_on).toBeUndefined();
@@ -54,12 +54,12 @@ describe("Presence", () => {
     const session = await Presence.register({ root, passportId: "alpha", workingOn: "task-1", now });
 
     currentTime = new Date("2026-05-14T10:00:30.000Z");
-    const beat = await Presence.heartbeat({ root, sessionId: session.id, workingOn: "task-2", now });
+    const beat = await Presence.heartbeat({ root, passportId: "alpha", sessionId: session.id, workingOn: "task-2", now });
     expect(beat.working_on).toBe("task-2");
   });
 
   it("throws SpaceNotFoundError when heartbeating an unknown session", async () => {
-    await expect(Presence.heartbeat({ root, sessionId: "missing", now })).rejects.toBeInstanceOf(SpaceNotFoundError);
+    await expect(Presence.heartbeat({ root, passportId: "alpha", sessionId: "missing", now })).rejects.toBeInstanceOf(SpaceNotFoundError);
   });
 
   it("lists registered sessions and marks them online within ttl", async () => {
