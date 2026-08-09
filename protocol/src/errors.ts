@@ -81,6 +81,21 @@ export const ERROR_REGISTRY = Object.freeze({
     message: "The identity alias resolves to multiple canonical identities and is denied.",
     retryable: false,
   },
+  "seedrop.protocol.health_invalid": {
+    category: "input",
+    message: "The HealthEnvelope input is malformed or incomplete.",
+    retryable: false,
+  },
+  "seedrop.protocol.health_inconsistent": {
+    category: "integrity",
+    message: "The HealthEnvelope summary disagrees with its structured evidence.",
+    retryable: false,
+  },
+  "seedrop.protocol.health_disagreement_invalid": {
+    category: "integrity",
+    message: "The HealthEnvelope disagreement record is malformed or does not preserve a real contradiction.",
+    retryable: false,
+  },
 } as const);
 
 for (const definition of Object.values(ERROR_REGISTRY)) Object.freeze(definition);

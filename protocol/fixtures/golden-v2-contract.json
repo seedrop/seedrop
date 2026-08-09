@@ -1,5 +1,5 @@
 {
-  "fixture_version": "1.1.0",
+  "fixture_version": "1.2.0",
   "id_kind_codes": {
     "principal": "prn",
     "project": "prj",
@@ -59,6 +59,9 @@
     "seedrop.protocol.validation_failed": { "category": "input", "message": "The migrated protocol value failed current-schema validation.", "retryable": false },
     "seedrop.protocol.identity_registry_invalid": { "category": "integrity", "message": "The identity registry is malformed or internally inconsistent.", "retryable": false },
     "seedrop.protocol.identity_alias_not_found": { "category": "not_found", "message": "The identity alias did not resolve to a registered canonical identity.", "retryable": false },
-    "seedrop.protocol.identity_alias_ambiguous": { "category": "authorization", "message": "The identity alias resolves to multiple canonical identities and is denied.", "retryable": false }
+    "seedrop.protocol.identity_alias_ambiguous": { "category": "authorization", "message": "The identity alias resolves to multiple canonical identities and is denied.", "retryable": false },
+    "seedrop.protocol.health_invalid": { "category": "input", "message": "The HealthEnvelope input is malformed or incomplete.", "retryable": false },
+    "seedrop.protocol.health_inconsistent": { "category": "integrity", "message": "The HealthEnvelope summary disagrees with its structured evidence.", "retryable": false },
+    "seedrop.protocol.health_disagreement_invalid": { "category": "integrity", "message": "The HealthEnvelope disagreement record is malformed or does not preserve a real contradiction.", "retryable": false }
   }
 }

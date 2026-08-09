@@ -71,6 +71,31 @@ export {
   resolvePrincipalIdentity,
   resolveProjectIdentity,
 } from "./identity.js";
+
+export {
+  HEALTH_ENVELOPE_VERSION,
+  SUBSTRATE_STATES,
+  assertHealthEnvelope,
+  buildHealthEnvelope,
+} from "./health.js";
+export type {
+  BuildHealthEnvelopeInput,
+  DisagreementClaim,
+  GoverningPolicyTrace,
+  GoverningRecordId,
+  HealthBudget,
+  HealthDisagreement,
+  HealthEnvelope,
+  HealthPolicyRef,
+  HealthReason,
+  HealthReasonCode,
+  HealthSource,
+  HealthSourceStatus,
+  PendingCommandHealth,
+  QuarantineRecord,
+  StaleProjection,
+  SubstrateState,
+} from "./health.js";
 export type {
   IdentityDiagnostic,
   IdentityInput,

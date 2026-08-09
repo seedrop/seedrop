@@ -1,0 +1,203 @@
+{
+  "fixture_version": "1.0.0",
+  "base": {
+    "generated_at": "2026-08-09T12:00:00.000Z",
+    "projection_version": "1.0.0",
+    "policy": {
+      "policy_id": "seedrop.health.default",
+      "policy_version": "1.0.0",
+      "required_projection_version": "1.0.0",
+      "required_source_ids": ["project-events", "daemon"]
+    },
+    "sources": [
+      {
+        "source_id": "project-events",
+        "kind": "project-event-set",
+        "status": "available",
+        "high_watermark": "event:42",
+        "content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "observed_at": "2026-08-09T12:00:00.000Z",
+        "fresh_until": "2026-08-09T12:05:00.000Z",
+        "governing_record_id": "sd_rcp_0191416f-4495-7011-a233-445566778899"
+      },
+      {
+        "source_id": "daemon",
+        "kind": "coordination-store",
+        "status": "available",
+        "high_watermark": "tx:99",
+        "content_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "observed_at": "2026-08-09T12:00:00.000Z",
+        "fresh_until": "2026-08-09T12:01:00.000Z",
+        "governing_record_id": "sd_rcp_0191416f-4495-7011-a233-445566778899"
+      }
+    ],
+    "budget": {
+      "requested_bytes": 4096,
+      "actual_bytes": 2048,
+      "complete": true,
+      "candidate_count": 12,
+      "indexed_count": 12,
+      "scanned_count": 0,
+      "omitted_categories": []
+    }
+  },
+  "cases": [
+    {
+      "name": "healthy",
+      "mutation": {},
+      "expected": { "substrate": "healthy", "reason_codes": [], "canonical_digest": "sha256:6b01f5e09570e662f4ee887b19f045a061e9d47cd27d56c7b15f1620dd6bf3d6" }
+    },
+    {
+      "name": "degraded",
+      "mutation": {
+        "add_sources": [
+          {
+            "source_id": "git",
+            "kind": "external-authority",
+            "status": "unreachable",
+            "high_watermark": null,
+            "content_digest": null,
+            "observed_at": "2026-08-09T12:00:00.000Z",
+            "governing_record_id": null,
+            "message": "observer timed out"
+          }
+        ],
+        "stale_projections": [
+          {
+            "projection": "situation",
+            "source_id": "project-events",
+            "projection_watermark": "event:40",
+            "source_high_watermark": "event:42",
+            "observed_at": "2026-08-09T12:00:00.000Z",
+            "reason": "two committed events behind"
+          }
+        ],
+        "pending_commands": [
+          {
+            "command_id": "sd_cmd_0191416f-4495-7011-a233-445566778899",
+            "phase": "effects_pending",
+            "recoverable": true,
+            "observed_at": "2026-08-09T12:00:00.000Z",
+            "recovery_owner": "sd_prn_0191416f-4495-7011-a233-445566778899"
+          }
+        ],
+        "budget": {
+          "requested_bytes": 2048,
+          "actual_bytes": 2100,
+          "complete": false,
+          "candidate_count": 25,
+          "indexed_count": 20,
+          "scanned_count": 5,
+          "omitted_categories": ["history"]
+        }
+      },
+      "expected": {
+        "substrate": "degraded",
+        "reason_codes": ["budget_incomplete", "budget_overflow", "optional_source_unavailable", "pending_command", "projection_stale"],
+        "canonical_digest": "sha256:351361d6aa068b180b66ee32571cb81d186000a7585740c92eecb0d85b6dc5e5"
+      }
+    },
+    {
+      "name": "corrupt",
+      "mutation": {
+        "quarantined": [
+          {
+            "source_id": "project-events",
+            "kind": "event",
+            "referent": "events/0042.json",
+            "code": "parse_failed",
+            "severity": "error",
+            "repair": "seed doctor quarantine inspect events/0042.json"
+          }
+        ]
+      },
+      "expected": { "substrate": "corrupt", "reason_codes": ["quarantine_present"], "canonical_digest": "sha256:330a19f8dea9059fbf26d12f10f8e965b3c17b2f94ad88cdf0fd3acd4858638d" }
+    },
+    {
+      "name": "migrating",
+      "mutation": { "source_status": { "source_id": "project-events", "status": "migrating" } },
+      "expected": { "substrate": "migrating", "reason_codes": ["required_source_migrating"], "canonical_digest": "sha256:705215e148849ade71ed12bded9184ddb5847ddb35b82bafdcedfd01fca5535b" }
+    },
+    {
+      "name": "unreachable",
+      "mutation": { "remove_source_ids": ["daemon"] },
+      "expected": { "substrate": "unreachable", "reason_codes": ["required_source_missing"], "canonical_digest": "sha256:c93087f1ae0b90f51b2bd86e09fe98d3c53927980f7cd22d4d55c712819dc857" }
+    },
+    {
+      "name": "disagreement-unresolved",
+      "mutation": {
+        "disagreements": [
+          {
+            "field": "view.success_level",
+            "claims": [
+              {
+                "source_id": "project-events",
+                "value": "L1",
+                "observed_at": "2026-08-09T12:00:00.000Z",
+                "source_high_watermark": "event:42",
+                "source_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "governing_record_id": "sd_clm_0191416f-4495-7011-a233-44556677889a"
+              },
+              {
+                "source_id": "daemon",
+                "value": "L3",
+                "observed_at": "2026-08-09T12:00:00.000Z",
+                "source_high_watermark": "tx:99",
+                "source_content_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "governing_record_id": "sd_clm_0191416f-4495-7011-a233-44556677889b"
+              }
+            ],
+            "resolution": {
+              "status": "unresolved",
+              "policy_id": "seedrop.orientation.success",
+              "policy_version": "1.0.0",
+              "rule_id": "no-applicable-authority",
+              "selected_claim_index": null,
+              "decision_record_id": null,
+              "explanation": "Neither source is authorized to supersede the other."
+            }
+          }
+        ]
+      },
+      "expected": { "substrate": "degraded", "reason_codes": ["disagreement_unresolved"], "canonical_digest": "sha256:90cbbffe2bcf1337e82c621f3f392a1b5b903fee7642855cd53396176100d19d" }
+    },
+    {
+      "name": "disagreement-governed",
+      "mutation": {
+        "disagreements": [
+          {
+            "field": "view.success_level",
+            "claims": [
+              {
+                "source_id": "project-events",
+                "value": "L1",
+                "observed_at": "2026-08-09T12:00:00.000Z",
+                "source_high_watermark": "event:42",
+                "source_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "governing_record_id": "sd_clm_0191416f-4495-7011-a233-44556677889a"
+              },
+              {
+                "source_id": "daemon",
+                "value": "L3",
+                "observed_at": "2026-08-09T12:00:00.000Z",
+                "source_high_watermark": "tx:99",
+                "source_content_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "governing_record_id": "sd_clm_0191416f-4495-7011-a233-44556677889b"
+              }
+            ],
+            "resolution": {
+              "status": "governed",
+              "policy_id": "seedrop.orientation.success",
+              "policy_version": "1.0.0",
+              "rule_id": "project-policy-wins",
+              "selected_claim_index": 1,
+              "decision_record_id": "sd_evt_0191416f-4495-7011-a233-44556677889c",
+              "explanation": "The repo policy requirement governs the advisory boot label."
+            }
+          }
+        ]
+      },
+      "expected": { "substrate": "healthy", "reason_codes": ["disagreement_governed"], "canonical_digest": "sha256:fb088f9a53deb0d194d89badd6cb71c9b83cfdea01ca5b3e4129be37f87e8f7a" }
+    }
+  ]
+}

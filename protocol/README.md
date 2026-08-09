@@ -4,6 +4,8 @@ Seedrop v2's transport-neutral contract boundary. This prototype owns:
 
 - typed, canonical UUIDv7 entity identifiers;
 - versioned Principal aliases and Project placements with strict reconciliation;
+- one versioned HealthEnvelope with source provenance, deterministic substrate state,
+  disagreement traces, quarantines, projection lag, pending commands, and budget truth;
 - strict deterministic JSON bytes and SHA-256 digests;
 - a stable error-code registry and wire envelope;
 - independent schema, semantic, command, projection, and wire versions;
@@ -34,9 +36,15 @@ Observer, or Desktop paths.
   identity, or normalized repository identity. A legacy name never merges Projects;
   conflicting repository evidence enters the unresolved queue.
 - Worktrees are explicit Project placements, not independent Projects.
+- Health is derived from structured evidence; callers cannot submit a green summary.
+  Required source absence/unreachability, corruption, migration, stale projection,
+  command recovery, budget overflow, and unresolved disagreement remain typed reasons.
+- Contradictory source claims remain in the envelope. Only a versioned governing
+  policy trace may select one; unresolved contradiction degrades health.
 
 See `docs/adr/0007-v2-canonical-protocol-mechanics.md`,
-`docs/adr/0008-v2-canonical-principal-project-identity.md`, and the fixtures for the
+`docs/adr/0008-v2-canonical-principal-project-identity.md`,
+`docs/adr/0009-v2-health-envelope-and-disagreement.md`, and the fixtures for the
 frozen decisions, cross-runtime vectors, and sanitized nine-passport machine corpus.
 
 After building, `node scripts/verify-golden.mjs` verifies those vectors using only
@@ -46,3 +54,7 @@ to run under every supported Node major.
 `node scripts/verify-identity-corpus.mjs` verifies the sanitized corpus. Add `--live`
 to perform the same read-only reconciliation against this machine's current v1
 passports and Git roots; it writes neither registry nor v1 state.
+
+`node scripts/verify-health-golden.mjs` verifies canonical healthy, degraded,
+corrupt, migrating, unreachable, governed-disagreement, and unresolved-disagreement
+envelopes from built package output.
