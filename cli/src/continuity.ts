@@ -20,8 +20,12 @@ export interface ContinuityOptions {
   json?: boolean;
   /** ISO-8601 watermark to compare against. If omitted, reads the per-agent state file. */
   since?: string;
-  /** When false (default), the watermark is advanced to "now" after the report is built. */
+  /** When false (default), a pre-fetch watermark is committed only after the complete observation succeeds. */
   peek?: boolean;
+  /** Injectable transport for deterministic failure/retry tests. */
+  fetchImpl?: typeof fetch;
+  /** Clock used to stage the observation boundary before any continuity reads. */
+  now?: () => Date;
 }
 
 export type ContinuityRenderMode = "brief" | "medium" | "full";
@@ -264,6 +268,11 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     const state = await readContinuityState(passport.agent_id);
     since = state?.last_seen_at;
   }
+  // Capture the commit boundary before reading any source. If an event lands
+  // while this report is being assembled, its timestamp remains newer than
+  // this boundary and it is eligible for redelivery on the next observation.
+  const stagedWatermark = (opts.now ?? (() => new Date()))().toISOString();
+  const watermarkBlockers: string[] = [];
 
   // Internal consumption: no byte budget — trimming here would starve the
   // router (capped task lists would make blocked_by lookups read as open).
@@ -309,28 +318,19 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     warnings.push(`View preflight has ${n} warning${n === 1 ? "" : "s"}. Run \`seed view preflight --json\` for details.`);
   }
 
-  const presenceResult = await fetchJsonResult<{ presence: PresenceRecord[] }>(`${opts.spaceUrl}/presence`);
+  const presenceResult = await fetchJsonResult<{ presence: PresenceRecord[] }>(
+    `${opts.spaceUrl}/presence`,
+    passport?.agent_id,
+    opts.fetchImpl,
+  );
   const presence = presenceResult.value;
   const daemonReachable = presence !== null;
   if (!daemonReachable) {
+    if (passport?.agent_id) watermarkBlockers.push("presence fetch");
     if (presenceResult.errorKind === "sandbox_denied") {
       warnings.push(`Space daemon at ${opts.spaceUrl} could not be reached from this runtime sandbox. Try Seedrop MCP tools or run \`seed continuity\` outside the sandbox.`);
     } else {
       warnings.push(`Space daemon at ${opts.spaceUrl} is not reachable. Try \`seed daemon status\`.`);
-    }
-  }
-
-  // Auto-register a presence session if this passport has none yet. Combined
-  // with the daemon's auto-refresh on every authenticated request, this keeps
-  // the agent "online" while it makes any tool calls.
-  if (daemonReachable && passport?.agent_id && !opts.peek) {
-    const hasSession = (presence?.presence ?? []).some((p) => p.passport_id === passport.agent_id);
-    if (!hasSession) {
-      await postJson(
-        `${opts.spaceUrl}/sessions`,
-        { workingOn: "active session" },
-        passport.agent_id,
-      );
     }
   }
 
@@ -340,10 +340,14 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     const result = await fetchJson<{ mentions: InboxMention[] }>(
       `${opts.spaceUrl}/inbox/${encodeURIComponent(passport.agent_id)}?unacked_only=true`,
       passport.agent_id,
+      opts.fetchImpl,
     );
     if (result) {
       inboxMentions = result.mentions ?? [];
       inboxFetched = true;
+    } else {
+      watermarkBlockers.push("inbox fetch");
+      warnings.push("Inbox fetch failed; the continuity watermark was preserved for a lossless retry.");
     }
   }
 
@@ -356,7 +360,12 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
       const messages = await fetchJson<{ messages: SpaceMessage[] }>(
         `${opts.spaceUrl}/spaces/${encodeURIComponent(project.space)}/messages`,
         passport.agent_id,
+        opts.fetchImpl,
       );
+      if (messages === null) {
+        watermarkBlockers.push(`Space ${project.space} message fetch`);
+        warnings.push(`Message fetch failed for Space ${project.space}; the continuity watermark was preserved for a lossless retry.`);
+      }
       joinedSpaces.push({
         name: project.space,
         presence: (presence?.presence ?? []).filter((p) => true),
@@ -366,12 +375,27 @@ export async function buildContinuity(opts: ContinuityOptions): Promise<Continui
     }
   }
 
-  const watermarkAdvanced = !opts.peek && passport?.agent_id !== undefined;
+  const watermarkAdvanced = !opts.peek && passport?.agent_id !== undefined && watermarkBlockers.length === 0;
   if (watermarkAdvanced && passport?.agent_id) {
+    // Presence registration is a side effect, not an observation. Defer it
+    // until every required fetch has succeeded so a partial report remains a
+    // pure, retryable read.
+    const hasSession = (presence?.presence ?? []).some((p) => p.passport_id === passport.agent_id);
+    if (!hasSession) {
+      const registered = await postJson(
+        `${opts.spaceUrl}/sessions`,
+        { workingOn: "active session" },
+        passport.agent_id,
+        opts.fetchImpl,
+      );
+      if (!registered) warnings.push("Continuity was complete, but automatic presence registration failed.");
+    }
     await writeContinuityState(passport.agent_id, {
       schema_version: "1.0",
-      last_seen_at: new Date().toISOString(),
+      last_seen_at: stagedWatermark,
     });
+  } else if (!opts.peek && passport?.agent_id && watermarkBlockers.length > 0) {
+    warnings.push(`Continuity watermark not advanced: ${watermarkBlockers.join(", ")}.`);
   }
 
   const report: Omit<ContinuityReport, "orientation"> = {
@@ -1317,16 +1341,16 @@ async function readViewRuns(dir: string): Promise<ViewRun[]> {
   }
 }
 
-async function fetchJson<T>(url: string, passportId?: string): Promise<T | null> {
-  return (await fetchJsonResult<T>(url, passportId)).value;
+async function fetchJson<T>(url: string, passportId?: string, fetchImpl?: typeof fetch): Promise<T | null> {
+  return (await fetchJsonResult<T>(url, passportId, fetchImpl)).value;
 }
 
-async function fetchJsonResult<T>(url: string, passportId?: string): Promise<FetchJsonResult<T>> {
+async function fetchJsonResult<T>(url: string, passportId?: string, fetchImpl: typeof fetch = fetch): Promise<FetchJsonResult<T>> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const controller = new AbortController();
     timer = setTimeout(() => controller.abort(), 1500);
-    const response = await fetch(url, {
+    const response = await fetchImpl(url, {
       signal: controller.signal,
       headers: passportId ? { "x-seedrop-passport": passportId } : {},
     });
@@ -1368,19 +1392,27 @@ function errorChain(error: unknown): Array<Record<string, unknown>> {
   return records;
 }
 
-async function postJson(url: string, body: unknown, passportId: string): Promise<void> {
+async function postJson(
+  url: string,
+  body: unknown,
+  passportId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1500);
-    await fetch(url, {
+    timer = setTimeout(() => controller.abort(), 1500);
+    const response = await fetchImpl(url, {
       method: "POST",
       signal: controller.signal,
       headers: { "content-type": "application/json", "x-seedrop-passport": passportId },
       body: JSON.stringify(body),
     });
-    clearTimeout(timer);
+    return response.ok;
   } catch {
-    // Best-effort; never block continuity on a side-effect failure.
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
