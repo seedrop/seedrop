@@ -1,5 +1,5 @@
 {
-  "fixture_version": "1.0.0",
+  "fixture_version": "1.1.0",
   "id_kind_codes": {
     "principal": "prn",
     "project": "prj",
@@ -56,6 +56,9 @@
     "seedrop.protocol.version_forward": { "category": "compatibility", "message": "The protocol version is newer than this implementation supports.", "retryable": false },
     "seedrop.protocol.migration_graph_invalid": { "category": "integrity", "message": "The migration graph is ambiguous, cyclic, orphaned, or has a gap.", "retryable": false },
     "seedrop.protocol.migration_failed": { "category": "integrity", "message": "A registered protocol migration failed.", "retryable": false },
-    "seedrop.protocol.validation_failed": { "category": "input", "message": "The migrated protocol value failed current-schema validation.", "retryable": false }
+    "seedrop.protocol.validation_failed": { "category": "input", "message": "The migrated protocol value failed current-schema validation.", "retryable": false },
+    "seedrop.protocol.identity_registry_invalid": { "category": "integrity", "message": "The identity registry is malformed or internally inconsistent.", "retryable": false },
+    "seedrop.protocol.identity_alias_not_found": { "category": "not_found", "message": "The identity alias did not resolve to a registered canonical identity.", "retryable": false },
+    "seedrop.protocol.identity_alias_ambiguous": { "category": "authorization", "message": "The identity alias resolves to multiple canonical identities and is denied.", "retryable": false }
   }
 }

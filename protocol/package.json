@@ -1,7 +1,7 @@
 {
   "name": "@seedrop/protocol",
   "version": "0.1.0-alpha.1",
-  "description": "Seedrop v2 protocol primitives: canonical IDs and bytes, stable errors, versions, and migrations.",
+  "description": "Seedrop v2 protocol primitives: canonical IDs, identity registries, bytes, errors, versions, and migrations.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,6 +18,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "verify:golden": "npm run build && node scripts/verify-golden.mjs",
+    "verify:identity-corpus": "npm run build && node scripts/verify-identity-corpus.mjs",
+    "verify:identity-corpus:live": "npm run build && node scripts/verify-identity-corpus.mjs --live",
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [

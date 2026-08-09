@@ -1,0 +1,62 @@
+{
+  "fixture_version": "1.0.0",
+  "captured_at": "2026-08-09",
+  "privacy": "Paths are rebased onto /corpus; no passport commitments, credentials, or message content are included.",
+  "expected": {
+    "passport_count": 9,
+    "project_link_count": 29,
+    "unique_root_count": 24,
+    "principal_count": 9,
+    "project_count": 23,
+    "unresolved_project_sources": 0
+  },
+  "principals": [
+    { "source_ref": "operator", "kind": "human", "passport_id": "mc", "agent_id": "mc", "display_name": "mc" },
+    { "source_ref": "agent:claude-desktop", "kind": "agent", "passport_id": "claude-desktop", "agent_id": "claude-desktop", "display_name": "claude-desktop" },
+    { "source_ref": "agent:claude", "kind": "agent", "passport_id": "claude", "agent_id": "claude", "display_name": "claude" },
+    { "source_ref": "agent:codex", "kind": "agent", "passport_id": "codex", "agent_id": "codex", "display_name": "codex" },
+    { "source_ref": "agent:cursor", "kind": "agent", "passport_id": "cursor", "agent_id": "cursor", "display_name": "cursor" },
+    { "source_ref": "agent:gemini", "kind": "agent", "passport_id": "gemini", "agent_id": "gemini", "display_name": "gemini" },
+    { "source_ref": "agent:kilo", "kind": "agent", "passport_id": "kilo", "agent_id": "kilo", "display_name": "kilo" },
+    { "source_ref": "agent:kimi", "kind": "agent", "passport_id": "kimi", "agent_id": "kimi", "display_name": "kimi" },
+    { "source_ref": "agent:zcode", "kind": "agent", "passport_id": "zcode", "agent_id": "zcode", "display_name": "zcode" }
+  ],
+  "projects": [
+    { "source_ref": "mc:0", "legacy_id": "repo-A", "root": "/corpus/tmp/acorn-final/repo-A", "placement_kind": "folder" },
+    { "source_ref": "mc:1", "legacy_id": "repo-B", "root": "/corpus/tmp/acorn-final/repo-B", "placement_kind": "folder" },
+    { "source_ref": "mc:2", "legacy_id": "acornkit", "root": "/corpus/home/Projects/acornkit", "placement_kind": "repository" },
+
+    { "source_ref": "claude-desktop:0", "legacy_id": "Invoicing", "root": "/corpus/home/Invoicing", "placement_kind": "repository" },
+
+    { "source_ref": "claude:0", "legacy_id": "ax-research", "root": "/corpus/home/Projects/ax-research", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/ax-mission.git" },
+    { "source_ref": "claude:1", "legacy_id": "demo", "root": "/corpus/tmp/p8-test", "placement_kind": "folder" },
+    { "source_ref": "claude:2", "legacy_id": "mczaykowski-api", "root": "/corpus/home/Projects/mczaykowski-api", "placement_kind": "repository", "git_remote": "git@ssh.osc-fr1.scalingo.com:mczaykowski-api.git" },
+    { "source_ref": "claude:3", "legacy_id": "ax-outreach", "root": "/corpus/home/Projects/ax-outreach", "placement_kind": "repository" },
+    { "source_ref": "claude:4", "legacy_id": "outer_v2", "root": "/corpus/home/Projects/outer_v2", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/outer.git" },
+    { "source_ref": "claude:5", "legacy_id": "Roost", "root": "/corpus/home/Projects/Roost", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/Roost.git" },
+    { "source_ref": "claude:6", "legacy_id": "outer-desktop", "root": "/corpus/home/Projects/outer-desktop", "placement_kind": "repository" },
+    { "source_ref": "claude:7", "legacy_id": "aparaiso", "root": "/corpus/volume/Apps/Client Projects/aparaiso", "placement_kind": "folder" },
+    { "source_ref": "claude:8", "legacy_id": "outer-agent", "root": "/corpus/home/Projects/outer-agent", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/outer-agent.git" },
+    { "source_ref": "claude:9", "legacy_id": "space", "root": "/corpus/home/space", "placement_kind": "folder" },
+    { "source_ref": "claude:10", "legacy_id": "space-elev-probe-msisz6nb", "root": "/corpus/home/Projects/space-elev-probe-msisz6nb", "placement_kind": "folder" },
+
+    { "source_ref": "codex:0", "legacy_id": "seedrop", "root": "/corpus/home/Projects/seedrop", "placement_kind": "repository", "git_remote": "git@github.com:seedrop/seedrop.git" },
+    { "source_ref": "codex:1", "legacy_id": "loci", "root": "/corpus/home/Projects/loci", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/loci.git" },
+    { "source_ref": "codex:2", "legacy_id": "sendel_v2", "root": "/corpus/home/Projects/sendel_v2", "placement_kind": "repository" },
+    { "source_ref": "codex:3", "legacy_id": "tale", "root": "/corpus/home/Projects/tale", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/tale.git" },
+    { "source_ref": "codex:4", "legacy_id": "outer-agent", "root": "/corpus/home/Projects/outer-agent", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/outer-agent.git" },
+    { "source_ref": "codex:5", "legacy_id": "RoostRuntime", "root": "/corpus/home/Projects/RoostRuntime", "placement_kind": "repository", "git_remote": "https://github.com/mczaykowski/roost-runtime.git" },
+    { "source_ref": "codex:6", "legacy_id": "GV", "root": "/corpus/home/Desktop/GV", "placement_kind": "folder" },
+    { "source_ref": "codex:7", "legacy_id": "seedrop_db", "root": "/corpus/home/Projects/seedrop_db", "placement_kind": "repository" },
+
+    { "source_ref": "cursor:0", "legacy_id": "outer_v2", "root": "/corpus/home/Projects/outer_v2", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/outer.git" },
+    { "source_ref": "cursor:1", "legacy_id": "space", "root": "/corpus/home/space", "placement_kind": "folder" },
+
+    { "source_ref": "gemini:0", "legacy_id": "outer", "root": "/corpus/home/Projects/outer", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/outer.git" },
+
+    { "source_ref": "kimi:0", "legacy_id": "seedrop", "root": "/corpus/home/Projects/seedrop", "placement_kind": "repository", "git_remote": "git@github.com:seedrop/seedrop.git" },
+    { "source_ref": "kimi:1", "legacy_id": "ax-surface", "root": "/corpus/home/Projects/ax-surface", "placement_kind": "repository" },
+
+    { "source_ref": "zcode:0", "legacy_id": "roost", "root": "/corpus/home/Projects/Roost", "placement_kind": "repository", "git_remote": "git@github.com:mczaykowski/Roost.git" }
+  ]
+}

@@ -3,6 +3,7 @@
 Seedrop v2's transport-neutral contract boundary. This prototype owns:
 
 - typed, canonical UUIDv7 entity identifiers;
+- versioned Principal aliases and Project placements with strict reconciliation;
 - strict deterministic JSON bytes and SHA-256 digests;
 - a stable error-code registry and wire envelope;
 - independent schema, semantic, command, projection, and wire versions;
@@ -27,10 +28,21 @@ Observer, or Desktop paths.
   defined; downgrade and rollback require a source snapshot or compatibility reader,
   never an inverse transform guessed by the protocol. Applying a plan always requires
   a current-schema validator, including when the input already reports current.
+- Principal aliases are resolved to a registered canonical Principal before a caller
+  authorizes or persists a command. Alias collisions remain visible and fail closed.
+- Projects merge only through exact placement evidence, shared Git common-directory
+  identity, or normalized repository identity. A legacy name never merges Projects;
+  conflicting repository evidence enters the unresolved queue.
+- Worktrees are explicit Project placements, not independent Projects.
 
-See `docs/adr/0007-v2-canonical-protocol-mechanics.md` and
-`fixtures/golden-v2-contract.json` for the frozen decisions and cross-runtime vectors.
+See `docs/adr/0007-v2-canonical-protocol-mechanics.md`,
+`docs/adr/0008-v2-canonical-principal-project-identity.md`, and the fixtures for the
+frozen decisions, cross-runtime vectors, and sanitized nine-passport machine corpus.
 
 After building, `node scripts/verify-golden.mjs` verifies those vectors using only
 Node's standard library and the published package output, making the same proof easy
 to run under every supported Node major.
+
+`node scripts/verify-identity-corpus.mjs` verifies the sanitized corpus. Add `--live`
+to perform the same read-only reconciliation against this machine's current v1
+passports and Git roots; it writes neither registry nor v1 state.

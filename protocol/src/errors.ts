@@ -66,6 +66,21 @@ export const ERROR_REGISTRY = Object.freeze({
     message: "The migrated protocol value failed current-schema validation.",
     retryable: false,
   },
+  "seedrop.protocol.identity_registry_invalid": {
+    category: "integrity",
+    message: "The identity registry is malformed or internally inconsistent.",
+    retryable: false,
+  },
+  "seedrop.protocol.identity_alias_not_found": {
+    category: "not_found",
+    message: "The identity alias did not resolve to a registered canonical identity.",
+    retryable: false,
+  },
+  "seedrop.protocol.identity_alias_ambiguous": {
+    category: "authorization",
+    message: "The identity alias resolves to multiple canonical identities and is denied.",
+    retryable: false,
+  },
 } as const);
 
 for (const definition of Object.values(ERROR_REGISTRY)) Object.freeze(definition);
