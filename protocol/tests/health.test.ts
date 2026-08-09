@@ -280,6 +280,34 @@ describe("HealthEnvelope integrity", () => {
     );
   });
 
+  it("rejects terminal pending-command phases and recovery ownership disagreement", () => {
+    const input = baseInput();
+    expectCode(
+      () => buildHealthEnvelope({
+        ...input,
+        pending_commands: [{
+          command_id: COMMAND,
+          phase: "completed",
+          recoverable: false,
+          observed_at: input.generated_at,
+        }],
+      } as unknown as BuildHealthEnvelopeInput),
+      "seedrop.protocol.health_invalid",
+    );
+    expectCode(
+      () => buildHealthEnvelope({
+        ...input,
+        pending_commands: [{
+          command_id: COMMAND,
+          phase: "effects_pending",
+          recoverable: true,
+          observed_at: input.generated_at,
+        }],
+      }),
+      "seedrop.protocol.health_invalid",
+    );
+  });
+
   it("rejects a tampered summary even when the underlying evidence is valid", () => {
     const envelope = buildHealthEnvelope(baseInput());
     expectCode(

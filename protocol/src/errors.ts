@@ -96,6 +96,36 @@ export const ERROR_REGISTRY = Object.freeze({
     message: "The HealthEnvelope disagreement record is malformed or does not preserve a real contradiction.",
     retryable: false,
   },
+  "seedrop.protocol.command_audit_invalid": {
+    category: "integrity",
+    message: "The command audit trail is malformed, incomplete, or internally inconsistent.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_audit_inconsistent": {
+    category: "integrity",
+    message: "The command audit summary disagrees with its canonical audit entries.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_transition_invalid": {
+    category: "conflict",
+    message: "The command phase transition is not permitted by the command protocol.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_unrecoverable": {
+    category: "integrity",
+    message: "A nonterminal command has no valid recovery path or a terminal command retains one.",
+    retryable: false,
+  },
+  "seedrop.protocol.repair_receipt_invalid": {
+    category: "integrity",
+    message: "The repair Receipt is malformed, incomplete, or contradicts its outcome.",
+    retryable: false,
+  },
+  "seedrop.protocol.repair_journal_invalid": {
+    category: "integrity",
+    message: "The append-only repair Receipt journal has a sequence or hash-chain violation.",
+    retryable: false,
+  },
 } as const);
 
 for (const definition of Object.values(ERROR_REGISTRY)) Object.freeze(definition);

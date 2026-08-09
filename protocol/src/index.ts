@@ -96,6 +96,54 @@ export type {
   StaleProjection,
   SubstrateState,
 } from "./health.js";
+
+export {
+  COMMAND_AUDIT_VERSION,
+  COMMAND_PHASES,
+  SWEEP_CANDIDATE_VERSION,
+  TERMINAL_COMMAND_PHASES,
+  assertCommandAuditTrail,
+  buildCommandAuditTrail,
+  evaluateCommandInvariants,
+  findCommandSweepCandidates,
+  isTerminalCommandPhase,
+} from "./commands.js";
+export type {
+  BuildCommandAuditTrailInput,
+  CommandAuditEntry,
+  CommandAuditError,
+  CommandAuditTrail,
+  CommandInvariantCode,
+  CommandInvariantReport,
+  CommandInvariantViolation,
+  CommandPhase,
+  CommandRecoveryPlan,
+  CommandSweepPolicy,
+  NonterminalCommandPhase,
+  SweepCandidateEvent,
+  TerminalCommandPhase,
+} from "./commands.js";
+
+export {
+  REPAIR_RECEIPT_VERSION,
+  assertRepairJournal,
+  assertRepairReceipt,
+  buildRepairReceipt,
+  queryRepairReceipts,
+} from "./repairs.js";
+export type {
+  BuildRepairReceiptInput,
+  RepairCommandRef,
+  RepairEvidenceRecordId,
+  RepairEvidenceRef,
+  RepairFailure,
+  RepairJournalLink,
+  RepairOutcome,
+  RepairReceipt,
+  RepairReceiptQuery,
+  RepairRollback,
+  RepairStateRef,
+} from "./repairs.js";
 export type {
   IdentityDiagnostic,
   IdentityInput,

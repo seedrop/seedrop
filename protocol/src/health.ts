@@ -1,5 +1,6 @@
 import { canonicalJson, canonicalJsonDigest } from "./canonical-json.js";
 import type { JsonValue } from "./canonical-json.js";
+import type { NonterminalCommandPhase } from "./commands.js";
 import { protocolError } from "./errors.js";
 import { parseCanonicalId } from "./ids.js";
 import type { CanonicalId } from "./ids.js";
@@ -61,7 +62,7 @@ export interface StaleProjection {
 
 export interface PendingCommandHealth {
   command_id: CanonicalId<"command">;
-  phase: string;
+  phase: NonterminalCommandPhase;
   recoverable: boolean;
   observed_at: string;
   recovery_owner?: CanonicalId<"principal">;
@@ -464,10 +465,16 @@ function normalizeStale(record: StaleProjection, sources: Map<string, HealthSour
 function normalizePending(command: PendingCommandHealth): PendingCommandHealth {
   assertExactKeys(command, ["command_id", "phase", "recoverable", "observed_at", "recovery_owner"], "pending");
   parseCanonicalId(command.command_id, "command");
-  assertNonEmpty(command.phase, "pending.phase");
+  if (!(command.phase === "accepted" || command.phase === "executing" || command.phase === "effects_pending"
+    || command.phase === "recovery_pending")) {
+    throw protocolError("seedrop.protocol.health_invalid", { field: "pending.phase" });
+  }
   assertBoolean(command.recoverable, "pending.recoverable");
   assertIsoTimestamp(command.observed_at, "pending.observed_at");
   if (command.recovery_owner !== undefined) parseCanonicalId(command.recovery_owner, "principal");
+  if (command.recoverable !== (command.recovery_owner !== undefined)) {
+    throw protocolError("seedrop.protocol.health_invalid", { field: "pending.recovery_owner", reason: "recoverability_mismatch" });
+  }
   return Object.freeze({
     command_id: command.command_id,
     phase: command.phase,

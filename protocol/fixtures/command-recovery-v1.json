@@ -1,0 +1,210 @@
+{
+  "fixture_version": "1.0.0",
+  "observed_at": "2026-08-09T12:02:01.000Z",
+  "sweep_policy": {
+    "policy_id": "seedrop.command.default",
+    "policy_version": "1.0.0",
+    "maximum_command_age_ms": 120000,
+    "phase_maximum_idle_ms": {
+      "accepted": 30000,
+      "executing": 30000,
+      "effects_pending": 30000,
+      "recovery_pending": 60000
+    }
+  },
+  "command_inputs": [
+    {
+      "command_id": "sd_cmd_0191416f-4495-7011-a233-445566778899",
+      "command_version": "1.0.0",
+      "command_name": "intent.complete",
+      "principal_id": "sd_prn_0191416f-4495-7011-a233-445566778899",
+      "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+      "idempotency_key": "complete-intent-42",
+      "input_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "accepted_at": "2026-08-09T12:00:00.000Z",
+      "entries": [
+        {
+          "event_id": "sd_evt_0191416f-4495-7011-a233-445566778899",
+          "phase": "accepted",
+          "recorded_at": "2026-08-09T12:00:00.000Z",
+          "expected_state_version": "state:17",
+          "result_state_version": null,
+          "result_digest": null,
+          "attempt": 0,
+          "error": null,
+          "recovery": {
+            "owner_principal_id": "sd_prn_0191416f-4495-7011-a233-445566778899",
+            "action": "resume command executor",
+            "recover_by": "2026-08-09T12:01:00.000Z",
+            "attempt_limit": 3
+          }
+        },
+        {
+          "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889a",
+          "phase": "executing",
+          "recorded_at": "2026-08-09T12:00:01.000Z",
+          "expected_state_version": "state:17",
+          "result_state_version": null,
+          "result_digest": null,
+          "attempt": 1,
+          "error": null,
+          "recovery": {
+            "owner_principal_id": "sd_prn_0191416f-4495-7011-a233-445566778899",
+            "action": "resume command executor",
+            "recover_by": "2026-08-09T12:01:00.000Z",
+            "attempt_limit": 3
+          }
+        },
+        {
+          "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889b",
+          "phase": "completed",
+          "recorded_at": "2026-08-09T12:00:02.000Z",
+          "expected_state_version": "state:17",
+          "result_state_version": "state:18",
+          "result_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "attempt": 1,
+          "error": null,
+          "recovery": null
+        }
+      ]
+    },
+    {
+      "command_id": "sd_cmd_0191416f-4495-7011-a233-44556677889a",
+      "command_version": "1.0.0",
+      "command_name": "space.post",
+      "principal_id": "sd_prn_0191416f-4495-7011-a233-445566778899",
+      "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+      "idempotency_key": "space-post-99",
+      "input_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "accepted_at": "2026-08-09T12:00:00.000Z",
+      "entries": [
+        {
+          "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889c",
+          "phase": "accepted",
+          "recorded_at": "2026-08-09T12:00:00.000Z",
+          "expected_state_version": "state:17",
+          "result_state_version": null,
+          "result_digest": null,
+          "attempt": 0,
+          "error": null,
+          "recovery": {
+            "owner_principal_id": "sd_prn_0191416f-4495-7011-a233-44556677889a",
+            "action": "replay deterministic mention effects",
+            "recover_by": "2026-08-09T12:01:00.000Z",
+            "attempt_limit": 3
+          }
+        },
+        {
+          "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889d",
+          "phase": "effects_pending",
+          "recorded_at": "2026-08-09T12:00:01.000Z",
+          "expected_state_version": "state:17",
+          "result_state_version": "state:18",
+          "result_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "attempt": 1,
+          "error": null,
+          "recovery": {
+            "owner_principal_id": "sd_prn_0191416f-4495-7011-a233-44556677889a",
+            "action": "replay deterministic mention effects",
+            "recover_by": "2026-08-09T12:01:00.000Z",
+            "attempt_limit": 3
+          }
+        }
+      ]
+    }
+  ],
+  "repair_inputs": [
+    {
+      "receipt_id": "sd_rcp_0191416f-4495-7011-a233-445566778899",
+      "repair_command_id": "sd_cmd_0191416f-4495-7011-a233-44556677889b",
+      "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+      "actor_principal_id": "sd_prn_0191416f-4495-7011-a233-445566778899",
+      "recovery_owner_principal_id": "sd_prn_0191416f-4495-7011-a233-44556677889a",
+      "issued_at": "2026-08-09T12:03:00.000Z",
+      "target": { "kind": "quarantine", "referent": "events/0042.json" },
+      "command": {
+        "name": "doctor.quarantine.repair",
+        "input_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "evidence": [
+        {
+          "record_id": "sd_evt_0191416f-4495-7011-a233-445566778899",
+          "role": "parse_failure",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "observed_at": "2026-08-09T12:02:00.000Z"
+        },
+        {
+          "record_id": "sd_clm_0191416f-4495-7011-a233-445566778899",
+          "role": "operator_authorization",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed_at": "2026-08-09T12:02:30.000Z"
+        }
+      ],
+      "before": {
+        "state_version": "state:17",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "after": {
+        "state_version": "state:18",
+        "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "outcome": "applied",
+      "failure": null,
+      "rollback": {
+        "mode": "snapshot",
+        "instruction": "restore snapshot object and append a rollback Receipt",
+        "artifact_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "unavailable_reason": null
+      },
+      "journal": { "sequence": 1, "previous_receipt_digest": null }
+    },
+    {
+      "receipt_id": "sd_rcp_0191416f-4495-7011-a233-44556677889a",
+      "repair_command_id": "sd_cmd_0191416f-4495-7011-a233-44556677889c",
+      "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+      "actor_principal_id": "sd_prn_0191416f-4495-7011-a233-445566778899",
+      "recovery_owner_principal_id": "sd_prn_0191416f-4495-7011-a233-44556677889a",
+      "issued_at": "2026-08-09T12:04:00.000Z",
+      "target": { "kind": "migration", "referent": "project-events" },
+      "command": {
+        "name": "migration.verify",
+        "input_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "evidence": [
+        {
+          "record_id": "sd_evt_0191416f-4495-7011-a233-44556677889a",
+          "role": "verification",
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "observed_at": "2026-08-09T12:03:30.000Z"
+        }
+      ],
+      "before": {
+        "state_version": "state:18",
+        "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "after": {
+        "state_version": "state:18",
+        "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "outcome": "no_change",
+      "failure": null,
+      "rollback": {
+        "mode": "unavailable",
+        "instruction": null,
+        "artifact_digest": null,
+        "unavailable_reason": "Verification did not mutate state, so rollback is not applicable."
+      },
+      "journal": { "sequence": 2, "previous_receipt_digest": "$previous_receipt_digest" }
+    }
+  ],
+  "expected": {
+    "terminal_commands": 1,
+    "recoverable_commands": 1,
+    "sweep_candidates": 1,
+    "repair_receipts": 2,
+    "command_audits_digest": "sha256:fdee3afc493ccbb613fdfb2dd1f15309945f871361a46b6f215d27fd44dd5711",
+    "invariant_reports_digest": "sha256:2164c7545ab97e6e24400e97f1a7d979a1ba40748a83e46c3bc23063e2ebfbed",
+    "sweep_candidates_digest": "sha256:5e085fc3e0be922cc52261e508eed5ed2ed358e032f0086655e64796b552ca48",
+    "repair_journal_digest": "sha256:2acd6cdce58dc57e75eee28e36e2ab4c713e08c3fe48d0159ca3eaf3ce1648b4"
+  }
+}

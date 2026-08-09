@@ -1,7 +1,7 @@
 {
   "name": "@seedrop/protocol",
   "version": "0.1.0-alpha.1",
-  "description": "Seedrop v2 protocol primitives: canonical IDs, identity, health, bytes, errors, versions, and migrations.",
+  "description": "Seedrop v2 protocol primitives: IDs, identity, health, commands, repair Receipts, bytes, errors, versions, and migrations.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,6 +21,7 @@
     "verify:identity-corpus": "npm run build && node scripts/verify-identity-corpus.mjs",
     "verify:identity-corpus:live": "npm run build && node scripts/verify-identity-corpus.mjs --live",
     "verify:health-golden": "npm run build && node scripts/verify-health-golden.mjs",
+    "verify:command-recovery-golden": "npm run build && node scripts/verify-command-recovery-golden.mjs",
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [
@@ -36,6 +37,8 @@
     "canonical-json",
     "uuidv7",
     "health-envelope",
+    "command-audit",
+    "repair-receipts",
     "migrations"
   ],
   "author": "Mariusz Czaykowski",

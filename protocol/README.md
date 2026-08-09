@@ -6,6 +6,10 @@ Seedrop v2's transport-neutral contract boundary. This prototype owns:
 - versioned Principal aliases and Project placements with strict reconciliation;
 - one versioned HealthEnvelope with source provenance, deterministic substrate state,
   disagreement traces, quarantines, projection lag, pending commands, and budget truth;
+- append-only command audit trails with canonical phases, recovery ownership,
+  age/state invariant queries, and read-only sweep candidates;
+- hash-chained repair Receipts with actor/evidence, before/after state, structured
+  command identity, rollback truth, and recovery ownership;
 - strict deterministic JSON bytes and SHA-256 digests;
 - a stable error-code registry and wire envelope;
 - independent schema, semantic, command, projection, and wire versions;
@@ -41,10 +45,16 @@ Observer, or Desktop paths.
   command recovery, budget overflow, and unresolved disagreement remain typed reasons.
 - Contradictory source claims remain in the envelope. Only a versioned governing
   policy trace may select one; unresolved contradiction degrades health.
+- Every nonterminal command phase is explicitly recoverable; terminal phases cannot
+  retain a recovery plan. Partial result versions remain visible during failure or
+  pending effects, and sweep queries propose Events without mutating command state.
+- Repair journals are project-local, append-only hash chains. Raw command arguments
+  are excluded; command name and canonical input digest preserve audit identity.
 
 See `docs/adr/0007-v2-canonical-protocol-mechanics.md`,
 `docs/adr/0008-v2-canonical-principal-project-identity.md`,
-`docs/adr/0009-v2-health-envelope-and-disagreement.md`, and the fixtures for the
+`docs/adr/0009-v2-health-envelope-and-disagreement.md`,
+`docs/adr/0010-v2-command-audit-recovery-and-repair-receipts.md`, and the fixtures for the
 frozen decisions, cross-runtime vectors, and sanitized nine-passport machine corpus.
 
 After building, `node scripts/verify-golden.mjs` verifies those vectors using only
@@ -58,3 +68,7 @@ passports and Git roots; it writes neither registry nor v1 state.
 `node scripts/verify-health-golden.mjs` verifies canonical healthy, degraded,
 corrupt, migrating, unreachable, governed-disagreement, and unresolved-disagreement
 envelopes from built package output.
+
+`node scripts/verify-command-recovery-golden.mjs` verifies terminal/recoverable
+command audit trails, age/state reports, a stale-command sweep proposal, and a
+two-entry hash-chained repair journal from built package output.
