@@ -2,7 +2,12 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { AuditReport, Grave } from "@seedrop/space";
 import type { PassportSource } from "./active-passport.js";
-import { buildContinuity, type ContinuityReport } from "./continuity.js";
+import {
+  buildContinuity,
+  continuityWarningReferent,
+  splitContinuityClaims,
+  type ContinuityReport,
+} from "./continuity.js";
 import type { RunCliIO } from "./router.js";
 
 export type BootRisk = "low" | "medium" | "high";
@@ -43,6 +48,18 @@ export interface SituationEvidence {
   source: SituationEvidenceSource;
   ref?: string;
   summary: string;
+}
+
+export interface SituationGoverningRecord {
+  source: "continuity";
+  ref: string;
+  claim: string;
+}
+
+export interface SituationWarning {
+  source: "continuity" | "audit";
+  referent: string;
+  claim: string;
 }
 
 export interface SituationConfidence {
@@ -132,7 +149,8 @@ export interface Situation {
      * before it re-derives the same dead end. Git cannot answer this.
      */
     graves: Grave[];
-    warnings: string[];
+    governing_records: SituationGoverningRecord[];
+    warnings: SituationWarning[];
     constraints: string[];
   };
 }
@@ -491,7 +509,8 @@ function buildSituation(
       open_threads: openThreads(continuity),
       relevant_files: relevantFiles(report, continuity),
       graves: relevantGraves(continuity, relevantFiles(report, continuity)),
-      warnings: report.safety.warnings.slice(0, 5),
+      governing_records: governingRecords(continuity),
+      warnings: situationWarnings(continuity, audit),
       constraints: situationConstraints(continuity),
     },
   };
@@ -663,6 +682,37 @@ function situationConstraints(continuity: ContinuityReport): string[] {
   return [...(brief?.known_risks ?? [])].slice(0, 5);
 }
 
+function governingRecords(continuity: ContinuityReport): SituationGoverningRecord[] {
+  const packet = continuity.view.latestPacket;
+  if (!packet?.id) return [];
+  return (packet.decisions ?? [])
+    .flatMap(splitContinuityClaims)
+    .map((claim) => ({ source: "continuity" as const, ref: packet.id!, claim }))
+    .slice(0, 5);
+}
+
+function situationWarnings(
+  continuity: ContinuityReport,
+  audit: AuditReport | null,
+): SituationWarning[] {
+  const warnings: SituationWarning[] = continuity.warnings.flatMap((warning) => {
+    const referent = continuityWarningReferent(warning);
+    return splitContinuityClaims(warning).map((claim) => ({
+      source: "continuity" as const,
+      referent,
+      claim,
+    }));
+  });
+  for (const issue of audit?.issues.filter((entry) => entry.severity === "warning") ?? []) {
+    warnings.push({
+      source: "audit",
+      referent: issue.path ?? `View audit check ${issue.code}`,
+      claim: issue.message,
+    });
+  }
+  return dedupeBy(warnings, (warning) => `${warning.source}:${warning.referent}:${warning.claim}`).slice(0, 5);
+}
+
 /**
  * Collapse to one line and cap length for the human Situation render. The JSON
  * surface (report.situation) keeps the full, untruncated value — this only
@@ -705,14 +755,17 @@ export function renderBoot(report: BootReport): string {
   lines.push(`  Reported: ${report.outcome.reported.status} - ${report.outcome.reported.summary}`);
   lines.push(`  Evidence: ${report.outcome.evidence.status} - ${report.outcome.evidence.summary}`);
   lines.push(`  Delivery: ${report.outcome.delivery.status} - ${report.outcome.delivery.summary}`);
+  for (const record of situation.attention.governing_records) {
+    lines.push(`  Governing record: continuity ${record.ref} — ${record.claim}`);
+  }
   for (const evidence of situation.next_move.evidence.slice(0, 3)) {
     lines.push(`  - ${evidence.summary}${evidence.ref ? ` (${evidence.ref})` : ""}`);
   }
   if (situation.attention.open_threads.length > 0) {
     lines.push(`  Open threads: ${situation.attention.open_threads.length} visible`);
   }
-  if (situation.attention.warnings.length > 0) {
-    lines.push(`  Warning: ${situation.attention.warnings[0]}`);
+  for (const warning of situation.attention.warnings) {
+    lines.push(`  Warning about ${warning.referent}: ${warning.claim}`);
   }
   return `${lines.join("\n")}\n`;
 }

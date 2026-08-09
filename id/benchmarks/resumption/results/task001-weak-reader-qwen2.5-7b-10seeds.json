@@ -1,0 +1,708 @@
+{
+  "model": "qwen2.5:7b",
+  "baseURL": "http://127.0.0.1:11434/v1",
+  "judgeModel": "qwen2.5:7b",
+  "seeds": 10,
+  "elapsed_seconds": 98.3,
+  "summary": {
+    "arms": {
+      "cold": {
+        "n": 30,
+        "correct": 30,
+        "rate": 1,
+        "ci_low": 0.8864829086095221,
+        "ci_high": 1,
+        "mean_prompt_tokens": 1643,
+        "mean_completion_tokens": 30
+      },
+      "booted": {
+        "n": 30,
+        "correct": 30,
+        "rate": 1,
+        "ci_low": 0.8864829086095221,
+        "ci_high": 1,
+        "mean_prompt_tokens": 1989,
+        "mean_completion_tokens": 25
+      }
+    },
+    "delta_pp": 0,
+    "cis_overlap": true,
+    "marginal_prompt_tokens": 346,
+    "per_task": [
+      {
+        "task_id": "001-superseded-constraint",
+        "scenario": "A once-standing freeze was later dropped; only careful reconciliation of dated records buried in repo noise reveals the current state.",
+        "cold": {
+          "n": 30,
+          "correct": 30
+        },
+        "booted": {
+          "n": 30,
+          "correct": 30
+        }
+      }
+    ]
+  },
+  "results": [
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 1,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (docs/adr/0007-wireformat-freeze.md), allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 2,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (see docs/adr/0007-wireformat-freeze.md), and schema changes are now allowed with normal review plus a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 60,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 3,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (adr/0007-wireformat-freeze.md), allowing schema changes with normal review plus a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 54,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 4,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (adr/0007-wireformat-freeze.md), allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 54,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 5,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (see docs/adr/0007-wireformat-freeze.md), allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 57,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 6,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (docs/adr/0007-wireformat-freeze.md), allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 7,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (docs/adr/0007-wireformat-freeze.md), allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 8,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (see docs/adr/0007-wireformat-freeze.md), and schema changes are now allowed with normal review plus a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 60,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 9,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (docs/adr/0007-wireformat-freeze.md), allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "cold",
+      "seed": 10,
+      "response": "DECISION: YES\nRationale: The WireFormat freeze was dropped on 2026-04-28 (docs/adr/0007-wireformat-freeze.md), allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1644,
+      "completion_tokens": 56,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 1,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 2,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 3,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 4,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 5,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 6,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 7,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 8,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 9,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "may-extend-schema",
+      "arm": "booted",
+      "seed": 10,
+      "response": "DECISION: YES\nRationale: The 2026-04-28 soak review notes dropped the WireFormat freeze, allowing schema changes with normal review and a decoder-compat note.",
+      "correct": true,
+      "prompt_tokens": 1990,
+      "completion_tokens": 43,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 1,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 2,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 3,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 4,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 5,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 6,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 7,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 8,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 9,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "cold",
+      "seed": 10,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1637,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 1,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 2,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 3,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 4,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 5,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 6,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 7,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 8,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 9,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "governing-record",
+      "arm": "booted",
+      "seed": 10,
+      "response": "GOVERNS: SOAK-REVIEW",
+      "correct": true,
+      "prompt_tokens": 1983,
+      "completion_tokens": 10,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 1,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this case.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 2,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this case.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 3,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this case.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 4,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this stash.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 5,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this case.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 6,
+      "response": "DECISION: NO\nCurrent rules require a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 18,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 7,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this case.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 8,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this case.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 9,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this case.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "cold",
+      "seed": 10,
+      "response": "DECISION: NO\n\nCurrent rules require a decoder-compat note for schema changes, which is missing in this case.",
+      "correct": true,
+      "prompt_tokens": 1649,
+      "completion_tokens": 25,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 1,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 2,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 3,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 4,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 5,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 6,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 7,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 8,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 9,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    },
+    {
+      "task_id": "001-superseded-constraint",
+      "probe_id": "stash-apply-norm",
+      "arm": "booted",
+      "seed": 10,
+      "response": "DECISION: NO\nCurrent rules require a normal review and a decoder-compat note for schema changes.",
+      "correct": true,
+      "prompt_tokens": 1995,
+      "completion_tokens": 22,
+      "token_source": "api"
+    }
+  ]
+}

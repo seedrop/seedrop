@@ -130,6 +130,50 @@ describe("BootReport next-action resolver", () => {
     expect(out).toContain("Evidence / confidence:");
   });
 
+  it("leads with governing records and gives every warning an explicit referent", () => {
+    const packetId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const report = buildBootReportFromContinuity(
+      continuity({
+        warnings: ["Space daemon at http://127.0.0.1:18791 is not reachable. Try `seed daemon status`."],
+        view: {
+          ...continuity().view,
+          latestPacket: {
+            id: packetId,
+            created_at: "2026-06-04T09:00:00.000Z",
+            mission: "WireFormat soak review",
+            summary: "Soak completed cleanly.",
+            decisions: ["Soak review supersedes ADR 0007; schema changes require normal review."],
+          },
+        },
+      }),
+      {
+        ok: true,
+        issues: [{
+          severity: "warning",
+          code: "knowledge_stale",
+          path: "docs/adr/0007-wireformat-freeze.md",
+          message: "The accepted ADR text predates the governing soak review.",
+        }],
+      },
+      "2026-06-04T10:00:00.000Z",
+    );
+
+    expect(report.situation.attention.governing_records).toEqual([
+      { source: "continuity", ref: packetId, claim: "Soak review supersedes ADR 0007" },
+      { source: "continuity", ref: packetId, claim: "schema changes require normal review." },
+    ]);
+    expect(report.situation.attention.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "continuity", referent: "Space daemon at http://127.0.0.1:18791" }),
+      expect.objectContaining({ source: "audit", referent: "docs/adr/0007-wireformat-freeze.md" }),
+    ]));
+
+    const lines = renderBoot(report).split("\n");
+    expect(lines).toContain(`  Governing record: continuity ${packetId} — Soak review supersedes ADR 0007`);
+    expect(lines).toContain(`  Governing record: continuity ${packetId} — schema changes require normal review.`);
+    expect(lines).toContain("  Warning about docs/adr/0007-wireformat-freeze.md: The accepted ADR text predates the governing soak review.");
+    expect(lines.some((line) => line.includes("supersedes ADR 0007; schema changes"))).toBe(false);
+  });
+
   it("keeps an unvalidated completion report separate from evidence and delivery", () => {
     const report = buildBootReportFromContinuity(
       continuity({

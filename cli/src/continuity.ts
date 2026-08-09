@@ -480,6 +480,8 @@ function renderContinuityBrief(report: ContinuityReport): string[] {
   lines.push(`  ${workspaceFocus ?? report.view.currentRun?.goal ?? report.view.latestPacket?.mission ?? "(no focus recorded)"}`);
   lines.push("");
 
+  appendGoverningRecords(lines, report, 5);
+
   lines.push(`## Inbox — ${report.inbox.fetched ? `${unacked.length} unacked` : "unavailable"}`);
   for (const mention of unacked.slice(0, 3)) {
     const where = mention.space_name ? ` in #${mention.space_name}` : "";
@@ -493,7 +495,12 @@ function renderContinuityBrief(report: ContinuityReport): string[] {
   if (report.warnings.length > 0) {
     lines.push("");
     lines.push("## Heads-up");
-    for (const warning of report.warnings.slice(0, 3)) lines.push(`  - ${warning}`);
+    for (const warning of report.warnings.slice(0, 3)) {
+      const referent = continuityWarningReferent(warning);
+      for (const claim of splitContinuityClaims(warning)) {
+        lines.push(`  Warning about ${referent}: ${claim}`);
+      }
+    }
   }
   lines.push("");
   return lines;
@@ -820,6 +827,8 @@ function renderContinuityFull(report: ContinuityReport): string {
   }
   lines.push("");
 
+  appendGoverningRecords(lines, report, 5);
+
   if (p?.active_projects?.length) {
     lines.push(`## Active projects`);
     for (const proj of p.active_projects) {
@@ -876,11 +885,51 @@ function renderContinuityFull(report: ContinuityReport): string {
 
   if (report.warnings.length > 0) {
     lines.push(`## Heads-up`);
-    for (const w of report.warnings) lines.push(`  - ${w}`);
+    for (const warning of report.warnings) {
+      const referent = continuityWarningReferent(warning);
+      for (const claim of splitContinuityClaims(warning)) {
+        lines.push(`  Warning about ${referent}: ${claim}`);
+      }
+    }
     lines.push("");
   }
 
   return lines.join("\n");
+}
+
+function appendGoverningRecords(
+  lines: string[],
+  report: ContinuityReport,
+  limit: number,
+): void {
+  const packet = report.view.latestPacket;
+  if (!packet?.id || !packet.decisions?.length) return;
+  lines.push("## Governing records");
+  const claims = packet.decisions.flatMap(splitContinuityClaims).slice(0, limit);
+  for (const claim of claims) {
+    lines.push(`  Governing record: continuity ${packet.id} — ${claim}`);
+  }
+  lines.push("");
+}
+
+export function splitContinuityClaims(value: string): string[] {
+  return value
+    .split(/\s*;\s*|(?<=[.!?])\s+(?=[A-Z`])/u)
+    .map((claim) => claim.trim())
+    .filter(Boolean);
+}
+
+export function continuityWarningReferent(warning: string): string {
+  if (/^No passport at /i.test(warning)) {
+    return warning.slice("No passport at ".length).split(". Run `seed", 1)[0]!.trim();
+  }
+  if (/^No \.seedrop\/view in /i.test(warning)) {
+    return `.seedrop/view in ${warning.slice("No .seedrop/view in ".length).split(". Run `seed", 1)[0]!.trim()}`;
+  }
+  const daemon = warning.match(/^(Space daemon at \S+)/i)?.[1];
+  if (daemon) return daemon.replace(/[.,]$/, "");
+  if (/^View preflight\b/i.test(warning)) return "View preflight";
+  return "Seedrop continuity state";
 }
 
 export function selectNextAction(report: Omit<ContinuityReport, "orientation">): OrientationNextAction {

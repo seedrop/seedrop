@@ -249,4 +249,19 @@ describe("checked-in tasks", () => {
     const ids = tasks.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it("keeps task 001 safe for weak readers", async () => {
+    const tasks = await loadTasks(TASKS_DIR);
+    const packet = tasks.find((entry) => entry.id === "001-superseded-constraint")!.boot_packet;
+    const lines = packet.split("\n");
+    const governingIndex = lines.indexOf("Governing record: 2026-04-28 soak review — supersedes ADR 0007.");
+    const staleWarningIndex = lines.indexOf("Warning about ADR 0007 text: stale.");
+
+    expect(governingIndex).toBeGreaterThanOrEqual(0);
+    expect(staleWarningIndex).toBeGreaterThan(governingIndex);
+    expect(lines.filter((line) => line.startsWith("Warning about ")).every((line) => /^Warning about [^:]+: .+/.test(line))).toBe(true);
+    expect(lines.every((line) => !line.includes(";"))).toBe(true);
+    expect(packet).not.toContain("WireFormat freeze (ADR 0007");
+    expect(packet).not.toContain("Stale-surface warning:");
+  });
 });
