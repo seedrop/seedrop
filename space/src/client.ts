@@ -13,6 +13,8 @@ export interface SpacePostRequest {
   requestId?: string;
 }
 
+export type PostOutboxQueryState = "pending" | "processing" | "completed" | "dead_letter";
+
 export interface PresenceQuery {
   spaceId?: string;
   passportId?: string;
@@ -81,10 +83,21 @@ function spaceErrorMessage(status: number, body: unknown): string {
 }
 
 function spaceErrorRecovery(body: unknown): NextAction[] {
-  const rawRecovery = body && typeof body === "object" && "error" in body
-    ? (body as { error?: { recovery?: unknown } }).error?.recovery
+  const envelope = body && typeof body === "object" && "error" in body
+    ? (body as { error?: { recovery?: unknown; next_command?: unknown } }).error
     : undefined;
-  if (!Array.isArray(rawRecovery)) return [];
+  const rawRecovery = envelope?.recovery;
+  if (!Array.isArray(rawRecovery)) {
+    return typeof envelope?.next_command === "string"
+      ? [{
+          kind: "command",
+          command: envelope.next_command,
+          reason: "Repair the unresolved Space command.",
+          risk: "low",
+          requires_human: false,
+        }]
+      : [];
+  }
   return rawRecovery.flatMap((entry): NextAction[] => {
     if (!entry || typeof entry !== "object") return [];
     const command = "command" in entry && typeof entry.command === "string" ? entry.command : undefined;
@@ -175,6 +188,19 @@ export class SpaceHttpClient {
 
   messages(spaceName: string): Promise<unknown> {
     return this.request("GET", `/spaces/${encodeURIComponent(spaceName)}/messages`);
+  }
+
+  postOutbox(spaceName: string, state?: PostOutboxQueryState): Promise<unknown> {
+    const suffix = state ? `?state=${encodeURIComponent(state)}` : "";
+    return this.request("GET", `/spaces/${encodeURIComponent(spaceName)}/outbox${suffix}`);
+  }
+
+  retryPostOutbox(spaceName: string, requestId: string): Promise<unknown> {
+    return this.request(
+      "POST",
+      `/spaces/${encodeURIComponent(spaceName)}/outbox/${encodeURIComponent(requestId)}/retry`,
+      {},
+    );
   }
 
   register(input: RegisterRequest = {}): Promise<unknown> {

@@ -4,7 +4,7 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { z } from "zod";
-import { createServer, type IdentityResolver, type ResolvedIdentity } from "./http.js";
+import { createServer, type CreateServerOptions, type IdentityResolver, type ResolvedIdentity } from "./http.js";
 
 const PassportIdentitySchema = z
   .object({
@@ -62,6 +62,8 @@ export interface ServeOptions extends PassportIdentityResolverOptions {
   runtimeProfile?: string;
   runtimeRoot?: string;
   runtimeSourceHash?: string;
+  postOutboxFault?: CreateServerOptions["postOutboxFault"];
+  postOutboxMaxAttempts?: number;
 }
 
 export interface StartedSpaceServer {
@@ -258,6 +260,8 @@ export async function startSpaceServer(options: ServeOptions): Promise<StartedSp
     identity: resolver,
     chainResolver: (passportId: string) => resolvePrincipalChain(passportId, identities),
     knownAgentIds: identities.map((id) => id.agentId),
+    postOutboxFault: options.postOutboxFault,
+    postOutboxMaxAttempts: options.postOutboxMaxAttempts,
     health: {
       service: "seed-space",
       startedAt: options.startedAt,

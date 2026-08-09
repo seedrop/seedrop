@@ -80,59 +80,63 @@ export class Mentions {
     const live = LiveStore.open(options);
     try {
       const db = await live.connection();
-      const stmt = db.prepare(
-        `INSERT INTO mentions (
-           id, message_id, space_id, space_name, recipient_passport_id,
-           sender_passport_id, sender_principal_chain, content, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      );
-      const existingStmt = db.prepare(
-        `SELECT id, message_id, space_id, space_name, recipient_passport_id,
-                sender_passport_id, sender_principal_chain, content, created_at,
-                delivered_at, acked_at, ack_result, ack_note, deferred_until
-           FROM mentions
-          WHERE message_id = ? AND recipient_passport_id = ?
-       ORDER BY created_at ASC
-          LIMIT 1`,
-      );
-      const inserted: MentionRecord[] = [];
-      const tx = db.transaction(() => {
-        for (const input of inputs) {
-          const existing = existingStmt.get(input.messageId, input.recipientPassportId) as MentionRow | undefined;
-          if (existing) {
-            inserted.push(rowToRecord(existing));
-            continue;
-          }
-          const id = randomUUID();
-          stmt.run(
-            id,
-            input.messageId,
-            input.spaceId,
-            input.spaceName ?? null,
-            input.recipientPassportId,
-            input.senderPassportId,
-            input.senderPrincipalChain ? JSON.stringify(input.senderPrincipalChain) : null,
-            input.content,
-            input.createdAt,
-          );
-          inserted.push({
-            id,
-            message_id: input.messageId,
-            space_id: input.spaceId,
-            space_name: input.spaceName,
-            recipient_passport_id: input.recipientPassportId,
-            sender_passport_id: input.senderPassportId,
-            sender_principal_chain: input.senderPrincipalChain,
-            content: input.content,
-            created_at: input.createdAt,
-          });
-        }
-      });
-      tx();
-      return inserted;
+      return db.transaction(() => Mentions.insertManyInTransaction(db, inputs))();
     } finally {
       live.close();
     }
+  }
+
+  static insertManyInTransaction(
+    db: DatabaseType,
+    inputs: readonly MentionInsertInput[],
+  ): MentionRecord[] {
+    const stmt = db.prepare(
+      `INSERT INTO mentions (
+         id, message_id, space_id, space_name, recipient_passport_id,
+         sender_passport_id, sender_principal_chain, content, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const existingStmt = db.prepare(
+      `SELECT id, message_id, space_id, space_name, recipient_passport_id,
+              sender_passport_id, sender_principal_chain, content, created_at,
+              delivered_at, acked_at, ack_result, ack_note, deferred_until
+         FROM mentions
+        WHERE message_id = ? AND recipient_passport_id = ?
+     ORDER BY created_at ASC
+        LIMIT 1`,
+    );
+    const inserted: MentionRecord[] = [];
+    for (const input of inputs) {
+      const existing = existingStmt.get(input.messageId, input.recipientPassportId) as MentionRow | undefined;
+      if (existing) {
+        inserted.push(rowToRecord(existing));
+        continue;
+      }
+      const id = randomUUID();
+      stmt.run(
+        id,
+        input.messageId,
+        input.spaceId,
+        input.spaceName ?? null,
+        input.recipientPassportId,
+        input.senderPassportId,
+        input.senderPrincipalChain ? JSON.stringify(input.senderPrincipalChain) : null,
+        input.content,
+        input.createdAt,
+      );
+      inserted.push({
+        id,
+        message_id: input.messageId,
+        space_id: input.spaceId,
+        space_name: input.spaceName,
+        recipient_passport_id: input.recipientPassportId,
+        sender_passport_id: input.senderPassportId,
+        sender_principal_chain: input.senderPrincipalChain,
+        content: input.content,
+        created_at: input.createdAt,
+      });
+    }
+    return inserted;
   }
 
   static async list(input: MentionListInput): Promise<MentionRecord[]> {

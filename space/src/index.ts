@@ -3,6 +3,7 @@ export type { SpaceOptions, SpacePostInput, SpacePostResult } from "./space.js";
 export { SpaceHttpClient, SpaceHttpClientError } from "./client.js";
 export type {
   NotifyRequest,
+  PostOutboxQueryState,
   PresenceQuery,
   SpaceHttpClientOptions,
   SpacePostRequest,
@@ -27,6 +28,15 @@ export type {
   MentionListInput,
   MentionRecord,
 } from "./mentions.js";
+export { PostOutbox } from "./post-outbox.js";
+export type {
+  DispatchPostOutboxInput,
+  DispatchPostOutboxResult,
+  PostOutboxFaultPhase,
+  PostOutboxRecord,
+  PostOutboxState,
+  PreparePostOutboxInput,
+} from "./post-outbox.js";
 export { Presence } from "./presence.js";
 export type {
   PresenceOptions,
@@ -96,7 +106,7 @@ export type {
   ViewPolicy,
   WorkspaceManifest,
 } from "./schema.js";
-export { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceRequestBodyTooLargeError, SpaceRequestConflictError, SpaceValidationError } from "./errors.js";
+export { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpacePostOutboxError, SpaceRequestBodyTooLargeError, SpaceRequestConflictError, SpaceValidationError } from "./errors.js";
 export { WorkspaceView } from "./view.js";
 export type {
   Grave,

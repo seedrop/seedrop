@@ -87,6 +87,13 @@ export class Space {
   }
 
   async postWithReceipt(input: SpacePostInput): Promise<SpacePostResult> {
+    const message = await this.preparePost(input);
+    if (input.requestId) return this.persistPreparedPost(message, input.requestId);
+    await this.store.appendMessage(message);
+    return { message, replayed: false };
+  }
+
+  async preparePost(input: SpacePostInput): Promise<Message> {
     await this.assertActiveMember();
     if (input.requestId && !REQUEST_ID_PATTERN.test(input.requestId)) {
       throw new SpaceValidationError(
@@ -94,7 +101,7 @@ export class Space {
         "SpacePostInput",
       );
     }
-    const message: Message = {
+    return {
       schema_version: "1.0",
       id: randomUUID(),
       space_id: this.currentMeta.id,
@@ -110,10 +117,20 @@ export class Space {
         ? { metadata: { ...(input.metadata ?? {}), ...(input.requestId ? { seedrop_request_id: input.requestId } : {}) } }
         : {}),
     };
+  }
 
-    if (input.requestId) return this.store.appendMessageOnce(message, input.requestId);
-    await this.store.appendMessage(message);
-    return { message, replayed: false };
+  async persistPreparedPost(message: Message, requestId: string): Promise<SpacePostResult> {
+    await this.assertActiveMember();
+    if (message.space_id !== this.currentMeta.id) {
+      throw new SpaceAuthError("Prepared message does not belong to this Space.", 403);
+    }
+    if (message.metadata?.seedrop_request_id !== requestId) {
+      throw new SpaceValidationError(
+        [{ code: "custom", path: ["metadata", "seedrop_request_id"], message: "must match requestId" }],
+        "PreparedMessage",
+      );
+    }
+    return this.store.appendMessageOnce(message, requestId);
   }
 
   async messages(): Promise<Message[]> {

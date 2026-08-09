@@ -430,6 +430,24 @@ export class SpaceRequestConflictError extends SpaceError {
   }
 }
 
+export type SpacePostOutboxFailureState = "pending" | "processing" | "dead_letter";
+
+export class SpacePostOutboxError extends SpaceError {
+  constructor(
+    public readonly requestId: string,
+    public readonly messageId: string,
+    public readonly spaceName: string,
+    public readonly state: SpacePostOutboxFailureState,
+    public readonly attemptCount: number,
+    public readonly retryable: boolean,
+    message: string,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.name = "SpacePostOutboxError";
+  }
+}
+
 export class SpaceValidationError extends SpaceError {
   constructor(
     public readonly issues: ZodIssue[],

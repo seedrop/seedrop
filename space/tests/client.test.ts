@@ -74,12 +74,44 @@ describe("SpaceHttpClient", () => {
     expect(listed.messages).toHaveLength(1);
   });
 
+  it("lists and explicitly retries post outbox commands", async () => {
+    await codex.join("seedrop-team");
+    const requestId = "55555555-5555-4555-8555-555555555555";
+    await codex.post("seedrop-team", { content: "outbox-visible", requestId });
+
+    const listed = await codex.postOutbox("seedrop-team", "completed") as {
+      outbox: Array<{ state: string; attempt_count: number }>;
+    };
+    expect(listed.outbox).toEqual([expect.objectContaining({ state: "completed", attempt_count: 1 })]);
+    await expect(codex.retryPostOutbox("seedrop-team", requestId)).resolves.toMatchObject({
+      repaired: true,
+      outbox: { state: "completed", attempt_count: 1 },
+    });
+    expect((await codex.messages("seedrop-team") as { messages: unknown[] }).messages).toHaveLength(1);
+  });
+
   it("raises typed errors for unauthorized requests", async () => {
     const unknown = new SpaceHttpClient({ baseUrl: started.url, passportId: "unknown" });
 
     await expect(unknown.join("seedrop-team")).rejects.toMatchObject({
       status: 401,
     } satisfies Partial<SpaceHttpClientError>);
+  });
+
+  it("turns outbox next_command responses into executable recovery", () => {
+    const error = new SpaceHttpClientError(500, {
+      error: {
+        message: "post effects are dead-lettered",
+        next_command: "seed space outbox-retry seedrop-team 55555555-5555-4555-8555-555555555555",
+      },
+    });
+    expect(error.recovery).toEqual([
+      expect.objectContaining({
+        kind: "command",
+        command: expect.stringContaining("outbox-retry"),
+      }),
+    ]);
+    expect(renderRecovery(error)).toContain("outbox-retry");
   });
 
   it("wraps fetch failures with daemon status recovery guidance", async () => {

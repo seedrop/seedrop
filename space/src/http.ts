@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { z } from "zod";
-import { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpaceRequestBodyTooLargeError, SpaceRequestConflictError, SpaceValidationError } from "./errors.js";
+import { SpaceAuthError, SpaceError, SpaceMentionDeliveryError, SpaceNotFoundError, SpaceParseError, SpacePostOutboxError, SpaceRequestBodyTooLargeError, SpaceRequestConflictError, SpaceValidationError } from "./errors.js";
 import { Mentions } from "./mentions.js";
 import { extractMentions } from "./mention-parser.js";
 import { Notification } from "./notification.js";
 import { Presence } from "./presence.js";
+import { PostOutbox, type PostOutboxFaultPhase, type PostOutboxRecord, type PostOutboxState } from "./post-outbox.js";
 import { Space } from "./space.js";
 import { SpaceStore } from "./io.js";
 
@@ -36,6 +37,9 @@ export interface CreateServerOptions {
   knownAgentIds?: readonly string[];
   /** Hard upper bound for every JSON request body. Defaults to 1 MiB. */
   maxBodyBytes?: number;
+  /** Fault-injection seam for transactional post/outbox tests. Must throw synchronously. */
+  postOutboxFault?: (phase: PostOutboxFaultPhase, record: PostOutboxRecord) => void;
+  postOutboxMaxAttempts?: number;
   health?: HealthMetadata;
 }
 
@@ -62,6 +66,7 @@ export interface HealthMetadata {
 const PASSPORT_HEADER = "x-seedrop-passport";
 const REQUEST_ID_HEADER = "x-seedrop-request-id";
 const RequestId = z.string().uuid();
+const PostOutboxStateQuery = z.enum(["pending", "processing", "completed", "dead_letter"]);
 
 const SessionBody = z
   .object({
@@ -158,6 +163,18 @@ async function route(req: IncomingMessage, res: ServerResponse, options: CreateS
   }
   if (method === "POST" && match(segments, ["spaces", "*", "messages"])) {
     return handleMessagesPost(req, res, decodeURIComponent(segments[1] as string), options);
+  }
+  if (method === "GET" && match(segments, ["spaces", "*", "outbox"])) {
+    return handlePostOutboxList(req, res, url, decodeURIComponent(segments[1] as string), options);
+  }
+  if (method === "POST" && match(segments, ["spaces", "*", "outbox", "*", "retry"])) {
+    return handlePostOutboxRetry(
+      req,
+      res,
+      decodeURIComponent(segments[1] as string),
+      decodeURIComponent(segments[3] as string),
+      options,
+    );
   }
   if (method === "POST" && match(segments, ["spaces", "*", "end"])) {
     return handleSpaceEnd(req, res, decodeURIComponent(segments[1] as string), options);
@@ -418,7 +435,7 @@ async function handleMessagesPost(
   const space = await Space.load(name, { ...options, passportId });
   const resolved = options.identity ? await options.identity.resolve(passportId) : null;
   const principalChain = options.chainResolver?.(passportId);
-  const posted = await space.postWithReceipt({
+  const message = await space.preparePost({
     content: body.content,
     role: body.role,
     replaces: body.replaces,
@@ -428,50 +445,119 @@ async function handleMessagesPost(
     authorAutonomous: resolved?.autonomous,
     requestId,
   });
-  const message = posted.message;
 
-  // Parse @-mentions and persist inbox rows for known recipients.
-  // Self-mentions are allowed (scratchpad pattern); unknown agent_ids are reported as warnings.
   const mentions = extractMentions(body.content);
-  let unknown_mentions: string[] = [];
-  let delivered_mentions: string[] = [];
+  let unknownMentions: string[] = [];
+  let recipients: string[] = [];
   if (mentions.length > 0 && options.knownAgentIds && options.knownAgentIds.length > 0) {
     const known = new Set(options.knownAgentIds.map((id) => id.toLowerCase()));
-    const recipients = mentions.filter((id) => known.has(id));
-    unknown_mentions = mentions.filter((id) => !known.has(id));
-    if (recipients.length > 0) {
-      try {
-        await Mentions.insertMany(
-          recipients.map((recipient) => ({
-            messageId: message.id,
-            spaceId: space.meta.id,
-            spaceName: space.meta.name,
-            recipientPassportId: recipient,
-            senderPassportId: passportId,
-            senderPrincipalChain: principalChain,
-            content: body.content,
-            createdAt: message.created_at,
-          })),
-          options,
-        );
-        delivered_mentions = recipients;
-      } catch (error) {
-        throw new SpaceMentionDeliveryError(message.id, recipients, requestId, { cause: error });
-      }
-    }
+    recipients = mentions.filter((id) => known.has(id));
+    unknownMentions = mentions.filter((id) => !known.has(id));
   } else if (mentions.length > 0) {
-    unknown_mentions = mentions;
+    unknownMentions = mentions;
   }
 
-  writeJson(res, posted.replayed ? 200 : 201, {
-    request_id: requestId,
-    replayed: posted.replayed,
-    message,
-    mention_delivery: {
-      delivered: delivered_mentions,
-      unknown: unknown_mentions,
+  const prepared = await PostOutbox.prepare({
+    ...options,
+    requestId,
+    spaceId: space.meta.id,
+    spaceName: space.meta.name,
+    authorPassportId: passportId,
+    command: {
+      content: body.content,
+      role: body.role ?? "agent",
+      replaces: body.replaces,
+      tombstone: body.tombstone,
+      metadata: body.metadata,
     },
+    message,
+    recipients,
+    unknownRecipients: unknownMentions,
   });
+  const dispatched = await dispatchPostOutbox(space, prepared.record, options);
+
+  writeJson(res, prepared.created && !dispatched.replayed ? 201 : 200, {
+    request_id: requestId,
+    replayed: !prepared.created || dispatched.replayed,
+    message: dispatched.message,
+    mention_delivery: {
+      delivered: dispatched.record.recipients,
+      unknown: dispatched.record.unknown_recipients,
+    },
+    outbox: outboxSummary(dispatched.record),
+  });
+}
+
+async function handlePostOutboxList(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  name: string,
+  options: CreateServerOptions,
+): Promise<void> {
+  const passportId = await requirePassport(req, options);
+  const space = await Space.load(name, { ...options, passportId });
+  const stateValue = url.searchParams.get("state");
+  const state = stateValue ? PostOutboxStateQuery.parse(stateValue) : undefined;
+  const outbox = await PostOutbox.list({
+    ...options,
+    authorPassportId: passportId,
+    spaceId: space.meta.id,
+    state,
+  });
+  writeJson(res, 200, { outbox: outbox.map(outboxSummary) });
+}
+
+async function handlePostOutboxRetry(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string,
+  requestId: string,
+  options: CreateServerOptions,
+): Promise<void> {
+  const passportId = await requirePassport(req, options);
+  const space = await Space.load(name, { ...options, passportId });
+  const repaired = await PostOutbox.repair({
+    ...options,
+    authorPassportId: passportId,
+    spaceId: space.meta.id,
+    requestId: RequestId.parse(requestId),
+  });
+  const dispatched = await dispatchPostOutbox(space, repaired, options);
+  writeJson(res, 200, {
+    request_id: requestId,
+    repaired: true,
+    message: dispatched.message,
+    mention_delivery: {
+      delivered: dispatched.record.recipients,
+      unknown: dispatched.record.unknown_recipients,
+    },
+    outbox: outboxSummary(dispatched.record),
+  });
+}
+
+function dispatchPostOutbox(space: Space, record: PostOutboxRecord, options: CreateServerOptions) {
+  return PostOutbox.dispatch({
+    ...options,
+    record,
+    maxAttempts: options.postOutboxMaxAttempts,
+    fault: options.postOutboxFault,
+    persistMessage: (message, requestId) => space.persistPreparedPost(message, requestId),
+  });
+}
+
+function outboxSummary(record: PostOutboxRecord): {
+  state: PostOutboxState;
+  attempt_count: number;
+  effect_keys: string[];
+  last_error?: string;
+} {
+  return {
+    state: record.state,
+    attempt_count: record.attempt_count,
+    effect_keys: record.effect_keys,
+    ...(record.last_error ? { last_error: record.last_error } : {}),
+  };
 }
 
 async function handleSpaceEnd(
@@ -737,6 +823,29 @@ function writeError(res: ServerResponse, error: unknown): void {
       class: "io",
       retryable: true,
       details: { message_id: error.messageId, recipients: error.recipients, request_id: error.requestId },
+    }));
+    return;
+  }
+  if (error instanceof SpacePostOutboxError) {
+    writeJson(res, error.state === "processing" ? 409 : 500, errorEnvelope({
+      code: error.state === "dead_letter"
+        ? "seedrop.space.post_outbox_dead_letter"
+        : error.state === "processing"
+          ? "seedrop.space.post_outbox_busy"
+          : "seedrop.space.post_outbox_pending",
+      message: error.message,
+      class: error.state === "processing" ? "conflict" : "io",
+      retryable: error.retryable,
+      next_command: error.state === "dead_letter"
+        ? `seed space outbox-retry ${JSON.stringify(error.spaceName)} ${error.requestId}`
+        : `seed space outbox ${JSON.stringify(error.spaceName)} --state ${error.state}`,
+      details: {
+        message_id: error.messageId,
+        request_id: error.requestId,
+        space: error.spaceName,
+        outbox_state: error.state,
+        attempt_count: error.attemptCount,
+      },
     }));
     return;
   }

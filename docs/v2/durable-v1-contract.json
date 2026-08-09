@@ -198,7 +198,7 @@
         "source": "space/src/live.ts",
         "declaration": "SCHEMA_STATEMENTS",
         "kind": "variable",
-        "sha256": "6613bfc926bd772a743636c73c45b51dc413661603a478d830cf696607bedf67"
+        "sha256": "7d1d5dca9b8fd6b3ab8faafabe875ece8dcf5dff105ab8ce03d11f99c0fdf426"
       },
       {
         "id": "space/src/mentions.ts#ACK_RESULTS",
@@ -460,7 +460,7 @@
         "sha256": "9f47e8ae20bdd19fe60b43d33f5ee28353778d05e5072d2554b753783f4699d0"
       }
     ],
-    "contract_sha256": "7f1b0ea63553ecbbfa92a5b545aeb6ceec54f3823fc1fc8b5fd84afb944b5a92"
+    "contract_sha256": "fcc3417efeb02b91f6eba69dbcbb353d3260c08b7f26eff214a80ded2e09c35b"
   },
   "accepted_transitions": [
     {
@@ -476,6 +476,13 @@
       "decision": "docs/adr/0003-repair-durable-freeze-extractor-baseline.md",
       "from_sha256": "c1dd3e7b003f7e5dde3ac5e16c3ff2485f754077ba02e602f973c894561588cf",
       "to_sha256": "7f1b0ea63553ecbbfa92a5b545aeb6ceec54f3823fc1fc8b5fd84afb944b5a92"
+    },
+    {
+      "id": "TX-12-post-outbox-v2",
+      "class": "versioned-migration",
+      "decision": "docs/adr/0004-versioned-space-post-outbox.md",
+      "from_sha256": "7f1b0ea63553ecbbfa92a5b545aeb6ceec54f3823fc1fc8b5fd84afb944b5a92",
+      "to_sha256": "fcc3417efeb02b91f6eba69dbcbb353d3260c08b7f26eff214a80ded2e09c35b"
     }
   ]
 }

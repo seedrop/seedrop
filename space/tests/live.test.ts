@@ -36,6 +36,28 @@ describe("LiveStore", () => {
     live.close();
   });
 
+  it("additively migrates a pre-outbox live store without losing v1 rows", async () => {
+    const legacy = LiveStore.open({ root });
+    const legacyDb = await legacy.connection();
+    legacyDb.exec("DROP TABLE post_outbox_v2");
+    legacyDb.prepare(
+      "INSERT INTO sessions (id, passport_id, created_at, last_seen_at) VALUES (?, ?, ?, ?)",
+    ).run("legacy-session", "codex", "2026-08-09T08:00:00.000Z", "2026-08-09T08:00:00.000Z");
+    legacy.close();
+
+    const migrated = LiveStore.open({ root });
+    const db = await migrated.connection();
+    expect(db.prepare("SELECT passport_id FROM sessions WHERE id = ?").get("legacy-session")).toEqual({
+      passport_id: "codex",
+    });
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='post_outbox_v2'").get()).toEqual({
+      name: "post_outbox_v2",
+    });
+    const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='post_outbox_v2'").get() as { sql: string };
+    expect(sql.sql).toContain("schema_version = '2.0'");
+    migrated.close();
+  });
+
   it("supports an absolute dataDir without joining the root", () => {
     const absolute = path.join(root, "alt-live");
     const live = LiveStore.open({ root, dataDir: absolute });

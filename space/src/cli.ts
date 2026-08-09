@@ -422,6 +422,26 @@ async function spaceClientCommand(command: SpaceClientCommand, args: ParsedArgs)
     return;
   }
 
+  if (command === "outbox") {
+    const state = args.flags.get("state")?.[0];
+    if (state !== undefined && !["pending", "processing", "completed", "dead_letter"].includes(state)) {
+      throw new Error("--state must be pending|processing|completed|dead_letter");
+    }
+    printJson(await client.postOutbox(
+      requireValue(args, 0, "space name"),
+      state as import("./client.js").PostOutboxQueryState | undefined,
+    ));
+    return;
+  }
+
+  if (command === "outbox-retry") {
+    printJson(await client.retryPostOutbox(
+      requireValue(args, 0, "space name"),
+      requireValue(args, 1, "request id"),
+    ));
+    return;
+  }
+
   if (command === "presence") {
     printJson(
       await client.presence({
@@ -826,6 +846,8 @@ type SpaceClientCommand =
   | "join"
   | "post"
   | "messages"
+  | "outbox"
+  | "outbox-retry"
   | "presence"
   | "register"
   | "heartbeat"
@@ -841,6 +863,8 @@ function isSpaceClientCommand(command: string): command is SpaceClientCommand {
     command === "join" ||
     command === "post" ||
     command === "messages" ||
+    command === "outbox" ||
+    command === "outbox-retry" ||
     command === "presence" ||
     command === "register" ||
     command === "heartbeat" ||
@@ -917,6 +941,8 @@ function printHelp(): void {
   seed-space join <space> --passport <path> [--url <url>]
   seed-space post <space> <message> --passport <path> [--request-id <uuid>] [--url <url>]
   seed-space messages <space> --passport <path> [--url <url>]
+  seed-space outbox <space> [--state pending|processing|completed|dead_letter] --passport <path> [--url <url>]
+  seed-space outbox-retry <space> <request-id> --passport <path> [--url <url>]
   seed-space view <command> [options]
   seed-space run <command> [options]
 
@@ -926,6 +952,8 @@ Commands:
   join                         Join or open a coordination space over HTTP
   post                         Post a message to a coordination space over HTTP
   messages                     List messages from a coordination space over HTTP
+  outbox                       List this passport's post-effect transactions
+  outbox-retry                 Explicitly reset and retry one pending/dead-letter post command
   presence                     List live presence over HTTP
   register                     Register a live session (POST /sessions) and cache its id
   heartbeat                    Keep the cached session warm (POST /presence/heartbeat)

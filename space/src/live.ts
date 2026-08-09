@@ -99,6 +99,29 @@ const SCHEMA_STATEMENTS = [
    )`,
   "CREATE INDEX IF NOT EXISTS mentions_recipient ON mentions(recipient_passport_id, acked_at, created_at)",
   "CREATE INDEX IF NOT EXISTS mentions_message ON mentions(message_id)",
+  `CREATE TABLE IF NOT EXISTS post_outbox_v2 (
+     schema_version TEXT NOT NULL CHECK (schema_version = '2.0'),
+     request_id TEXT NOT NULL,
+     space_id TEXT NOT NULL,
+     space_name TEXT NOT NULL,
+     author_passport_id TEXT NOT NULL,
+     command_hash TEXT NOT NULL,
+     message_id TEXT NOT NULL,
+     message_json TEXT NOT NULL,
+     recipients_json TEXT NOT NULL,
+     unknown_recipients_json TEXT NOT NULL,
+     effect_keys_json TEXT NOT NULL,
+     state TEXT NOT NULL CHECK (state IN ('pending', 'processing', 'completed', 'dead_letter')),
+     attempt_count INTEGER NOT NULL DEFAULT 0,
+     last_error TEXT,
+     lease_owner_pid INTEGER,
+     lease_until TEXT,
+     created_at TEXT NOT NULL,
+     updated_at TEXT NOT NULL,
+     completed_at TEXT,
+     PRIMARY KEY (space_id, author_passport_id, request_id)
+   )`,
+  "CREATE INDEX IF NOT EXISTS post_outbox_v2_author_state ON post_outbox_v2(author_passport_id, state, updated_at)",
 ];
 
 export class LiveStore {

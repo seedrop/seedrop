@@ -716,6 +716,7 @@ export const tools: ToolDef[] = [
         space: { type: "string" },
         content: { type: "string" },
         role: { type: "string", enum: ["agent", "human", "system"], default: "agent" },
+        request_id: { type: "string", description: "Stable UUID idempotency key. Reuse it when retrying an uncertain post." },
         url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
         passport: { type: "string", description: "Explicit passport path." },
       },
@@ -729,6 +730,7 @@ export const tools: ToolDef[] = [
       const cmd = ["space", "post", space, content];
       const role = strArg(args, "role");
       if (role && role !== "agent") cmd.push("--role", role);
+      pushStringFlag(cmd, args, "request_id", "--request-id");
       pushClientFlags(cmd, args);
       return exec(cmd);
     },
@@ -750,6 +752,52 @@ export const tools: ToolDef[] = [
       const space = strArg(args, "space");
       if (!space) return error("space is required");
       const cmd = ["space", "messages", space];
+      pushClientFlags(cmd, args);
+      return exec(cmd);
+    },
+  },
+  {
+    name: "seedrop_space_outbox",
+    description: desc("seed space outbox <space> [--state <state>]", "Inspect this passport's completed, pending, processing, or dead-letter post-effect commands."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        space: { type: "string" },
+        state: { type: "string", enum: ["pending", "processing", "completed", "dead_letter"] },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
+      },
+      required: ["space"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const space = strArg(args, "space");
+      if (!space) return error("space is required");
+      const cmd = ["space", "outbox", space];
+      pushStringFlag(cmd, args, "state", "--state");
+      pushClientFlags(cmd, args);
+      return exec(cmd);
+    },
+  },
+  {
+    name: "seedrop_space_outbox_retry",
+    description: desc("seed space outbox-retry <space> <request-id>", "Explicitly reset and retry a pending or dead-letter post command after its underlying failure is repaired."),
+    inputSchema: {
+      type: "object",
+      properties: {
+        space: { type: "string" },
+        request_id: { type: "string" },
+        url: { type: "string", description: "Explicit Seedrop Space daemon URL." },
+        passport: { type: "string", description: "Explicit passport path." },
+      },
+      required: ["space", "request_id"],
+      additionalProperties: false,
+    },
+    async handler(args) {
+      const space = strArg(args, "space");
+      const requestId = strArg(args, "request_id");
+      if (!space || !requestId) return error("space and request_id are required");
+      const cmd = ["space", "outbox-retry", space, requestId];
       pushClientFlags(cmd, args);
       return exec(cmd);
     },
@@ -1064,6 +1112,8 @@ function buildSeedropIndex(): Record<string, Array<{ tool: string; use_when: str
       { tool: "seedrop_space_join", use_when: "Open or join a durable coordination Space.", example: { space: "seedrop-team" } },
       { tool: "seedrop_space_post", use_when: "Post a coordination message to a Space.", example: { space: "seedrop-team", content: "status update" } },
       { tool: "seedrop_space_messages", use_when: "Read recent durable messages from a Space.", example: { space: "seedrop-team" } },
+      { tool: "seedrop_space_outbox", use_when: "Inspect unresolved or completed post effects.", example: { space: "seedrop-team", state: "pending" } },
+      { tool: "seedrop_space_outbox_retry", use_when: "Repair and retry a pending or dead-letter post command.", example: { space: "seedrop-team", request_id: "uuid" } },
       { tool: "seedrop_space_register", use_when: "Register live presence for this agent session.", example: { working_on: "Implementing MCP tools" } },
       { tool: "seedrop_space_heartbeat", use_when: "Refresh live presence after registering.", example: { working_on: "Still validating" } },
       { tool: "seedrop_space_presence", use_when: "List currently live sessions.", example: {} },

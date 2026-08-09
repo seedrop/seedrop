@@ -29,6 +29,8 @@ describe("tools registry", () => {
         "seedrop_space_heartbeat",
         "seedrop_space_join",
         "seedrop_space_messages",
+        "seedrop_space_outbox",
+        "seedrop_space_outbox_retry",
         "seedrop_space_post",
         "seedrop_space_presence",
         "seedrop_space_register",
@@ -82,6 +84,7 @@ describe("tools registry", () => {
     expect(parsed.signal.map((entry) => entry.tool)).toContain("seedrop_signal_claim");
     expect(parsed.signal.map((entry) => entry.tool)).toContain("seedrop_signal_release");
     expect(parsed.space.map((entry) => entry.tool)).toContain("seedrop_space_post");
+    expect(parsed.space.map((entry) => entry.tool)).toContain("seedrop_space_outbox_retry");
     expect(parsed.daemon.map((entry) => entry.tool)).toContain("seedrop_daemon_status");
     expect(parsed.task.map((entry) => entry.tool)).toContain("seedrop_task_create");
     expect(parsed.task.map((entry) => entry.tool)).toContain("seedrop_task_done");
@@ -97,6 +100,8 @@ describe("tools registry", () => {
     expect(log?.inputSchema).toMatchObject({ required: ["mission", "summary"] });
     const post = tools.find((t) => t.name === "seedrop_space_post");
     expect(post?.inputSchema).toMatchObject({ required: ["space", "content"] });
+    const outboxRetry = tools.find((t) => t.name === "seedrop_space_outbox_retry");
+    expect(outboxRetry?.inputSchema).toMatchObject({ required: ["space", "request_id"] });
     const join = tools.find((t) => t.name === "seedrop_space_join");
     expect(join?.inputSchema).toMatchObject({ required: ["space"] });
     const runStart = tools.find((t) => t.name === "seedrop_run_start");
