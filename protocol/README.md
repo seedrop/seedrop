@@ -10,6 +10,14 @@ Seedrop v2's transport-neutral contract boundary. This prototype owns:
   age/state invariant queries, and read-only sweep candidates;
 - hash-chained repair Receipts with actor/evidence, before/after state, structured
   command identity, rollback truth, and recovery ownership;
+- derived operational metrics for idempotency duplicates, CAS conflicts, retries,
+  outbox lag, dead letters, and policy alerts;
+- field-level explanations that either resolve confident values through evidence,
+  policy, projection, and a decision record or preserve a typed unknown;
+- a deterministic compiler whose successful bounded envelopes carry exact full-JSON
+  UTF-8 byte, candidate, index, scan, inclusion, and omission accounting;
+- local-only telemetry defaults plus explicit expiring consent Receipts, exact export
+  scope, payload-category matching, and secret-pattern denial;
 - strict deterministic JSON bytes and SHA-256 digests;
 - a stable error-code registry and wire envelope;
 - independent schema, semantic, command, projection, and wire versions;
@@ -50,12 +58,24 @@ Observer, or Desktop paths.
   pending effects, and sweep queries propose Events without mutating command state.
 - Repair journals are project-local, append-only hash chains. Raw command arguments
   are excluded; command name and canonical input digest preserve audit identity.
+- Operational counters and alerts are derived from immutable Event-backed spans;
+  callers cannot submit a summary that disagrees with the evidence.
+- A resolved material field cannot carry unknown confidence or omit its evidence,
+  policy rule, projection version, value digest, and governing decision. Missing
+  truth remains a typed unknown with an explicit evidence request.
+- A successful bounded compilation always measures the canonical bytes of the whole
+  returned envelope and never exceeds the request. Mandatory truth that cannot fit
+  and scans beyond the declared bound fail with typed errors rather than truncation.
+- Telemetry is local-only when consent is absent, denied, revoked, not yet active, or
+  expired. Authorization additionally requires exact Principal, Project, destination,
+  schema, category, and payload-category scope and rejects secret-pattern findings.
 
 See `docs/adr/0007-v2-canonical-protocol-mechanics.md`,
 `docs/adr/0008-v2-canonical-principal-project-identity.md`,
 `docs/adr/0009-v2-health-envelope-and-disagreement.md`,
-`docs/adr/0010-v2-command-audit-recovery-and-repair-receipts.md`, and the fixtures for the
-frozen decisions, cross-runtime vectors, and sanitized nine-passport machine corpus.
+`docs/adr/0010-v2-command-audit-recovery-and-repair-receipts.md`,
+`docs/adr/0011-v2-explainable-bounded-consented-observability.md`, and the fixtures
+for the frozen cross-runtime vectors and sanitized nine-passport machine corpus.
 
 After building, `node scripts/verify-golden.mjs` verifies those vectors using only
 Node's standard library and the published package output, making the same proof easy
@@ -72,3 +92,7 @@ envelopes from built package output.
 `node scripts/verify-command-recovery-golden.mjs` verifies terminal/recoverable
 command audit trails, age/state reports, a stale-command sweep proposal, and a
 two-entry hash-chained repair journal from built package output.
+
+`node scripts/verify-observability-golden.mjs` checks derived reliability metrics,
+resolved and unknown explanations, exact bounded-output bytes, local-only default,
+explicit consent authorization, and fail-closed budget, secret, and consent paths.

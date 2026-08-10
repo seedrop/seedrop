@@ -126,6 +126,56 @@ export const ERROR_REGISTRY = Object.freeze({
     message: "The append-only repair Receipt journal has a sequence or hash-chain violation.",
     retryable: false,
   },
+  "seedrop.protocol.operational_metrics_invalid": {
+    category: "input",
+    message: "The operational metrics input is malformed or incomplete.",
+    retryable: false,
+  },
+  "seedrop.protocol.operational_metrics_inconsistent": {
+    category: "integrity",
+    message: "The operational metrics summary disagrees with its canonical spans.",
+    retryable: false,
+  },
+  "seedrop.protocol.explanation_trace_invalid": {
+    category: "integrity",
+    message: "The field explanation is missing evidence, policy, projection, or typed unknown state.",
+    retryable: false,
+  },
+  "seedrop.protocol.explanation_trace_inconsistent": {
+    category: "integrity",
+    message: "The field explanation summary disagrees with its canonical evidence trace.",
+    retryable: false,
+  },
+  "seedrop.protocol.budget_invalid": {
+    category: "input",
+    message: "The bounded-output request or candidate accounting is malformed.",
+    retryable: false,
+  },
+  "seedrop.protocol.budget_insufficient": {
+    category: "resource",
+    message: "The requested byte budget cannot contain the mandatory truthful envelope.",
+    retryable: false,
+  },
+  "seedrop.protocol.bounded_scan_exceeded": {
+    category: "resource",
+    message: "The bounded path scanned more candidates than its declared limit permits.",
+    retryable: false,
+  },
+  "seedrop.protocol.telemetry_consent_invalid": {
+    category: "integrity",
+    message: "The telemetry consent Receipt is malformed or internally inconsistent.",
+    retryable: false,
+  },
+  "seedrop.protocol.telemetry_export_denied": {
+    category: "authorization",
+    message: "Telemetry export is denied because explicit matching consent is absent or inactive.",
+    retryable: false,
+  },
+  "seedrop.protocol.telemetry_secret_detected": {
+    category: "authorization",
+    message: "Telemetry export is denied because the payload contains a secret-pattern finding.",
+    retryable: false,
+  },
 } as const);
 
 for (const definition of Object.values(ERROR_REGISTRY)) Object.freeze(definition);

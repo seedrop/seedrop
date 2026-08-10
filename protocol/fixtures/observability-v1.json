@@ -1,0 +1,215 @@
+{
+  "fixture_version": "1.0.0",
+  "metrics_input": {
+    "generated_at": "2026-08-10T12:00:10.000Z",
+    "policy": {
+      "policy_id": "seedrop.kernel.visibility",
+      "policy_version": "1.0.0",
+      "maximum_retries_per_command": 1,
+      "outbox_lag_slo_ms": 5000
+    },
+    "spans": [
+      {
+        "event_id": "sd_evt_0191416f-4495-7011-a233-445566778899",
+        "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+        "command_id": "sd_cmd_0191416f-4495-7011-a233-445566778899",
+        "kind": "duplicate_idempotency",
+        "operation": "intent.complete",
+        "observed_at": "2026-08-10T12:00:00.000Z",
+        "duration_ms": 1,
+        "attempt": 0,
+        "outbox_lag_ms": null,
+        "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889a",
+        "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+        "command_id": "sd_cmd_0191416f-4495-7011-a233-445566778899",
+        "kind": "cas_conflict",
+        "operation": "intent.complete",
+        "observed_at": "2026-08-10T12:00:01.000Z",
+        "duration_ms": 2,
+        "attempt": 1,
+        "outbox_lag_ms": null,
+        "evidence_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      {
+        "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889b",
+        "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+        "command_id": "sd_cmd_0191416f-4495-7011-a233-445566778899",
+        "kind": "retry",
+        "operation": "intent.complete",
+        "observed_at": "2026-08-10T12:00:02.000Z",
+        "duration_ms": 20,
+        "attempt": 1,
+        "outbox_lag_ms": null,
+        "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889c",
+        "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+        "command_id": "sd_cmd_0191416f-4495-7011-a233-445566778899",
+        "kind": "retry",
+        "operation": "intent.complete",
+        "observed_at": "2026-08-10T12:00:03.000Z",
+        "duration_ms": 30,
+        "attempt": 2,
+        "outbox_lag_ms": null,
+        "evidence_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      {
+        "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889d",
+        "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+        "command_id": "sd_cmd_0191416f-4495-7011-a233-44556677889a",
+        "kind": "outbox_lag",
+        "operation": "space.post.effects",
+        "observed_at": "2026-08-10T12:00:04.000Z",
+        "duration_ms": 4,
+        "attempt": 1,
+        "outbox_lag_ms": 2000,
+        "evidence_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "event_id": "sd_evt_0191416f-4495-7011-a233-44556677889e",
+        "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+        "command_id": "sd_cmd_0191416f-4495-7011-a233-44556677889a",
+        "kind": "outbox_dead_letter",
+        "operation": "space.post.effects",
+        "observed_at": "2026-08-10T12:00:05.000Z",
+        "duration_ms": 5,
+        "attempt": 3,
+        "outbox_lag_ms": 7500,
+        "evidence_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ]
+  },
+  "explanation_inputs": [
+    {
+      "situation_id": "sd_sit_0191416f-4495-7011-a233-445566778899",
+      "field": "next_action.command",
+      "status": "resolved",
+      "confidence": "confirmed",
+      "value_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "projection_version": "1.0.0",
+      "policy": {
+        "policy_id": "seedrop.boot.next-action",
+        "policy_version": "1.0.0",
+        "rule_id": "highest-safe-priority"
+      },
+      "decision_record_id": "sd_evt_0191416f-4495-7011-a233-445566778899",
+      "evidence": [
+        {
+          "record_id": "sd_evt_0191416f-4495-7011-a233-445566778899",
+          "source_id": "project-events",
+          "role": "decision",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "observed_at": "2026-08-10T11:59:58.000Z"
+        },
+        {
+          "record_id": "sd_clm_0191416f-4495-7011-a233-445566778899",
+          "source_id": "git",
+          "role": "candidate-evidence",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed_at": "2026-08-10T11:59:57.000Z"
+        }
+      ],
+      "unknown": null
+    },
+    {
+      "situation_id": "sd_sit_0191416f-4495-7011-a233-445566778899",
+      "field": "outcome.delivery.observed",
+      "status": "unknown",
+      "confidence": "unknown",
+      "value_digest": null,
+      "projection_version": "1.0.0",
+      "policy": {
+        "policy_id": "seedrop.outcome.delivery",
+        "policy_version": "1.0.0",
+        "rule_id": "receipt-required"
+      },
+      "decision_record_id": null,
+      "evidence": [],
+      "unknown": {
+        "code": "delivery_receipt_missing",
+        "message": "No recipient or deployment observation Receipt exists.",
+        "requested_evidence": [
+          "deployment receipt",
+          "recipient observation receipt"
+        ]
+      }
+    }
+  ],
+  "budget_input": {
+    "requested_bytes": 4096,
+    "maximum_scanned_count": 1,
+    "candidates": [
+      {
+        "candidate_id": "unicode",
+        "category": "context",
+        "acquisition": "scan",
+        "required": false,
+        "priority": 5,
+        "value": { "note": "Zażółć 🪴" }
+      },
+      {
+        "candidate_id": "risk",
+        "category": "risk",
+        "acquisition": "index",
+        "required": false,
+        "priority": 10,
+        "value": { "level": "medium" }
+      },
+      {
+        "candidate_id": "mission",
+        "category": "mission",
+        "acquisition": "index",
+        "required": true,
+        "priority": 100,
+        "value": { "goal": "Ship bounded truth" }
+      }
+    ]
+  },
+  "consent_input": {
+    "receipt_id": "sd_rcp_0191416f-4495-7011-a233-445566778899",
+    "principal_id": "sd_prn_0191416f-4495-7011-a233-445566778899",
+    "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+    "decision": "granted",
+    "issued_at": "2026-08-10T12:00:00.000Z",
+    "expires_at": "2026-09-10T12:00:00.000Z",
+    "purpose": "Export aggregate reliability evidence for an operator-approved pilot.",
+    "scope": {
+      "categories": ["outbox_health", "command_recovery"],
+      "destination": "https://telemetry.example.invalid/v1",
+      "schema_id": "seedrop.reliability",
+      "schema_version": "1.0.0"
+    },
+    "evidence_record_id": "sd_clm_0191416f-4495-7011-a233-445566778899"
+  },
+  "export_request": {
+    "principal_id": "sd_prn_0191416f-4495-7011-a233-445566778899",
+    "project_id": "sd_prj_0191416f-4495-7011-a233-445566778899",
+    "requested_at": "2026-08-10T12:01:00.000Z",
+    "destination": "https://telemetry.example.invalid/v1",
+    "schema_id": "seedrop.reliability",
+    "schema_version": "1.0.0",
+    "categories": ["outbox_health", "command_recovery"],
+    "payload": {
+      "command_recovery": { "retry_count": 2 },
+      "outbox_health": { "dead_letter_count": 1, "maximum_lag_ms": 7500 }
+    }
+  },
+  "expected": {
+    "metrics_digest": "sha256:ceabc824d1b3a8faf94dbe97c66129541ee280b1127c95c311fb639a2febdec5",
+    "explanations_digest": "sha256:f1eecb37e8ccdcafedd86836375c757c43d8f0ff4e51076bac0945888514babc",
+    "bounded_output_digest": "sha256:85b6712de588e7f95a1c15b7378e1691f1a26576cc197ee7f609499ccb530ba5",
+    "bounded_actual_bytes": 466,
+    "authorization_digest": "sha256:e3ca36ca2ff210d1b7ef09ad079a408b006749e9888218d7c0efa1d87c09ea82",
+    "metric_alert_count": 3,
+    "resolved_explanation_count": 1,
+    "unknown_explanation_count": 1,
+    "local_only_without_consent": true,
+    "no_consent_denied": true,
+    "secret_payload_denied": true,
+    "insufficient_budget_denied": true
+  }
+}

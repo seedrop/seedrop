@@ -1,5 +1,5 @@
 {
-  "fixture_version": "1.3.0",
+  "fixture_version": "1.4.0",
   "id_kind_codes": {
     "principal": "prn",
     "project": "prj",
@@ -68,6 +68,16 @@
     "seedrop.protocol.command_transition_invalid": { "category": "conflict", "message": "The command phase transition is not permitted by the command protocol.", "retryable": false },
     "seedrop.protocol.command_unrecoverable": { "category": "integrity", "message": "A nonterminal command has no valid recovery path or a terminal command retains one.", "retryable": false },
     "seedrop.protocol.repair_receipt_invalid": { "category": "integrity", "message": "The repair Receipt is malformed, incomplete, or contradicts its outcome.", "retryable": false },
-    "seedrop.protocol.repair_journal_invalid": { "category": "integrity", "message": "The append-only repair Receipt journal has a sequence or hash-chain violation.", "retryable": false }
+    "seedrop.protocol.repair_journal_invalid": { "category": "integrity", "message": "The append-only repair Receipt journal has a sequence or hash-chain violation.", "retryable": false },
+    "seedrop.protocol.operational_metrics_invalid": { "category": "input", "message": "The operational metrics input is malformed or incomplete.", "retryable": false },
+    "seedrop.protocol.operational_metrics_inconsistent": { "category": "integrity", "message": "The operational metrics summary disagrees with its canonical spans.", "retryable": false },
+    "seedrop.protocol.explanation_trace_invalid": { "category": "integrity", "message": "The field explanation is missing evidence, policy, projection, or typed unknown state.", "retryable": false },
+    "seedrop.protocol.explanation_trace_inconsistent": { "category": "integrity", "message": "The field explanation summary disagrees with its canonical evidence trace.", "retryable": false },
+    "seedrop.protocol.budget_invalid": { "category": "input", "message": "The bounded-output request or candidate accounting is malformed.", "retryable": false },
+    "seedrop.protocol.budget_insufficient": { "category": "resource", "message": "The requested byte budget cannot contain the mandatory truthful envelope.", "retryable": false },
+    "seedrop.protocol.bounded_scan_exceeded": { "category": "resource", "message": "The bounded path scanned more candidates than its declared limit permits.", "retryable": false },
+    "seedrop.protocol.telemetry_consent_invalid": { "category": "integrity", "message": "The telemetry consent Receipt is malformed or internally inconsistent.", "retryable": false },
+    "seedrop.protocol.telemetry_export_denied": { "category": "authorization", "message": "Telemetry export is denied because explicit matching consent is absent or inactive.", "retryable": false },
+    "seedrop.protocol.telemetry_secret_detected": { "category": "authorization", "message": "Telemetry export is denied because the payload contains a secret-pattern finding.", "retryable": false }
   }
 }
