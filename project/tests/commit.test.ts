@@ -1,9 +1,9 @@
 import { hostname } from "node:os";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { ProtocolError, projectTransactionDigest } from "@seedrop/protocol";
+import { ProtocolError, canonicalJsonBytes, projectTransactionDigest } from "@seedrop/protocol";
 import {
   acquireProjectWriterLock,
   commitProjectTransaction,
@@ -100,7 +100,7 @@ describe("project writer lock", () => {
     const root = await tempRoot();
     const layout = projectStoreLayout(root);
     await mkdir(layout.writer_lock, { recursive: true });
-    await writeFile(join(layout.writer_lock, "owner.json"), JSON.stringify({
+    await writeFile(join(layout.writer_lock, "owner.json"), canonicalJsonBytes({
       schema_version: "1.0",
       token: "dead-owner",
       hostname: hostname(),
@@ -116,6 +116,45 @@ describe("project writer lock", () => {
     await held.assertOwned();
     await held.release();
     await expect(readFile(join(layout.writer_lock, "owner.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("fails closed without deleting malformed writer-lock evidence", async () => {
+    const root = await tempRoot();
+    const layout = projectStoreLayout(root);
+    const ownerPath = join(layout.writer_lock, "owner.json");
+    await mkdir(layout.writer_lock, { recursive: true });
+    await writeFile(ownerPath, "{\"truncated\":");
+    await expect(acquireProjectWriterLock(root, {
+      acquisition_timeout_ms: 20,
+      poll_interval_ms: 2,
+      stale_after_ms: 1,
+    })).rejects.toMatchObject({
+      code: "seedrop.protocol.project_transaction_conflict",
+      details: { reason: "writer_lock_invalid", diagnostic_code: "invalid_json" },
+    });
+    expect(await readFile(ownerPath, "utf8")).toBe("{\"truncated\":");
+  });
+
+  it("returns a typed conflict and preserves an unreadable writer-lock owner", async () => {
+    const root = await tempRoot();
+    const layout = projectStoreLayout(root);
+    const ownerPath = join(layout.writer_lock, "owner.json");
+    await mkdir(layout.writer_lock, { recursive: true });
+    await writeFile(ownerPath, "evidence");
+    await chmod(ownerPath, 0o000);
+    try {
+      await expect(acquireProjectWriterLock(root, {
+        acquisition_timeout_ms: 20,
+        poll_interval_ms: 2,
+        stale_after_ms: 1,
+      })).rejects.toMatchObject({
+        code: "seedrop.protocol.project_transaction_conflict",
+        details: { reason: "writer_lock_unreadable", error_code: "EACCES" },
+      });
+    } finally {
+      await chmod(ownerPath, 0o600);
+    }
+    expect(await readFile(ownerPath, "utf8")).toBe("evidence");
   });
 });
 

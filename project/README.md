@@ -24,10 +24,20 @@ commands, or duplicate Events, and emits a deterministic projection with source-
 digest, high watermark, lag, and quarantine diagnostics. The persisted JSON index is
 derived only: deleting and rebuilding it produces the same canonical projection bytes.
 
+`inspectProjectSituation` joins canonical scan evidence with the other physical
+artifact families: staging files, the disposable projection index, and writer-lock
+ownership. It returns metadata (path, digest, byte length, typed diagnostic,
+and repair pointer) plus a protocol `HealthEnvelope`; it never embeds or deletes
+source bytes. Canonical transaction damage is corrupt and makes checked queries
+incomplete. Derived-index, staging, or lock damage is degraded, so
+`queryProjectWorkReceipts` can still return canonical results together with the fault.
+
 Wave 3 expected-version commits add a project-local cross-process writer lock around
 snapshot validation, immutable publication, and projection rebuild. A live local
 process lock is never stolen. An expired lock is recovered automatically only when
 its owning local PID is provably dead; unknown or remote ownership fails closed.
+Malformed, noncanonical, or unreadable lock-owner bytes also fail closed and remain
+in place for authorized repair; they are never reclassified as an absent owner.
 While holding the lock, the store compares both the observed high watermark and the
 transaction predecessor with the caller's expected version. A stale writer publishes
 nothing. A crash after immutable publication is recovered by retrying the same

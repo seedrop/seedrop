@@ -10,6 +10,8 @@ export type {
   LeaseProjectionRecord,
   ProjectArtifactDiagnostic,
   ProjectArtifactDiagnosticCode,
+  ProjectArtifactEvidence,
+  ProjectArtifactFamily,
   ProjectCommitBoundary,
   ProjectCommitOptions,
   ProjectCommitReceipt,
@@ -23,9 +25,12 @@ export type {
   ProjectPublishReceipt,
   ProjectSourceArtifact,
   ProjectStoredTransaction,
+  ProjectSituation,
+  ProjectSituationOptions,
   ProjectStoreLayout,
   ProjectTransactionReference,
   ProjectWriterLockOptions,
+  ProjectWorkReceiptQueryResult,
   WorkProjection,
   WorkReceiptProjectionRecord,
   WorkReceiptQuery,
@@ -61,3 +66,8 @@ export {
   rebuildProjectProjection,
   reduceProjectTransactions,
 } from "./projection.js";
+
+export {
+  inspectProjectSituation,
+  queryProjectWorkReceipts,
+} from "./situation.js";

@@ -4,6 +4,7 @@ import type {
   EpisodeRecord,
   IntentRecord,
   JsonValue,
+  HealthEnvelope,
   LeaseRecord,
   LifecycleState,
   ProjectTransaction,
@@ -16,13 +17,14 @@ export const PROJECT_PROJECTION_VERSION = "1.0.0" as const;
 export const WORK_PROJECTION_VERSION = "1.0.0" as const;
 
 export const PROJECT_PACKAGE_CONTRACT = Object.freeze({
-  schema_version: "1.0",
+  schema_version: "1.1",
   package_name: "@seedrop/project",
   role: "project_record",
   owns: Object.freeze([
     "canonical_project_transactions",
     "project_receipts",
     "project_projections",
+    "project_health_and_quarantine",
   ] as const),
   depends_on: Object.freeze(["@seedrop/protocol"] as const),
   excludes: Object.freeze([
@@ -224,4 +226,38 @@ export interface WorkReceiptQuery {
   command_id?: CanonicalId<"command">;
   principal_id?: CanonicalId<"principal">;
   subject_id?: CanonicalId;
+}
+
+export type ProjectArtifactFamily = "transaction" | "staging" | "projection_index" | "writer_lock";
+
+export interface ProjectArtifactEvidence {
+  family: ProjectArtifactFamily;
+  path: string;
+  status: "valid" | "absent" | "quarantined";
+  byte_length: number | null;
+  expected_digest: ProjectTransactionDigest | null;
+  actual_digest: ProjectTransactionDigest | null;
+  code?: string;
+  error_code?: string;
+  repair?: string;
+}
+
+export interface ProjectSituationOptions {
+  observed_at: string;
+  requested_bytes?: number;
+}
+
+export interface ProjectSituation {
+  project_id: CanonicalId<"project">;
+  scan: ProjectLogScan;
+  projection: ProjectProjection;
+  artifacts: readonly ProjectArtifactEvidence[];
+  health: HealthEnvelope;
+}
+
+export interface ProjectWorkReceiptQueryResult {
+  complete: boolean;
+  receipts: readonly WorkReceiptProjectionRecord[];
+  artifacts: readonly ProjectArtifactEvidence[];
+  health: HealthEnvelope;
 }

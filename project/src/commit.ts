@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
-import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { mkdir, open, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
   canonicalJsonBytes,
@@ -8,6 +8,11 @@ import {
   protocolError,
 } from "@seedrop/protocol";
 import { projectStoreLayout } from "./layout.js";
+import {
+  PROJECT_WRITER_LOCK_OWNER_FILE,
+  readProjectWriterLockOwner,
+} from "./lock-owner.js";
+import type { ProjectWriterLockOwner } from "./lock-owner.js";
 import { projectProjectionDigest, rebuildProjectProjection, reduceProjectTransactions } from "./projection.js";
 import { publishProjectTransaction, scanProjectTransactions } from "./store.js";
 import type {
@@ -20,17 +25,6 @@ import type {
 const DEFAULT_ACQUISITION_TIMEOUT_MS = 5_000;
 const DEFAULT_STALE_AFTER_MS = 30_000;
 const DEFAULT_POLL_INTERVAL_MS = 10;
-const LOCK_OWNER_FILE = "owner.json";
-
-interface ProjectWriterLockOwner {
-  schema_version: "1.0";
-  token: string;
-  hostname: string;
-  pid: number;
-  acquired_at: string;
-  stale_after: string;
-}
-
 export interface HeldProjectWriterLock {
   assertOwned(): Promise<void>;
   release(): Promise<void>;
@@ -128,7 +122,7 @@ export async function acquireProjectWriterLock(
     });
     try {
       await mkdir(layout.writer_lock);
-      const ownerPath = join(layout.writer_lock, LOCK_OWNER_FILE);
+      const ownerPath = join(layout.writer_lock, PROJECT_WRITER_LOCK_OWNER_FILE);
       const handle = await open(ownerPath, "wx", 0o600);
       try {
         await handle.writeFile(canonicalJsonBytes(owner));
@@ -157,8 +151,9 @@ function heldLock(lockPath: string, locksDir: string, owner: ProjectWriterLockOw
   let released = false;
   const assertOwned = async (): Promise<void> => {
     if (released) throw lockLost();
-    const observed = await readLockOwner(lockPath);
-    if (observed?.token !== owner.token || observed.pid !== owner.pid || observed.hostname !== owner.hostname) throw lockLost();
+    const observed = await readProjectWriterLockOwner(lockPath);
+    if (observed.status !== "valid" || observed.owner.token !== owner.token
+      || observed.owner.pid !== owner.pid || observed.owner.hostname !== owner.hostname) throw lockLost();
   };
   return {
     assertOwned,
@@ -179,13 +174,14 @@ async function recoverDeadLocalLock(
   now: number,
   staleAfterMs: number,
 ): Promise<void> {
-  const owner = await readLockOwner(lockPath);
+  const observed = await readProjectWriterLockOwner(lockPath);
   let stale = false;
-  if (owner) {
+  if (observed.status === "valid") {
+    const owner = observed.owner;
     stale = owner.hostname === localHostname
       && Date.parse(owner.stale_after) <= now
       && !isProcessAlive(owner.pid);
-  } else {
+  } else if (observed.status === "missing_owner") {
     try {
       const info = await stat(lockPath);
       stale = now - info.mtimeMs >= staleAfterMs;
@@ -193,6 +189,28 @@ async function recoverDeadLocalLock(
       if (errorCode(error) === "ENOENT") return;
       throw error;
     }
+  } else if (observed.status === "absent_lock") {
+    return;
+  } else {
+    // mkdir(owner lock) and writing owner.json are separate filesystem steps. A
+    // concurrent contender may briefly observe empty/partial bytes; treat that
+    // bounded publication window as busy, then fail closed once it is stale.
+    let lockAgeMs = staleAfterMs;
+    try {
+      const info = await stat(lockPath);
+      lockAgeMs = now - info.mtimeMs;
+      if (lockAgeMs < staleAfterMs) return;
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") return;
+      throw error;
+    }
+    throw protocolError("seedrop.protocol.project_transaction_conflict", {
+      reason: observed.status === "read_failed" ? "writer_lock_unreadable" : "writer_lock_invalid",
+      lock_path: "locks/project-writer.lock/owner.json",
+      lock_age_ms: Math.max(0, Math.floor(lockAgeMs)),
+      stale_after_ms: staleAfterMs,
+      ...(observed.status === "read_failed" ? { error_code: observed.error_code } : { diagnostic_code: observed.code }),
+    });
   }
   if (!stale) return;
   const quarantine = join(locksDir, `.stale-project-writer.${randomUUID()}`);
@@ -205,20 +223,6 @@ async function recoverDeadLocalLock(
   await syncDirectory(locksDir);
   await rm(quarantine, { recursive: true, force: true });
   await syncDirectory(locksDir);
-}
-
-async function readLockOwner(lockPath: string): Promise<ProjectWriterLockOwner | null> {
-  try {
-    const value = JSON.parse(await readFile(join(lockPath, LOCK_OWNER_FILE), "utf8")) as Partial<ProjectWriterLockOwner>;
-    if (value.schema_version !== "1.0" || typeof value.token !== "string" || typeof value.hostname !== "string"
-      || !Number.isSafeInteger(value.pid) || (value.pid ?? 0) <= 0 || typeof value.acquired_at !== "string"
-      || typeof value.stale_after !== "string" || !Number.isFinite(Date.parse(value.acquired_at))
-      || !Number.isFinite(Date.parse(value.stale_after))) return null;
-    return value as ProjectWriterLockOwner;
-  } catch (error) {
-    if (errorCode(error) === "ENOENT" || error instanceof SyntaxError) return null;
-    throw error;
-  }
 }
 
 function assertCompleteProjection(

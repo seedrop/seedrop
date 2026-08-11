@@ -9,10 +9,10 @@ import {
 describe("@seedrop/project package contract", () => {
   it("owns repo truth while importing semantics only from protocol", () => {
     expect(PROJECT_PACKAGE_CONTRACT).toEqual({
-      schema_version: "1.0",
+      schema_version: "1.1",
       package_name: "@seedrop/project",
       role: "project_record",
-      owns: ["canonical_project_transactions", "project_receipts", "project_projections"],
+      owns: ["canonical_project_transactions", "project_receipts", "project_projections", "project_health_and_quarantine"],
       depends_on: ["@seedrop/protocol"],
       excludes: ["adapter_policy", "command_authorization", "machine_coordination", "v1_writer_connection"],
     });
