@@ -33,6 +33,14 @@ they are not adapter policy. `published_unconfirmed` means the whole transaction
 visible to an ordinary restarted process after the atomic link, but power-loss
 durability is claimed only after the containing-directory sync.
 
+`npm run test:concurrency -w @seedrop/kernel` runs the real multi-process proof at
+2, 8, and 32 independent Node processes. Its CAS workers first observe the same
+project head, then race through the filesystem writer lock, explicitly retry stale
+versions, and prove every acknowledged digest survives in the final canonical chain.
+Separate native-open races prove that one idempotency scope resolves to one Command
+and transaction across different requested Command IDs, and that one shared Lease
+target has exactly one winner while every loser returns a typed conflict.
+
 `createNativeWorkCommandDefinitions` supplies the first complete domain path:
 `seedrop.work.open` atomically creates an active Intent/Episode with scope Claim,
 Receipt, and Lease; `seedrop.work.finish` records completion and outcome truth,
