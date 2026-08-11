@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "packages": {
+    "@seedrop/protocol": {
+      "workspace": "protocol",
+      "role": "domain_contract",
+      "owns": [
+        "commands",
+        "events",
+        "identifiers",
+        "schemas",
+        "state_transitions",
+        "versions"
+      ],
+      "allowed_internal_dependencies": []
+    },
+    "@seedrop/kernel": {
+      "workspace": "kernel",
+      "role": "command_kernel",
+      "owns": [
+        "state_changing_command_execution"
+      ],
+      "allowed_internal_dependencies": [
+        "@seedrop/protocol"
+      ]
+    },
+    "@seedrop/project": {
+      "workspace": "project",
+      "role": "project_record",
+      "owns": [
+        "canonical_project_transactions",
+        "project_receipts",
+        "project_projections"
+      ],
+      "allowed_internal_dependencies": [
+        "@seedrop/protocol"
+      ]
+    }
+  },
+  "adapters": {
+    "@seedrop/cli": ["transport", "presentation"],
+    "@seedrop/mcp": ["transport", "presentation"],
+    "@seedrop/observer": ["observation_adapter"],
+    "@seedrop/bench": ["evaluation_adapter", "presentation"],
+    "@seedrop/desktop": ["transport", "presentation"]
+  },
+  "shadow_only_packages": [
+    "@seedrop/kernel",
+    "@seedrop/project"
+  ],
+  "rules": {
+    "adapters_own_domain_semantics": false,
+    "v1_writers_remain_authoritative": true,
+    "custom_database_is_main_path": false
+  }
+}

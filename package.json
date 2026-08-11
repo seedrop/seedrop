@@ -3,6 +3,8 @@
   "private": true,
   "workspaces": [
     "protocol",
+    "kernel",
+    "project",
     "id",
     "space",
     "cli",
@@ -13,7 +15,9 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
-    "test": "npm test --workspaces",
+    "test": "npm run test:architecture && npm test --workspaces",
+    "check:architecture": "node scripts/check-package-boundaries.mjs",
+    "test:architecture": "node --test scripts/check-package-boundaries.test.mjs",
     "check:durable-v1": "node scripts/check-durable-v1-freeze.mjs check",
     "test:durable-v1-freeze": "node --test scripts/check-durable-v1-freeze.test.mjs",
     "link": "npm run build --workspace @seedrop/space --workspace @seedrop/id && npm link --workspace @seedrop/cli && npm link --workspace @seedrop/mcp && npm link --workspace @seedrop/id && npm link --workspace @seedrop/bench",
