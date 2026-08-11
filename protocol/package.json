@@ -26,6 +26,8 @@
     "verify:identity-corpus:live": "npm run build && node scripts/verify-identity-corpus.mjs --live",
     "verify:health-golden": "npm run build && node scripts/verify-health-golden.mjs",
     "verify:command-recovery-golden": "npm run build && node scripts/verify-command-recovery-golden.mjs",
+    "generate:project-transaction": "npm run build && node scripts/generate-project-transaction-golden.mjs --write",
+    "verify:project-transaction": "npm run build && node scripts/verify-project-transaction-golden.mjs",
     "verify:observability-golden": "npm run build && node scripts/verify-observability-golden.mjs",
     "verify:protocol-generation": "npm run build && node scripts/verify-protocol-generation.mjs",
     "verify:state-model": "npm run build && npm run check:artifacts && npm run check:state-model",

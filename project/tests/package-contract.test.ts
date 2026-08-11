@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { PROJECT_PACKAGE_CONTRACT } from "../src/index.js";
+import {
+  PROJECT_PACKAGE_CONTRACT,
+  PROJECT_PROJECTION_VERSION,
+  PROJECT_STORE_LAYOUT_VERSION,
+} from "../src/index.js";
 
 describe("@seedrop/project package contract", () => {
   it("owns repo truth while importing semantics only from protocol", () => {
@@ -13,5 +17,7 @@ describe("@seedrop/project package contract", () => {
     });
     expect(Object.isFrozen(PROJECT_PACKAGE_CONTRACT)).toBe(true);
     expect(Object.isFrozen(PROJECT_PACKAGE_CONTRACT.owns)).toBe(true);
+    expect(PROJECT_STORE_LAYOUT_VERSION).toBe("1.0.0");
+    expect(PROJECT_PROJECTION_VERSION).toBe("1.0.0");
   });
 });

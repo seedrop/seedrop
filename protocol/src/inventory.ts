@@ -101,6 +101,8 @@ export const PROTOCOL_SURFACES = Object.freeze([
   surface("ProjectRegistry", "src/identity.ts", "registry", "Project", "registry_version", "IDENTITY_REGISTRY_VERSION", null, "assertProjectRegistry"),
   surface("HealthEnvelope", "src/health.ts", "projection", "Situation", "health_version", "HEALTH_ENVELOPE_VERSION", "buildHealthEnvelope", "assertHealthEnvelope"),
   surface("CommandAuditTrail", "src/commands.ts", "durable_record", "Event", "audit_version", "COMMAND_AUDIT_VERSION", "buildCommandAuditTrail", "assertCommandAuditTrail"),
+  surface("ProjectEventEnvelope", "src/project-transactions.ts", "durable_record", "Event", "event_version", "PROJECT_EVENT_VERSION", "buildProjectEvent", "assertProjectEvent"),
+  surface("ProjectTransaction", "src/project-transactions.ts", "durable_record", "Project", "transaction_version", "PROJECT_TRANSACTION_VERSION", "buildProjectTransaction", "assertProjectTransaction"),
   surface("SweepCandidateEvent", "src/commands.ts", "proposal", "Event", "sweep_candidate_version", "SWEEP_CANDIDATE_VERSION", "findCommandSweepCandidates", null),
   surface("RepairReceipt", "src/repairs.ts", "durable_record", "Receipt", "receipt_version", "REPAIR_RECEIPT_VERSION", "buildRepairReceipt", "assertRepairReceipt"),
   surface("OperationalMetricsSnapshot", "src/observability.ts", "projection", "Situation", "metrics_version", "OPERATIONAL_METRICS_VERSION", "buildOperationalMetricsSnapshot", "assertOperationalMetricsSnapshot"),
@@ -116,7 +118,6 @@ export const PROTOCOL_GAPS = Object.freeze([
   gap("claim_record", "Claim", "kernel", "Explanation evidence exists, but the canonical Claim record is not implemented."),
   gap("receipt_record", "Receipt", "kernel", "Concrete repair and consent Receipts exist; the general Receipt contract is not implemented."),
   gap("lease_record", "Lease", "coordination", "The lifecycle is frozen, but no native v2 Lease record or command exists."),
-  gap("event_envelope", "Event", "kernel", "Audit entries and proposals exist, but the canonical atomic Event envelope is not implemented."),
   gap("situation_envelope", "Situation", "projection", "Health and bounded projections exist, but the complete Situation envelope is not implemented."),
   gap("event_type_registry", "Event", "kernel", "Event names remain open until native kernel commands freeze the complete registry."),
   gap("command_name_registry", null, "kernel", "CommandAuditTrail accepts a non-empty command name; the native command registry is not frozen."),
@@ -132,13 +133,13 @@ export const PUBLIC_EVENT_TYPES = Object.freeze([
 
 export const PUBLIC_NOUNS = Object.freeze([
   noun("Principal", "machine", "implemented", ["PrincipalRecord", "PrincipalRegistry"], []),
-  noun("Project", "mixed", "implemented", ["ProjectRecord", "ProjectRegistry"], []),
+  noun("Project", "mixed", "implemented", ["ProjectRecord", "ProjectRegistry", "ProjectTransaction"], []),
   noun("Intent", "project", "declared", [], ["intent_record"]),
   noun("Episode", "project", "declared", [], ["episode_record"]),
   noun("Claim", "mixed", "partial", ["FieldExplanationTrace"], ["claim_record"]),
   noun("Receipt", "external", "partial", ["RepairReceipt", "TelemetryConsentReceipt", "TelemetryExportAuthorization"], ["receipt_record"]),
   noun("Lease", "machine", "declared", [], ["lease_record"]),
-  noun("Event", "project", "partial", ["CommandAuditTrail", "SweepCandidateEvent"], ["event_envelope", "event_type_registry"]),
+  noun("Event", "project", "partial", ["CommandAuditTrail", "ProjectEventEnvelope", "SweepCandidateEvent"], ["event_type_registry"]),
   noun("Situation", "projection", "partial", ["HealthEnvelope", "OperationalMetricsSnapshot", "BoundedOutputEnvelope"], ["situation_envelope"]),
 ] as const satisfies readonly ProtocolNoun[]);
 

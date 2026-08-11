@@ -165,6 +165,31 @@
         "message": "The operational metrics input is malformed or incomplete.",
         "retryable": false
       },
+      "seedrop.protocol.project_event_invalid": {
+        "category": "input",
+        "message": "The project Event envelope is malformed or incomplete.",
+        "retryable": false
+      },
+      "seedrop.protocol.project_projection_inconsistent": {
+        "category": "integrity",
+        "message": "The project projection does not reconcile with its canonical transaction sources.",
+        "retryable": false
+      },
+      "seedrop.protocol.project_transaction_conflict": {
+        "category": "conflict",
+        "message": "The project transaction set contains a fork, duplicate identity, or version-chain conflict.",
+        "retryable": false
+      },
+      "seedrop.protocol.project_transaction_digest_mismatch": {
+        "category": "integrity",
+        "message": "The project transaction bytes do not match their content address.",
+        "retryable": false
+      },
+      "seedrop.protocol.project_transaction_invalid": {
+        "category": "integrity",
+        "message": "The project transaction is malformed, incomplete, or internally inconsistent.",
+        "retryable": false
+      },
       "seedrop.protocol.repair_journal_invalid": {
         "category": "integrity",
         "message": "The append-only repair Receipt journal has a sequence or hash-chain violation.",
@@ -256,12 +281,6 @@
         "id": "lease_record",
         "noun": "Lease",
         "reason": "The lifecycle is frozen, but no native v2 Lease record or command exists."
-      },
-      {
-        "boundary": "kernel",
-        "id": "event_envelope",
-        "noun": "Event",
-        "reason": "Audit entries and proposals exist, but the canonical atomic Event envelope is not implemented."
       },
       {
         "boundary": "projection",
@@ -458,7 +477,8 @@
         "gap_ids": [],
         "implemented_surfaces": [
           "ProjectRecord",
-          "ProjectRegistry"
+          "ProjectRegistry",
+          "ProjectTransaction"
         ],
         "name": "Project"
       },
@@ -517,11 +537,11 @@
         "authority": "project",
         "contract_status": "partial",
         "gap_ids": [
-          "event_envelope",
           "event_type_registry"
         ],
         "implemented_surfaces": [
           "CommandAuditTrail",
+          "ProjectEventEnvelope",
           "SweepCandidateEvent"
         ],
         "name": "Event"
@@ -620,6 +640,26 @@
         "validator": "assertCommandAuditTrail",
         "version_constant": "COMMAND_AUDIT_VERSION",
         "version_field": "audit_version"
+      },
+      {
+        "builder": "buildProjectEvent",
+        "name": "ProjectEventEnvelope",
+        "noun": "Event",
+        "role": "durable_record",
+        "source_file": "src/project-transactions.ts",
+        "validator": "assertProjectEvent",
+        "version_constant": "PROJECT_EVENT_VERSION",
+        "version_field": "event_version"
+      },
+      {
+        "builder": "buildProjectTransaction",
+        "name": "ProjectTransaction",
+        "noun": "Project",
+        "role": "durable_record",
+        "source_file": "src/project-transactions.ts",
+        "validator": "assertProjectTransaction",
+        "version_constant": "PROJECT_TRANSACTION_VERSION",
+        "version_field": "transaction_version"
       },
       {
         "builder": "findCommandSweepCandidates",
@@ -739,11 +779,11 @@
     ]
   },
   "coverage": {
-    "gap_count": 9,
+    "gap_count": 8,
     "noun_count": 9,
-    "public_type_export_count": 122,
-    "public_value_export_count": 97,
-    "surface_count": 15
+    "public_type_export_count": 127,
+    "public_value_export_count": 105,
+    "surface_count": 17
   },
   "generated_from": [
     "src/index.ts",
@@ -780,6 +820,14 @@
       {
         "name": "BuildOperationalMetricsInput",
         "source": "./observability.js"
+      },
+      {
+        "name": "BuildProjectEventInput",
+        "source": "./project-transactions.js"
+      },
+      {
+        "name": "BuildProjectTransactionInput",
+        "source": "./project-transactions.js"
       },
       {
         "name": "BuildRepairReceiptInput",
@@ -1070,6 +1118,10 @@
         "source": "./identity.js"
       },
       {
+        "name": "ProjectEventEnvelope",
+        "source": "./project-transactions.js"
+      },
+      {
         "name": "ProjectPlacementKind",
         "source": "./identity.js"
       },
@@ -1088,6 +1140,14 @@
       {
         "name": "ProjectRegistry",
         "source": "./identity.js"
+      },
+      {
+        "name": "ProjectTransaction",
+        "source": "./project-transactions.js"
+      },
+      {
+        "name": "ProjectTransactionDigest",
+        "source": "./project-transactions.js"
       },
       {
         "name": "ProtocolErrorCategory",
@@ -1272,8 +1332,16 @@
         "source": "./identity.js"
       },
       {
+        "name": "assertProjectEvent",
+        "source": "./project-transactions.js"
+      },
+      {
         "name": "assertProjectRegistry",
         "source": "./identity.js"
+      },
+      {
+        "name": "assertProjectTransaction",
+        "source": "./project-transactions.js"
       },
       {
         "name": "assertRepairJournal",
@@ -1318,6 +1386,14 @@
       {
         "name": "buildOrthogonalTrustState",
         "source": "./state-model.js"
+      },
+      {
+        "name": "buildProjectEvent",
+        "source": "./project-transactions.js"
+      },
+      {
+        "name": "buildProjectTransaction",
+        "source": "./project-transactions.js"
       },
       {
         "name": "buildRepairReceipt",
@@ -1514,6 +1590,22 @@
       {
         "name": "PROJECT_ALIAS_NAMESPACES",
         "source": "./identity.js"
+      },
+      {
+        "name": "PROJECT_EVENT_VERSION",
+        "source": "./project-transactions.js"
+      },
+      {
+        "name": "PROJECT_TRANSACTION_VERSION",
+        "source": "./project-transactions.js"
+      },
+      {
+        "name": "projectTransactionBytes",
+        "source": "./project-transactions.js"
+      },
+      {
+        "name": "projectTransactionDigest",
+        "source": "./project-transactions.js"
       },
       {
         "name": "PROTOCOL_ENVELOPE_MIGRATIONS",
@@ -1896,6 +1988,103 @@
       ],
       "name": "CommandAuditTrail",
       "source_file": "src/commands.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "event_version",
+          "optional": false,
+          "typescript_type": "typeof PROJECT_EVENT_VERSION"
+        },
+        {
+          "name": "event_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"event\">"
+        },
+        {
+          "name": "event_type",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "subject_id",
+          "optional": false,
+          "typescript_type": "CanonicalId"
+        },
+        {
+          "name": "occurred_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "payload",
+          "optional": false,
+          "typescript_type": "JsonValue"
+        }
+      ],
+      "name": "ProjectEventEnvelope",
+      "source_file": "src/project-transactions.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "transaction_version",
+          "optional": false,
+          "typescript_type": "typeof PROJECT_TRANSACTION_VERSION"
+        },
+        {
+          "name": "command_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"command\">"
+        },
+        {
+          "name": "command_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "command_name",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "idempotency_key",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "input_digest",
+          "optional": false,
+          "typescript_type": "ProjectTransactionDigest"
+        },
+        {
+          "name": "previous_transaction_digest",
+          "optional": false,
+          "typescript_type": "ProjectTransactionDigest | null"
+        },
+        {
+          "name": "recorded_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "events",
+          "optional": false,
+          "typescript_type": "readonly ProjectEventEnvelope[]"
+        }
+      ],
+      "name": "ProjectTransaction",
+      "source_file": "src/project-transactions.ts"
     },
     {
       "fields": [

@@ -340,6 +340,11 @@ export const PROTOCOL_ERROR_CODES = [
   "seedrop.protocol.command_audit_inconsistent",
   "seedrop.protocol.command_transition_invalid",
   "seedrop.protocol.command_unrecoverable",
+  "seedrop.protocol.project_event_invalid",
+  "seedrop.protocol.project_transaction_invalid",
+  "seedrop.protocol.project_transaction_digest_mismatch",
+  "seedrop.protocol.project_transaction_conflict",
+  "seedrop.protocol.project_projection_inconsistent",
   "seedrop.protocol.lifecycle_state_unknown",
   "seedrop.protocol.lifecycle_transition_invalid",
   "seedrop.protocol.trust_state_invalid",
@@ -549,6 +554,78 @@ export const PROTOCOL_SURFACE_FIELDS = {
     },
     {
       "name": "entries",
+      "optional": false
+    }
+  ],
+  "ProjectEventEnvelope": [
+    {
+      "name": "event_version",
+      "optional": false
+    },
+    {
+      "name": "event_id",
+      "optional": false
+    },
+    {
+      "name": "event_type",
+      "optional": false
+    },
+    {
+      "name": "subject_id",
+      "optional": false
+    },
+    {
+      "name": "occurred_at",
+      "optional": false
+    },
+    {
+      "name": "payload",
+      "optional": false
+    }
+  ],
+  "ProjectTransaction": [
+    {
+      "name": "transaction_version",
+      "optional": false
+    },
+    {
+      "name": "command_id",
+      "optional": false
+    },
+    {
+      "name": "command_version",
+      "optional": false
+    },
+    {
+      "name": "command_name",
+      "optional": false
+    },
+    {
+      "name": "principal_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "idempotency_key",
+      "optional": false
+    },
+    {
+      "name": "input_digest",
+      "optional": false
+    },
+    {
+      "name": "previous_transaction_digest",
+      "optional": false
+    },
+    {
+      "name": "recorded_at",
+      "optional": false
+    },
+    {
+      "name": "events",
       "optional": false
     }
   ],

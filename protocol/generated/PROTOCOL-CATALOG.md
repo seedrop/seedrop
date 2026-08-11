@@ -9,13 +9,13 @@ Inventory version: `1.0.0`
 | Noun | Authority | Status | Implemented surfaces | Explicit gaps |
 |---|---|---|---|---|
 | Principal | machine | implemented | PrincipalRecord, PrincipalRegistry | — |
-| Project | mixed | implemented | ProjectRecord, ProjectRegistry | — |
+| Project | mixed | implemented | ProjectRecord, ProjectRegistry, ProjectTransaction | — |
 | Intent | project | declared | — | intent_record |
 | Episode | project | declared | — | episode_record |
 | Claim | mixed | partial | FieldExplanationTrace | claim_record |
 | Receipt | external | partial | RepairReceipt, TelemetryConsentReceipt, TelemetryExportAuthorization | receipt_record |
 | Lease | machine | declared | — | lease_record |
-| Event | project | partial | CommandAuditTrail, SweepCandidateEvent | event_envelope, event_type_registry |
+| Event | project | partial | CommandAuditTrail, ProjectEventEnvelope, SweepCandidateEvent | event_type_registry |
 | Situation | projection | partial | HealthEnvelope, OperationalMetricsSnapshot, BoundedOutputEnvelope | situation_envelope |
 
 ## Public top-level shapes
@@ -30,6 +30,8 @@ Inventory version: `1.0.0`
 | ProjectRegistry | registry | `src/identity.ts` | registry_version, revision, projects, aliases, placements | — |
 | HealthEnvelope | projection | `src/health.ts` | health_version, generated_at, substrate, projection_version, policy, sources, quarantined, stale_projections, pending_commands, budget, disagreements, reasons | — |
 | CommandAuditTrail | durable_record | `src/commands.ts` | audit_version, command_id, command_version, command_name, principal_id, project_id, idempotency_key, input_digest, accepted_at, entries | — |
+| ProjectEventEnvelope | durable_record | `src/project-transactions.ts` | event_version, event_id, event_type, subject_id, occurred_at, payload | — |
+| ProjectTransaction | durable_record | `src/project-transactions.ts` | transaction_version, command_id, command_version, command_name, principal_id, project_id, idempotency_key, input_digest, previous_transaction_digest, recorded_at, events | — |
 | SweepCandidateEvent | proposal | `src/commands.ts` | sweep_candidate_version, command_id, project_id, observed_phase, observed_at, age_ms, idle_ms, recovery_owner_principal_id, reason_codes, policy_id, policy_version, proposed_event | — |
 | RepairReceipt | durable_record | `src/repairs.ts` | receipt_version, receipt_id, repair_command_id, project_id, actor_principal_id, recovery_owner_principal_id, issued_at, target, command, evidence, before, after, outcome, failure, rollback, journal | — |
 | OperationalMetricsSnapshot | projection | `src/observability.ts` | metrics_version, generated_at, policy, spans, counters, outbox_lag, alerts | — |
@@ -94,13 +96,12 @@ Inventory version: `1.0.0`
 - `claim_record` (kernel): Explanation evidence exists, but the canonical Claim record is not implemented.
 - `receipt_record` (kernel): Concrete repair and consent Receipts exist; the general Receipt contract is not implemented.
 - `lease_record` (coordination): The lifecycle is frozen, but no native v2 Lease record or command exists.
-- `event_envelope` (kernel): Audit entries and proposals exist, but the canonical atomic Event envelope is not implemented.
 - `situation_envelope` (projection): Health and bounded projections exist, but the complete Situation envelope is not implemented.
 - `event_type_registry` (kernel): Event names remain open until native kernel commands freeze the complete registry.
 - `command_name_registry` (kernel): CommandAuditTrail accepts a non-empty command name; the native command registry is not frozen.
 
 ## Export boundary
 
-- 97 public value exports.
-- 122 public type exports.
+- 105 public value exports.
+- 127 public type exports.
 - Every export is enumerated in `protocol-catalog.json`; the generated schema intentionally covers registered top-level data surfaces, not helper inputs or semantic validation.

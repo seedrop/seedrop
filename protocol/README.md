@@ -8,6 +8,8 @@ Seedrop v2's transport-neutral contract boundary. This prototype owns:
   disagreement traces, quarantines, projection lag, pending commands, and budget truth;
 - append-only command audit trails with canonical phases, recovery ownership,
   age/state invariant queries, and read-only sweep candidates;
+- canonical project Event and command-transaction envelopes with exact versions,
+  full IDs, previous-transaction content addresses, canonical bytes, and stable digests;
 - hash-chained repair Receipts with actor/evidence, before/after state, structured
   command identity, rollback truth, and recovery ownership;
 - derived operational metrics for idempotency duplicates, CAS conflicts, retries,
@@ -62,6 +64,10 @@ Observer, or Desktop paths.
 - Every nonterminal command phase is explicitly recoverable; terminal phases cannot
   retain a recovery plan. Partial result versions remain visible during failure or
   pending effects, and sweep queries propose Events without mutating command state.
+- Every project transaction contains at least one canonical Event, names its Principal,
+  Project, command, idempotency key, input digest, prior transaction digest, and
+  caller-supplied UTC time. Its SHA-256 digest is the resulting state version; storage
+  may neither reinterpret the Event payload nor invent a timestamp.
 - Repair journals are project-local, append-only hash chains. Raw command arguments
   are excluded; command name and canonical input digest preserve audit identity.
 - Operational counters and alerts are derived from immutable Event-backed spans;

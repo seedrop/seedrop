@@ -109,6 +109,24 @@ export {
   findCommandSweepCandidates,
   isTerminalCommandPhase,
 } from "./commands.js";
+
+export {
+  PROJECT_EVENT_VERSION,
+  PROJECT_TRANSACTION_VERSION,
+  assertProjectEvent,
+  assertProjectTransaction,
+  buildProjectEvent,
+  buildProjectTransaction,
+  projectTransactionBytes,
+  projectTransactionDigest,
+} from "./project-transactions.js";
+export type {
+  BuildProjectEventInput,
+  BuildProjectTransactionInput,
+  ProjectEventEnvelope,
+  ProjectTransaction,
+  ProjectTransactionDigest,
+} from "./project-transactions.js";
 export type {
   BuildCommandAuditTrailInput,
   CommandAuditEntry,

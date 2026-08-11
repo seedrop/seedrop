@@ -362,6 +362,45 @@
       "x-seedrop-role": "registry",
       "x-seedrop-source": "src/identity.ts"
     },
+    "ProjectEventEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "description": "TypeScript contract: CanonicalId<\"event\">",
+          "type": "string"
+        },
+        "event_type": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "event_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof PROJECT_EVENT_VERSION",
+          "type": "string"
+        },
+        "occurred_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "payload": {
+          "description": "TypeScript contract: JsonValue"
+        },
+        "subject_id": {
+          "description": "TypeScript contract: CanonicalId"
+        }
+      },
+      "required": [
+        "event_version",
+        "event_id",
+        "event_type",
+        "subject_id",
+        "occurred_at",
+        "payload"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/project-transactions.ts"
+    },
     "ProjectRecord": {
       "additionalProperties": false,
       "properties": {
@@ -425,6 +464,70 @@
       "type": "object",
       "x-seedrop-role": "registry",
       "x-seedrop-source": "src/identity.ts"
+    },
+    "ProjectTransaction": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "description": "TypeScript contract: CanonicalId<\"command\">",
+          "type": "string"
+        },
+        "command_name": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "command_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "events": {
+          "description": "TypeScript contract: readonly ProjectEventEnvelope[]",
+          "type": "array"
+        },
+        "idempotency_key": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "input_digest": {
+          "description": "TypeScript contract: ProjectTransactionDigest"
+        },
+        "previous_transaction_digest": {
+          "description": "TypeScript contract: ProjectTransactionDigest | null"
+        },
+        "principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "recorded_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "transaction_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof PROJECT_TRANSACTION_VERSION",
+          "type": "string"
+        }
+      },
+      "required": [
+        "transaction_version",
+        "command_id",
+        "command_version",
+        "command_name",
+        "principal_id",
+        "project_id",
+        "idempotency_key",
+        "input_digest",
+        "previous_transaction_digest",
+        "recorded_at",
+        "events"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/project-transactions.ts"
     },
     "ProtocolErrorEnvelope": {
       "additionalProperties": false,
@@ -780,6 +883,12 @@
     },
     {
       "$ref": "#/$defs/CommandAuditTrail"
+    },
+    {
+      "$ref": "#/$defs/ProjectEventEnvelope"
+    },
+    {
+      "$ref": "#/$defs/ProjectTransaction"
     },
     {
       "$ref": "#/$defs/SweepCandidateEvent"

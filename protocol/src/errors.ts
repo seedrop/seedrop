@@ -116,6 +116,31 @@ export const ERROR_REGISTRY = Object.freeze({
     message: "A nonterminal command has no valid recovery path or a terminal command retains one.",
     retryable: false,
   },
+  "seedrop.protocol.project_event_invalid": {
+    category: "input",
+    message: "The project Event envelope is malformed or incomplete.",
+    retryable: false,
+  },
+  "seedrop.protocol.project_transaction_invalid": {
+    category: "integrity",
+    message: "The project transaction is malformed, incomplete, or internally inconsistent.",
+    retryable: false,
+  },
+  "seedrop.protocol.project_transaction_digest_mismatch": {
+    category: "integrity",
+    message: "The project transaction bytes do not match their content address.",
+    retryable: false,
+  },
+  "seedrop.protocol.project_transaction_conflict": {
+    category: "conflict",
+    message: "The project transaction set contains a fork, duplicate identity, or version-chain conflict.",
+    retryable: false,
+  },
+  "seedrop.protocol.project_projection_inconsistent": {
+    category: "integrity",
+    message: "The project projection does not reconcile with its canonical transaction sources.",
+    retryable: false,
+  },
   "seedrop.protocol.lifecycle_state_unknown": {
     category: "input",
     message: "The lifecycle name or state is not registered by the protocol.",
