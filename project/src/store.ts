@@ -42,6 +42,7 @@ export async function publishProjectTransaction(options: ProjectPublishOptions):
     await handle.sync();
     await invoke(options.fault, "after_file_sync");
     await handle.close();
+    await options.publication_guard?.();
     let status: ProjectPublishReceipt["status"] = "published";
     try {
       await link(tempPath, finalPath);

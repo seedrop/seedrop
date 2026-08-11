@@ -15,6 +15,8 @@ export function projectStoreLayout(root: string): ProjectStoreLayout {
     staging_dir: join(resolvedRoot, "staging"),
     index_dir: join(resolvedRoot, "index"),
     projection_index: join(resolvedRoot, "index", "project-projection.json"),
+    locks_dir: join(resolvedRoot, "locks"),
+    writer_lock: join(resolvedRoot, "locks", "project-writer.lock"),
   });
 }
 

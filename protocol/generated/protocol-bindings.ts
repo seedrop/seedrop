@@ -212,6 +212,31 @@ export const PROTOCOL_EVENT_TYPES = {
   "closure": "open",
   "registered": [
     {
+      "name": "seedrop.command.accepted",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.command.executing",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.command.canonical_committed",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.outbox.effect_declared",
+      "status": "implemented",
+      "surface": "OutboxEffect"
+    },
+    {
+      "name": "seedrop.repair.receipt_recorded",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
       "name": "command.sweep_candidate",
       "status": "proposal_only",
       "surface": "SweepCandidateEvent"
@@ -340,6 +365,15 @@ export const PROTOCOL_ERROR_CODES = [
   "seedrop.protocol.command_audit_inconsistent",
   "seedrop.protocol.command_transition_invalid",
   "seedrop.protocol.command_unrecoverable",
+  "seedrop.protocol.command_request_invalid",
+  "seedrop.protocol.command_feature_disabled",
+  "seedrop.protocol.command_unauthorized",
+  "seedrop.protocol.command_idempotency_conflict",
+  "seedrop.protocol.command_definition_not_found",
+  "seedrop.protocol.command_recovery_required",
+  "seedrop.protocol.outbox_effect_invalid",
+  "seedrop.protocol.outbox_delivery_invalid",
+  "seedrop.protocol.command_commit_receipt_invalid",
   "seedrop.protocol.project_event_invalid",
   "seedrop.protocol.project_transaction_invalid",
   "seedrop.protocol.project_transaction_digest_mismatch",
@@ -554,6 +588,160 @@ export const PROTOCOL_SURFACE_FIELDS = {
     },
     {
       "name": "entries",
+      "optional": false
+    }
+  ],
+  "OutboxEffect": [
+    {
+      "name": "effect_version",
+      "optional": false
+    },
+    {
+      "name": "effect_id",
+      "optional": false
+    },
+    {
+      "name": "effect_key",
+      "optional": false
+    },
+    {
+      "name": "command_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "effect_type",
+      "optional": false
+    },
+    {
+      "name": "declared_at",
+      "optional": false
+    },
+    {
+      "name": "required",
+      "optional": false
+    },
+    {
+      "name": "payload_digest",
+      "optional": false
+    },
+    {
+      "name": "payload",
+      "optional": false
+    }
+  ],
+  "OutboxDeliveryReceipt": [
+    {
+      "name": "delivery_version",
+      "optional": false
+    },
+    {
+      "name": "receipt_id",
+      "optional": false
+    },
+    {
+      "name": "effect_id",
+      "optional": false
+    },
+    {
+      "name": "effect_key",
+      "optional": false
+    },
+    {
+      "name": "command_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "state",
+      "optional": false
+    },
+    {
+      "name": "attempt",
+      "optional": false
+    },
+    {
+      "name": "recorded_at",
+      "optional": false
+    },
+    {
+      "name": "evidence_digest",
+      "optional": false
+    },
+    {
+      "name": "error",
+      "optional": false
+    }
+  ],
+  "CommandCommitReceipt": [
+    {
+      "name": "receipt_version",
+      "optional": false
+    },
+    {
+      "name": "receipt_id",
+      "optional": false
+    },
+    {
+      "name": "command_id",
+      "optional": false
+    },
+    {
+      "name": "principal_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "command_name",
+      "optional": false
+    },
+    {
+      "name": "idempotency_key",
+      "optional": false
+    },
+    {
+      "name": "input_digest",
+      "optional": false
+    },
+    {
+      "name": "transaction_digest",
+      "optional": false
+    },
+    {
+      "name": "projection_digest",
+      "optional": false
+    },
+    {
+      "name": "outcome",
+      "optional": false
+    },
+    {
+      "name": "outbox_effect_count",
+      "optional": false
+    },
+    {
+      "name": "outbox_delivered_count",
+      "optional": false
+    },
+    {
+      "name": "recorded_at",
+      "optional": false
+    },
+    {
+      "name": "recovery",
+      "optional": false
+    },
+    {
+      "name": "error",
       "optional": false
     }
   ],

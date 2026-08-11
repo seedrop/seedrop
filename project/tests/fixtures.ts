@@ -9,7 +9,7 @@ import type {
 } from "@seedrop/protocol";
 
 const entropy = (seed: number) => Uint8Array.from({ length: 10 }, (_, index) => (seed + index) & 0xff);
-const makeId = <K extends "principal" | "project" | "command" | "event" | "intent">(
+export const makeId = <K extends "principal" | "project" | "command" | "event" | "intent">(
   kind: K,
   seed: number,
 ) => generateCanonicalId(kind, { now: 1_723_379_696_000 + seed, entropy: entropy(seed) });

@@ -116,6 +116,51 @@ export const ERROR_REGISTRY = Object.freeze({
     message: "A nonterminal command has no valid recovery path or a terminal command retains one.",
     retryable: false,
   },
+  "seedrop.protocol.command_request_invalid": {
+    category: "input",
+    message: "The kernel command request is malformed or incomplete.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_feature_disabled": {
+    category: "authorization",
+    message: "The v2 command executor is disabled by its feature gate.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_unauthorized": {
+    category: "authorization",
+    message: "The principal is not authorized to execute this command for the Project.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_idempotency_conflict": {
+    category: "conflict",
+    message: "The scoped idempotency key is already bound to different command input.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_definition_not_found": {
+    category: "not_found",
+    message: "No kernel command definition is registered for this name and version.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_recovery_required": {
+    category: "conflict",
+    message: "The command committed authoritative state but still requires governed recovery.",
+    retryable: true,
+  },
+  "seedrop.protocol.outbox_effect_invalid": {
+    category: "input",
+    message: "The outbox effect declaration is malformed or internally inconsistent.",
+    retryable: false,
+  },
+  "seedrop.protocol.outbox_delivery_invalid": {
+    category: "integrity",
+    message: "The outbox delivery Receipt is malformed or contradicts its outcome.",
+    retryable: false,
+  },
+  "seedrop.protocol.command_commit_receipt_invalid": {
+    category: "integrity",
+    message: "The committed-command Receipt is malformed or contradicts execution state.",
+    retryable: false,
+  },
   "seedrop.protocol.project_event_invalid": {
     category: "input",
     message: "The project Event envelope is malformed or incomplete.",

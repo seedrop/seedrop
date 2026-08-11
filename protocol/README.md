@@ -10,6 +10,8 @@ Seedrop v2's transport-neutral contract boundary. This prototype owns:
   age/state invariant queries, and read-only sweep candidates;
 - canonical project Event and command-transaction envelopes with exact versions,
   full IDs, previous-transaction content addresses, canonical bytes, and stable digests;
+- canonical outbox effect declarations, delivery Receipts, and committed-command
+  Receipts whose counts, errors, recovery plans, and outcomes must agree;
 - hash-chained repair Receipts with actor/evidence, before/after state, structured
   command identity, rollback truth, and recovery ownership;
 - derived operational metrics for idempotency duplicates, CAS conflicts, retries,
@@ -64,6 +66,10 @@ Observer, or Desktop paths.
 - Every nonterminal command phase is explicitly recoverable; terminal phases cannot
   retain a recovery plan. Partial result versions remain visible during failure or
   pending effects, and sweep queries propose Events without mutating command state.
+- Required external effects are declared inside the canonical project transaction.
+  Delivery Receipts bind the same Project, Command, Event, effect key, attempt, and
+  evidence. `completed`, `effects_pending`, and `needs_repair` commit Receipts cannot
+  contradict delivery counts, errors, or recovery ownership.
 - Every project transaction contains at least one canonical Event, names its Principal,
   Project, command, idempotency key, input digest, prior transaction digest, and
   caller-supplied UTC time. Its SHA-256 digest is the resulting state version; storage
@@ -111,6 +117,9 @@ envelopes from built package output.
 `node scripts/verify-command-recovery-golden.mjs` verifies terminal/recoverable
 command audit trails, age/state reports, a stale-command sweep proposal, and a
 two-entry hash-chained repair journal from built package output.
+
+`node scripts/verify-execution-golden.mjs` verifies canonical outbox declarations,
+delivery Receipts, and committed-command Receipts from built package output.
 
 `node scripts/verify-observability-golden.mjs` checks derived reliability metrics,
 resolved and unknown explanations, exact bounded-output bytes, local-only default,

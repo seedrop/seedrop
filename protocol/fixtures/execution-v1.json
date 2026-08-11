@@ -1,0 +1,97 @@
+{
+  "fixture_version": "1.0.0",
+  "inputs": {
+    "effect": {
+      "effect_id": "sd_evt_0191416f-4197-7718-991a-1b1c1d1e1f20",
+      "effect_key": "execution-golden:notify",
+      "command_id": "sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d",
+      "project_id": "sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e",
+      "effect_type": "notification.execution.completed",
+      "declared_at": "2026-08-11T10:00:00.000Z",
+      "required": true,
+      "payload": {
+        "command_id": "sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d",
+        "message": "Zażółć 🪴"
+      }
+    },
+    "delivery": {
+      "receipt_id": "sd_rcp_0191416f-4198-7819-9a1b-1c1d1e1f2021",
+      "effect_id": "sd_evt_0191416f-4197-7718-991a-1b1c1d1e1f20",
+      "effect_key": "execution-golden:notify",
+      "command_id": "sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d",
+      "project_id": "sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e",
+      "state": "delivered",
+      "attempt": 1,
+      "recorded_at": "2026-08-11T10:00:01.000Z",
+      "evidence_digest": "sha256:4cded713f0878cd4f1beb41800ad7db8a599408b3fc54a9291fbe1cd6024a9c2",
+      "error": null
+    },
+    "commit": {
+      "receipt_id": "sd_rcp_0191416f-4199-791a-9b1c-1d1e1f202122",
+      "command_id": "sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d",
+      "principal_id": "sd_prn_0191416f-4196-7617-9819-1a1b1c1d1e1f",
+      "project_id": "sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e",
+      "command_name": "intent.execution_golden",
+      "idempotency_key": "execution-golden-v1",
+      "input_digest": "sha256:d62af887aac632d20a83aad3c86d9fa96c25c68fbbadf026401616cf8eb33532",
+      "transaction_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "projection_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "outcome": "completed",
+      "outbox_effect_count": 1,
+      "outbox_delivered_count": 1,
+      "recorded_at": "2026-08-11T10:00:01.000Z",
+      "recovery": null,
+      "error": null
+    }
+  },
+  "outputs": {
+    "effect": {
+      "effect_version": "1.0.0",
+      "effect_id": "sd_evt_0191416f-4197-7718-991a-1b1c1d1e1f20",
+      "effect_key": "execution-golden:notify",
+      "command_id": "sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d",
+      "project_id": "sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e",
+      "effect_type": "notification.execution.completed",
+      "declared_at": "2026-08-11T10:00:00.000Z",
+      "required": true,
+      "payload_digest": "sha256:4cded713f0878cd4f1beb41800ad7db8a599408b3fc54a9291fbe1cd6024a9c2",
+      "payload": {
+        "command_id": "sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d",
+        "message": "Zażółć 🪴"
+      }
+    },
+    "delivery": {
+      "receipt_id": "sd_rcp_0191416f-4198-7819-9a1b-1c1d1e1f2021",
+      "effect_id": "sd_evt_0191416f-4197-7718-991a-1b1c1d1e1f20",
+      "effect_key": "execution-golden:notify",
+      "command_id": "sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d",
+      "project_id": "sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e",
+      "state": "delivered",
+      "attempt": 1,
+      "recorded_at": "2026-08-11T10:00:01.000Z",
+      "evidence_digest": "sha256:4cded713f0878cd4f1beb41800ad7db8a599408b3fc54a9291fbe1cd6024a9c2",
+      "error": null,
+      "delivery_version": "1.0.0"
+    },
+    "commit": {
+      "receipt_id": "sd_rcp_0191416f-4199-791a-9b1c-1d1e1f202122",
+      "command_id": "sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d",
+      "principal_id": "sd_prn_0191416f-4196-7617-9819-1a1b1c1d1e1f",
+      "project_id": "sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e",
+      "command_name": "intent.execution_golden",
+      "idempotency_key": "execution-golden-v1",
+      "input_digest": "sha256:d62af887aac632d20a83aad3c86d9fa96c25c68fbbadf026401616cf8eb33532",
+      "transaction_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "projection_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "outcome": "completed",
+      "outbox_effect_count": 1,
+      "outbox_delivered_count": 1,
+      "recorded_at": "2026-08-11T10:00:01.000Z",
+      "recovery": null,
+      "error": null,
+      "receipt_version": "1.0.0"
+    }
+  },
+  "canonical_json": "{\"commit\":{\"command_id\":\"sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d\",\"command_name\":\"intent.execution_golden\",\"error\":null,\"idempotency_key\":\"execution-golden-v1\",\"input_digest\":\"sha256:d62af887aac632d20a83aad3c86d9fa96c25c68fbbadf026401616cf8eb33532\",\"outbox_delivered_count\":1,\"outbox_effect_count\":1,\"outcome\":\"completed\",\"principal_id\":\"sd_prn_0191416f-4196-7617-9819-1a1b1c1d1e1f\",\"project_id\":\"sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e\",\"projection_digest\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"receipt_id\":\"sd_rcp_0191416f-4199-791a-9b1c-1d1e1f202122\",\"receipt_version\":\"1.0.0\",\"recorded_at\":\"2026-08-11T10:00:01.000Z\",\"recovery\":null,\"transaction_digest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\"},\"delivery\":{\"attempt\":1,\"command_id\":\"sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d\",\"delivery_version\":\"1.0.0\",\"effect_id\":\"sd_evt_0191416f-4197-7718-991a-1b1c1d1e1f20\",\"effect_key\":\"execution-golden:notify\",\"error\":null,\"evidence_digest\":\"sha256:4cded713f0878cd4f1beb41800ad7db8a599408b3fc54a9291fbe1cd6024a9c2\",\"project_id\":\"sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e\",\"receipt_id\":\"sd_rcp_0191416f-4198-7819-9a1b-1c1d1e1f2021\",\"recorded_at\":\"2026-08-11T10:00:01.000Z\",\"state\":\"delivered\"},\"effect\":{\"command_id\":\"sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d\",\"declared_at\":\"2026-08-11T10:00:00.000Z\",\"effect_id\":\"sd_evt_0191416f-4197-7718-991a-1b1c1d1e1f20\",\"effect_key\":\"execution-golden:notify\",\"effect_type\":\"notification.execution.completed\",\"effect_version\":\"1.0.0\",\"payload\":{\"command_id\":\"sd_cmd_0191416f-4194-7415-9617-18191a1b1c1d\",\"message\":\"Zażółć 🪴\"},\"payload_digest\":\"sha256:4cded713f0878cd4f1beb41800ad7db8a599408b3fc54a9291fbe1cd6024a9c2\",\"project_id\":\"sd_prj_0191416f-4195-7516-9718-191a1b1c1d1e\",\"required\":true}}",
+  "digest": "sha256:0f76bd4df2d5c10760c4d2f619203023598ed444d8dbf50a123e185ed11ab42e"
+}

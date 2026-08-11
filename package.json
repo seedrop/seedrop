@@ -3,8 +3,8 @@
   "private": true,
   "workspaces": [
     "protocol",
-    "kernel",
     "project",
+    "kernel",
     "id",
     "space",
     "cli",

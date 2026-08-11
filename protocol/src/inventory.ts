@@ -1,5 +1,6 @@
 import { COMMAND_PHASES, COMMAND_TRANSITIONS, TERMINAL_COMMAND_PHASES } from "./commands.js";
 import { ERROR_REGISTRY } from "./errors.js";
+import { COMMAND_EXECUTION_EVENT_TYPES } from "./execution.js";
 import { CANONICAL_ID_KINDS } from "./ids.js";
 import { SUBSTRATE_STATES } from "./health.js";
 import { CURRENT_VERSIONS, VERSION_AXES } from "./versions.js";
@@ -101,6 +102,9 @@ export const PROTOCOL_SURFACES = Object.freeze([
   surface("ProjectRegistry", "src/identity.ts", "registry", "Project", "registry_version", "IDENTITY_REGISTRY_VERSION", null, "assertProjectRegistry"),
   surface("HealthEnvelope", "src/health.ts", "projection", "Situation", "health_version", "HEALTH_ENVELOPE_VERSION", "buildHealthEnvelope", "assertHealthEnvelope"),
   surface("CommandAuditTrail", "src/commands.ts", "durable_record", "Event", "audit_version", "COMMAND_AUDIT_VERSION", "buildCommandAuditTrail", "assertCommandAuditTrail"),
+  surface("OutboxEffect", "src/execution.ts", "durable_record", "Event", "effect_version", "OUTBOX_EFFECT_VERSION", "buildOutboxEffect", "assertOutboxEffect"),
+  surface("OutboxDeliveryReceipt", "src/execution.ts", "durable_record", "Receipt", "delivery_version", "OUTBOX_DELIVERY_VERSION", "buildOutboxDeliveryReceipt", "assertOutboxDeliveryReceipt"),
+  surface("CommandCommitReceipt", "src/execution.ts", "durable_record", "Receipt", "receipt_version", "COMMAND_COMMIT_RECEIPT_VERSION", "buildCommandCommitReceipt", "assertCommandCommitReceipt"),
   surface("ProjectEventEnvelope", "src/project-transactions.ts", "durable_record", "Event", "event_version", "PROJECT_EVENT_VERSION", "buildProjectEvent", "assertProjectEvent"),
   surface("ProjectTransaction", "src/project-transactions.ts", "durable_record", "Project", "transaction_version", "PROJECT_TRANSACTION_VERSION", "buildProjectTransaction", "assertProjectTransaction"),
   surface("SweepCandidateEvent", "src/commands.ts", "proposal", "Event", "sweep_candidate_version", "SWEEP_CANDIDATE_VERSION", "findCommandSweepCandidates", null),
@@ -124,6 +128,11 @@ export const PROTOCOL_GAPS = Object.freeze([
 ] as const);
 
 export const PUBLIC_EVENT_TYPES = Object.freeze([
+  ...Object.values(COMMAND_EXECUTION_EVENT_TYPES).map((name) => Object.freeze({
+    name,
+    status: "implemented" as const,
+    surface: name === COMMAND_EXECUTION_EVENT_TYPES.outbox_declared ? "OutboxEffect" : "ProjectEventEnvelope",
+  })),
   Object.freeze({
     name: "command.sweep_candidate",
     status: "proposal_only",
@@ -137,9 +146,9 @@ export const PUBLIC_NOUNS = Object.freeze([
   noun("Intent", "project", "declared", [], ["intent_record"]),
   noun("Episode", "project", "declared", [], ["episode_record"]),
   noun("Claim", "mixed", "partial", ["FieldExplanationTrace"], ["claim_record"]),
-  noun("Receipt", "external", "partial", ["RepairReceipt", "TelemetryConsentReceipt", "TelemetryExportAuthorization"], ["receipt_record"]),
+  noun("Receipt", "external", "partial", ["OutboxDeliveryReceipt", "CommandCommitReceipt", "RepairReceipt", "TelemetryConsentReceipt", "TelemetryExportAuthorization"], ["receipt_record"]),
   noun("Lease", "machine", "declared", [], ["lease_record"]),
-  noun("Event", "project", "partial", ["CommandAuditTrail", "ProjectEventEnvelope", "SweepCandidateEvent"], ["event_type_registry"]),
+  noun("Event", "project", "partial", ["CommandAuditTrail", "OutboxEffect", "ProjectEventEnvelope", "SweepCandidateEvent"], ["event_type_registry"]),
   noun("Situation", "projection", "partial", ["HealthEnvelope", "OperationalMetricsSnapshot", "BoundedOutputEnvelope"], ["situation_envelope"]),
 ] as const satisfies readonly ProtocolNoun[]);
 

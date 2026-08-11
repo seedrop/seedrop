@@ -65,9 +65,44 @@
         "message": "The command audit trail is malformed, incomplete, or internally inconsistent.",
         "retryable": false
       },
+      "seedrop.protocol.command_commit_receipt_invalid": {
+        "category": "integrity",
+        "message": "The committed-command Receipt is malformed or contradicts execution state.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_definition_not_found": {
+        "category": "not_found",
+        "message": "No kernel command definition is registered for this name and version.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_feature_disabled": {
+        "category": "authorization",
+        "message": "The v2 command executor is disabled by its feature gate.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_idempotency_conflict": {
+        "category": "conflict",
+        "message": "The scoped idempotency key is already bound to different command input.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_recovery_required": {
+        "category": "conflict",
+        "message": "The command committed authoritative state but still requires governed recovery.",
+        "retryable": true
+      },
+      "seedrop.protocol.command_request_invalid": {
+        "category": "input",
+        "message": "The kernel command request is malformed or incomplete.",
+        "retryable": false
+      },
       "seedrop.protocol.command_transition_invalid": {
         "category": "conflict",
         "message": "The command phase transition is not permitted by the command protocol.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_unauthorized": {
+        "category": "authorization",
+        "message": "The principal is not authorized to execute this command for the Project.",
         "retryable": false
       },
       "seedrop.protocol.command_unrecoverable": {
@@ -165,6 +200,16 @@
         "message": "The operational metrics input is malformed or incomplete.",
         "retryable": false
       },
+      "seedrop.protocol.outbox_delivery_invalid": {
+        "category": "integrity",
+        "message": "The outbox delivery Receipt is malformed or contradicts its outcome.",
+        "retryable": false
+      },
+      "seedrop.protocol.outbox_effect_invalid": {
+        "category": "input",
+        "message": "The outbox effect declaration is malformed or internally inconsistent.",
+        "retryable": false
+      },
       "seedrop.protocol.project_event_invalid": {
         "category": "input",
         "message": "The project Event envelope is malformed or incomplete.",
@@ -244,6 +289,31 @@
     "events": {
       "closure": "open",
       "registered": [
+        {
+          "name": "seedrop.command.accepted",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.command.executing",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.command.canonical_committed",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.outbox.effect_declared",
+          "status": "implemented",
+          "surface": "OutboxEffect"
+        },
+        {
+          "name": "seedrop.repair.receipt_recorded",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
         {
           "name": "command.sweep_candidate",
           "status": "proposal_only",
@@ -518,6 +588,8 @@
           "receipt_record"
         ],
         "implemented_surfaces": [
+          "OutboxDeliveryReceipt",
+          "CommandCommitReceipt",
           "RepairReceipt",
           "TelemetryConsentReceipt",
           "TelemetryExportAuthorization"
@@ -541,6 +613,7 @@
         ],
         "implemented_surfaces": [
           "CommandAuditTrail",
+          "OutboxEffect",
           "ProjectEventEnvelope",
           "SweepCandidateEvent"
         ],
@@ -640,6 +713,36 @@
         "validator": "assertCommandAuditTrail",
         "version_constant": "COMMAND_AUDIT_VERSION",
         "version_field": "audit_version"
+      },
+      {
+        "builder": "buildOutboxEffect",
+        "name": "OutboxEffect",
+        "noun": "Event",
+        "role": "durable_record",
+        "source_file": "src/execution.ts",
+        "validator": "assertOutboxEffect",
+        "version_constant": "OUTBOX_EFFECT_VERSION",
+        "version_field": "effect_version"
+      },
+      {
+        "builder": "buildOutboxDeliveryReceipt",
+        "name": "OutboxDeliveryReceipt",
+        "noun": "Receipt",
+        "role": "durable_record",
+        "source_file": "src/execution.ts",
+        "validator": "assertOutboxDeliveryReceipt",
+        "version_constant": "OUTBOX_DELIVERY_VERSION",
+        "version_field": "delivery_version"
+      },
+      {
+        "builder": "buildCommandCommitReceipt",
+        "name": "CommandCommitReceipt",
+        "noun": "Receipt",
+        "role": "durable_record",
+        "source_file": "src/execution.ts",
+        "validator": "assertCommandCommitReceipt",
+        "version_constant": "COMMAND_COMMIT_RECEIPT_VERSION",
+        "version_field": "receipt_version"
       },
       {
         "builder": "buildProjectEvent",
@@ -781,9 +884,9 @@
   "coverage": {
     "gap_count": 8,
     "noun_count": 9,
-    "public_type_export_count": 127,
-    "public_value_export_count": 105,
-    "surface_count": 17
+    "public_type_export_count": 135,
+    "public_value_export_count": 117,
+    "surface_count": 20
   },
   "generated_from": [
     "src/index.ts",
@@ -810,6 +913,10 @@
         "source": "./commands.js"
       },
       {
+        "name": "BuildCommandCommitReceiptInput",
+        "source": "./execution.js"
+      },
+      {
         "name": "BuildFieldExplanationInput",
         "source": "./observability.js"
       },
@@ -820,6 +927,14 @@
       {
         "name": "BuildOperationalMetricsInput",
         "source": "./observability.js"
+      },
+      {
+        "name": "BuildOutboxDeliveryReceiptInput",
+        "source": "./execution.js"
+      },
+      {
+        "name": "BuildOutboxEffectInput",
+        "source": "./execution.js"
       },
       {
         "name": "BuildProjectEventInput",
@@ -860,6 +975,14 @@
       {
         "name": "CommandAuditTrail",
         "source": "./commands.js"
+      },
+      {
+        "name": "CommandCommitOutcome",
+        "source": "./execution.js"
+      },
+      {
+        "name": "CommandCommitReceipt",
+        "source": "./execution.js"
       },
       {
         "name": "CommandInvariantCode",
@@ -1064,6 +1187,18 @@
       {
         "name": "OrthogonalTrustState",
         "source": "./state-model.js"
+      },
+      {
+        "name": "OutboxDeliveryReceipt",
+        "source": "./execution.js"
+      },
+      {
+        "name": "OutboxDeliveryState",
+        "source": "./execution.js"
+      },
+      {
+        "name": "OutboxEffect",
+        "source": "./execution.js"
       },
       {
         "name": "OutboxLagSummary",
@@ -1312,6 +1447,10 @@
         "source": "./commands.js"
       },
       {
+        "name": "assertCommandCommitReceipt",
+        "source": "./execution.js"
+      },
+      {
         "name": "assertFieldExplanation",
         "source": "./observability.js"
       },
@@ -1326,6 +1465,14 @@
       {
         "name": "assertOperationalMetricsSnapshot",
         "source": "./observability.js"
+      },
+      {
+        "name": "assertOutboxDeliveryReceipt",
+        "source": "./execution.js"
+      },
+      {
+        "name": "assertOutboxEffect",
+        "source": "./execution.js"
       },
       {
         "name": "assertPrincipalRegistry",
@@ -1372,6 +1519,10 @@
         "source": "./commands.js"
       },
       {
+        "name": "buildCommandCommitReceipt",
+        "source": "./execution.js"
+      },
+      {
         "name": "buildFieldExplanation",
         "source": "./observability.js"
       },
@@ -1386,6 +1537,14 @@
       {
         "name": "buildOrthogonalTrustState",
         "source": "./state-model.js"
+      },
+      {
+        "name": "buildOutboxDeliveryReceipt",
+        "source": "./execution.js"
+      },
+      {
+        "name": "buildOutboxEffect",
+        "source": "./execution.js"
       },
       {
         "name": "buildProjectEvent",
@@ -1430,6 +1589,18 @@
       {
         "name": "COMMAND_AUDIT_VERSION",
         "source": "./commands.js"
+      },
+      {
+        "name": "COMMAND_COMMIT_OUTCOMES",
+        "source": "./execution.js"
+      },
+      {
+        "name": "COMMAND_COMMIT_RECEIPT_VERSION",
+        "source": "./execution.js"
+      },
+      {
+        "name": "COMMAND_EXECUTION_EVENT_TYPES",
+        "source": "./execution.js"
       },
       {
         "name": "COMMAND_PHASES",
@@ -1570,6 +1741,18 @@
       {
         "name": "orderedMigrationPath",
         "source": "./migrations.js"
+      },
+      {
+        "name": "OUTBOX_DELIVERY_STATES",
+        "source": "./execution.js"
+      },
+      {
+        "name": "OUTBOX_DELIVERY_VERSION",
+        "source": "./execution.js"
+      },
+      {
+        "name": "OUTBOX_EFFECT_VERSION",
+        "source": "./execution.js"
       },
       {
         "name": "parseCanonicalId",
@@ -1988,6 +2171,209 @@
       ],
       "name": "CommandAuditTrail",
       "source_file": "src/commands.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "effect_version",
+          "optional": false,
+          "typescript_type": "typeof OUTBOX_EFFECT_VERSION"
+        },
+        {
+          "name": "effect_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"event\">"
+        },
+        {
+          "name": "effect_key",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "command_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"command\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "effect_type",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "declared_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "required",
+          "optional": false,
+          "typescript_type": "boolean"
+        },
+        {
+          "name": "payload_digest",
+          "optional": false,
+          "typescript_type": "ProjectTransactionDigest"
+        },
+        {
+          "name": "payload",
+          "optional": false,
+          "typescript_type": "JsonValue"
+        }
+      ],
+      "name": "OutboxEffect",
+      "source_file": "src/execution.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "delivery_version",
+          "optional": false,
+          "typescript_type": "typeof OUTBOX_DELIVERY_VERSION"
+        },
+        {
+          "name": "receipt_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"receipt\">"
+        },
+        {
+          "name": "effect_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"event\">"
+        },
+        {
+          "name": "effect_key",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "command_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"command\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "typescript_type": "OutboxDeliveryState"
+        },
+        {
+          "name": "attempt",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "recorded_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "evidence_digest",
+          "optional": false,
+          "typescript_type": "ProjectTransactionDigest | null"
+        },
+        {
+          "name": "error",
+          "optional": false,
+          "typescript_type": "CommandAuditError | null"
+        }
+      ],
+      "name": "OutboxDeliveryReceipt",
+      "source_file": "src/execution.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "receipt_version",
+          "optional": false,
+          "typescript_type": "typeof COMMAND_COMMIT_RECEIPT_VERSION"
+        },
+        {
+          "name": "receipt_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"receipt\">"
+        },
+        {
+          "name": "command_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"command\">"
+        },
+        {
+          "name": "principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "command_name",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "idempotency_key",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "input_digest",
+          "optional": false,
+          "typescript_type": "ProjectTransactionDigest"
+        },
+        {
+          "name": "transaction_digest",
+          "optional": false,
+          "typescript_type": "ProjectTransactionDigest"
+        },
+        {
+          "name": "projection_digest",
+          "optional": false,
+          "typescript_type": "ProjectTransactionDigest"
+        },
+        {
+          "name": "outcome",
+          "optional": false,
+          "typescript_type": "CommandCommitOutcome"
+        },
+        {
+          "name": "outbox_effect_count",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "outbox_delivered_count",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "recorded_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "recovery",
+          "optional": false,
+          "typescript_type": "CommandRecoveryPlan | null"
+        },
+        {
+          "name": "error",
+          "optional": false,
+          "typescript_type": "CommandAuditError | null"
+        }
+      ],
+      "name": "CommandCommitReceipt",
+      "source_file": "src/execution.ts"
     },
     {
       "fields": [

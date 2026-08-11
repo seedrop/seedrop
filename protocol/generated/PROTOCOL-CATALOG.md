@@ -13,9 +13,9 @@ Inventory version: `1.0.0`
 | Intent | project | declared | — | intent_record |
 | Episode | project | declared | — | episode_record |
 | Claim | mixed | partial | FieldExplanationTrace | claim_record |
-| Receipt | external | partial | RepairReceipt, TelemetryConsentReceipt, TelemetryExportAuthorization | receipt_record |
+| Receipt | external | partial | OutboxDeliveryReceipt, CommandCommitReceipt, RepairReceipt, TelemetryConsentReceipt, TelemetryExportAuthorization | receipt_record |
 | Lease | machine | declared | — | lease_record |
-| Event | project | partial | CommandAuditTrail, ProjectEventEnvelope, SweepCandidateEvent | event_type_registry |
+| Event | project | partial | CommandAuditTrail, OutboxEffect, ProjectEventEnvelope, SweepCandidateEvent | event_type_registry |
 | Situation | projection | partial | HealthEnvelope, OperationalMetricsSnapshot, BoundedOutputEnvelope | situation_envelope |
 
 ## Public top-level shapes
@@ -30,6 +30,9 @@ Inventory version: `1.0.0`
 | ProjectRegistry | registry | `src/identity.ts` | registry_version, revision, projects, aliases, placements | — |
 | HealthEnvelope | projection | `src/health.ts` | health_version, generated_at, substrate, projection_version, policy, sources, quarantined, stale_projections, pending_commands, budget, disagreements, reasons | — |
 | CommandAuditTrail | durable_record | `src/commands.ts` | audit_version, command_id, command_version, command_name, principal_id, project_id, idempotency_key, input_digest, accepted_at, entries | — |
+| OutboxEffect | durable_record | `src/execution.ts` | effect_version, effect_id, effect_key, command_id, project_id, effect_type, declared_at, required, payload_digest, payload | — |
+| OutboxDeliveryReceipt | durable_record | `src/execution.ts` | delivery_version, receipt_id, effect_id, effect_key, command_id, project_id, state, attempt, recorded_at, evidence_digest, error | — |
+| CommandCommitReceipt | durable_record | `src/execution.ts` | receipt_version, receipt_id, command_id, principal_id, project_id, command_name, idempotency_key, input_digest, transaction_digest, projection_digest, outcome, outbox_effect_count, outbox_delivered_count, recorded_at, recovery, error | — |
 | ProjectEventEnvelope | durable_record | `src/project-transactions.ts` | event_version, event_id, event_type, subject_id, occurred_at, payload | — |
 | ProjectTransaction | durable_record | `src/project-transactions.ts` | transaction_version, command_id, command_version, command_name, principal_id, project_id, idempotency_key, input_digest, previous_transaction_digest, recorded_at, events | — |
 | SweepCandidateEvent | proposal | `src/commands.ts` | sweep_candidate_version, command_id, project_id, observed_phase, observed_at, age_ms, idle_ms, recovery_owner_principal_id, reason_codes, policy_id, policy_version, proposed_event | — |
@@ -88,7 +91,7 @@ Inventory version: `1.0.0`
 
 ## Open registries and explicit gaps
 
-- Event registry closure: **open** (1 registered proposal type).
+- Event registry closure: **open** (6 registered proposal type).
 - Command registry closure: **open** (0 native commands frozen).
 
 - `intent_record` (kernel): No canonical Intent Event or root record is implemented yet.
@@ -102,6 +105,6 @@ Inventory version: `1.0.0`
 
 ## Export boundary
 
-- 105 public value exports.
-- 127 public type exports.
+- 117 public value exports.
+- 135 public type exports.
 - Every export is enumerated in `protocol-catalog.json`; the generated schema intentionally covers registered top-level data surfaces, not helper inputs or semantic validation.

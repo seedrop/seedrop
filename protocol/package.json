@@ -28,6 +28,8 @@
     "verify:command-recovery-golden": "npm run build && node scripts/verify-command-recovery-golden.mjs",
     "generate:project-transaction": "npm run build && node scripts/generate-project-transaction-golden.mjs --write",
     "verify:project-transaction": "npm run build && node scripts/verify-project-transaction-golden.mjs",
+    "generate:execution": "npm run build && node scripts/generate-execution-golden.mjs --write",
+    "verify:execution": "npm run build && node scripts/verify-execution-golden.mjs",
     "verify:observability-golden": "npm run build && node scripts/verify-observability-golden.mjs",
     "verify:protocol-generation": "npm run build && node scripts/verify-protocol-generation.mjs",
     "verify:state-model": "npm run build && npm run check:artifacts && npm run check:state-model",

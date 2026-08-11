@@ -132,6 +132,91 @@
       "x-seedrop-role": "durable_record",
       "x-seedrop-source": "src/commands.ts"
     },
+    "CommandCommitReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "description": "TypeScript contract: CanonicalId<\"command\">",
+          "type": "string"
+        },
+        "command_name": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "error": {
+          "description": "TypeScript contract: CommandAuditError | null"
+        },
+        "idempotency_key": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "input_digest": {
+          "description": "TypeScript contract: ProjectTransactionDigest"
+        },
+        "outbox_delivered_count": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "outbox_effect_count": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "outcome": {
+          "description": "TypeScript contract: CommandCommitOutcome"
+        },
+        "principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "projection_digest": {
+          "description": "TypeScript contract: ProjectTransactionDigest"
+        },
+        "receipt_id": {
+          "description": "TypeScript contract: CanonicalId<\"receipt\">",
+          "type": "string"
+        },
+        "receipt_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof COMMAND_COMMIT_RECEIPT_VERSION",
+          "type": "string"
+        },
+        "recorded_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "recovery": {
+          "description": "TypeScript contract: CommandRecoveryPlan | null"
+        },
+        "transaction_digest": {
+          "description": "TypeScript contract: ProjectTransactionDigest"
+        }
+      },
+      "required": [
+        "receipt_version",
+        "receipt_id",
+        "command_id",
+        "principal_id",
+        "project_id",
+        "command_name",
+        "idempotency_key",
+        "input_digest",
+        "transaction_digest",
+        "projection_digest",
+        "outcome",
+        "outbox_effect_count",
+        "outbox_delivered_count",
+        "recorded_at",
+        "recovery",
+        "error"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/execution.ts"
+    },
     "FieldExplanationTrace": {
       "additionalProperties": false,
       "properties": {
@@ -306,6 +391,128 @@
       "type": "object",
       "x-seedrop-role": "projection",
       "x-seedrop-source": "src/observability.ts"
+    },
+    "OutboxDeliveryReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "command_id": {
+          "description": "TypeScript contract: CanonicalId<\"command\">",
+          "type": "string"
+        },
+        "delivery_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof OUTBOX_DELIVERY_VERSION",
+          "type": "string"
+        },
+        "effect_id": {
+          "description": "TypeScript contract: CanonicalId<\"event\">",
+          "type": "string"
+        },
+        "effect_key": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "error": {
+          "description": "TypeScript contract: CommandAuditError | null"
+        },
+        "evidence_digest": {
+          "description": "TypeScript contract: ProjectTransactionDigest | null"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "receipt_id": {
+          "description": "TypeScript contract: CanonicalId<\"receipt\">",
+          "type": "string"
+        },
+        "recorded_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "state": {
+          "description": "TypeScript contract: OutboxDeliveryState"
+        }
+      },
+      "required": [
+        "delivery_version",
+        "receipt_id",
+        "effect_id",
+        "effect_key",
+        "command_id",
+        "project_id",
+        "state",
+        "attempt",
+        "recorded_at",
+        "evidence_digest",
+        "error"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/execution.ts"
+    },
+    "OutboxEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "description": "TypeScript contract: CanonicalId<\"command\">",
+          "type": "string"
+        },
+        "declared_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "effect_id": {
+          "description": "TypeScript contract: CanonicalId<\"event\">",
+          "type": "string"
+        },
+        "effect_key": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "effect_type": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "effect_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof OUTBOX_EFFECT_VERSION",
+          "type": "string"
+        },
+        "payload": {
+          "description": "TypeScript contract: JsonValue"
+        },
+        "payload_digest": {
+          "description": "TypeScript contract: ProjectTransactionDigest"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "required": {
+          "description": "TypeScript contract: boolean",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "effect_version",
+        "effect_id",
+        "effect_key",
+        "command_id",
+        "project_id",
+        "effect_type",
+        "declared_at",
+        "required",
+        "payload_digest",
+        "payload"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/execution.ts"
     },
     "PrincipalRecord": {
       "additionalProperties": false,
@@ -883,6 +1090,15 @@
     },
     {
       "$ref": "#/$defs/CommandAuditTrail"
+    },
+    {
+      "$ref": "#/$defs/OutboxEffect"
+    },
+    {
+      "$ref": "#/$defs/OutboxDeliveryReceipt"
+    },
+    {
+      "$ref": "#/$defs/CommandCommitReceipt"
     },
     {
       "$ref": "#/$defs/ProjectEventEnvelope"

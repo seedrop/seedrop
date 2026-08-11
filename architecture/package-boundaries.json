@@ -21,6 +21,7 @@
         "state_changing_command_execution"
       ],
       "allowed_internal_dependencies": [
+        "@seedrop/project",
         "@seedrop/protocol"
       ]
     },

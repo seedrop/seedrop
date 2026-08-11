@@ -17,7 +17,7 @@ describe("@seedrop/project package contract", () => {
     });
     expect(Object.isFrozen(PROJECT_PACKAGE_CONTRACT)).toBe(true);
     expect(Object.isFrozen(PROJECT_PACKAGE_CONTRACT.owns)).toBe(true);
-    expect(PROJECT_STORE_LAYOUT_VERSION).toBe("1.0.0");
+    expect(PROJECT_STORE_LAYOUT_VERSION).toBe("1.1.0");
     expect(PROJECT_PROJECTION_VERSION).toBe("1.0.0");
   });
 });

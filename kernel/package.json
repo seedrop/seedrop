@@ -30,6 +30,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@seedrop/project": "^0.1.0-alpha.1",
     "@seedrop/protocol": "^0.1.0-alpha.1"
   },
   "devDependencies": {

@@ -111,6 +111,31 @@ export {
 } from "./commands.js";
 
 export {
+  COMMAND_COMMIT_OUTCOMES,
+  COMMAND_COMMIT_RECEIPT_VERSION,
+  COMMAND_EXECUTION_EVENT_TYPES,
+  OUTBOX_DELIVERY_STATES,
+  OUTBOX_DELIVERY_VERSION,
+  OUTBOX_EFFECT_VERSION,
+  assertCommandCommitReceipt,
+  assertOutboxDeliveryReceipt,
+  assertOutboxEffect,
+  buildCommandCommitReceipt,
+  buildOutboxDeliveryReceipt,
+  buildOutboxEffect,
+} from "./execution.js";
+export type {
+  BuildCommandCommitReceiptInput,
+  BuildOutboxDeliveryReceiptInput,
+  BuildOutboxEffectInput,
+  CommandCommitOutcome,
+  CommandCommitReceipt,
+  OutboxDeliveryReceipt,
+  OutboxDeliveryState,
+  OutboxEffect,
+} from "./execution.js";
+
+export {
   PROJECT_EVENT_VERSION,
   PROJECT_TRANSACTION_VERSION,
   assertProjectEvent,

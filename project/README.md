@@ -18,5 +18,14 @@ commands, or duplicate Events, and emits a deterministic projection with source-
 digest, high watermark, lag, and quarantine diagnostics. The persisted JSON index is
 derived only: deleting and rebuilding it produces the same canonical projection bytes.
 
+Wave 3 expected-version commits add a project-local cross-process writer lock around
+snapshot validation, immutable publication, and projection rebuild. A live local
+process lock is never stolen. An expired lock is recovered automatically only when
+its owning local PID is provably dead; unknown or remote ownership fails closed.
+While holding the lock, the store compares both the observed high watermark and the
+transaction predecessor with the caller's expected version. A stale writer publishes
+nothing. A crash after immutable publication is recovered by retrying the same
+transaction, which rebuilds the disposable index and returns `already_committed`.
+
 This package is shadow-only. It does not write v1 View artifacts and it does not embed
 the separate database experiment.

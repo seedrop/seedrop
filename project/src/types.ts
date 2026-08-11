@@ -5,7 +5,7 @@ import type {
   ProjectTransactionDigest,
 } from "@seedrop/protocol";
 
-export const PROJECT_STORE_LAYOUT_VERSION = "1.0.0" as const;
+export const PROJECT_STORE_LAYOUT_VERSION = "1.1.0" as const;
 export const PROJECT_PROJECTION_VERSION = "1.0.0" as const;
 
 export const PROJECT_PACKAGE_CONTRACT = Object.freeze({
@@ -46,6 +46,8 @@ export interface ProjectStoreLayout {
   staging_dir: string;
   index_dir: string;
   projection_index: string;
+  locks_dir: string;
+  writer_lock: string;
 }
 
 export type ProjectPublishBoundary =
@@ -59,6 +61,7 @@ export interface ProjectPublishOptions {
   root: string;
   transaction: ProjectTransaction;
   fault?: (boundary: ProjectPublishBoundary) => void | Promise<void>;
+  publication_guard?: () => void | Promise<void>;
 }
 
 export interface ProjectPublishReceipt {
@@ -68,6 +71,34 @@ export interface ProjectPublishReceipt {
   digest: ProjectTransactionDigest;
   relative_path: string;
   byte_length: number;
+}
+
+export type ProjectCommitBoundary =
+  | "after_lock_acquired"
+  | "after_snapshot"
+  | "after_transaction_publish"
+  | "after_projection";
+
+export interface ProjectWriterLockOptions {
+  acquisition_timeout_ms?: number;
+  stale_after_ms?: number;
+  poll_interval_ms?: number;
+}
+
+export interface ProjectCommitOptions {
+  root: string;
+  transaction: ProjectTransaction;
+  expected_high_watermark: ProjectTransactionDigest | null;
+  lock?: ProjectWriterLockOptions;
+  fault?: (boundary: ProjectCommitBoundary) => void | Promise<void>;
+  publish_fault?: ProjectPublishOptions["fault"];
+}
+
+export interface ProjectCommitReceipt {
+  status: "committed" | "already_committed";
+  transaction: ProjectPublishReceipt;
+  previous_high_watermark: ProjectTransactionDigest | null;
+  projection: ProjectProjectionReference;
 }
 
 export type ProjectArtifactDiagnosticCode =

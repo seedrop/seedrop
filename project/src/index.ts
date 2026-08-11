@@ -6,6 +6,9 @@ export {
 export type {
   ProjectArtifactDiagnostic,
   ProjectArtifactDiagnosticCode,
+  ProjectCommitBoundary,
+  ProjectCommitOptions,
+  ProjectCommitReceipt,
   ProjectLag,
   ProjectLogScan,
   ProjectProjection,
@@ -18,12 +21,20 @@ export type {
   ProjectStoredTransaction,
   ProjectStoreLayout,
   ProjectTransactionReference,
+  ProjectWriterLockOptions,
 } from "./types.js";
 
 export {
   projectStoreLayout,
   projectTransactionRelativePath,
 } from "./layout.js";
+
+export {
+  acquireProjectWriterLock,
+  commitProjectTransaction,
+} from "./commit.js";
+
+export type { HeldProjectWriterLock } from "./commit.js";
 
 export {
   publishProjectTransaction,
