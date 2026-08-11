@@ -1,0 +1,809 @@
+{
+  "$defs": {
+    "BoundedOutputEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "actual_bytes": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "budget_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof BOUNDED_OUTPUT_VERSION",
+          "type": "string"
+        },
+        "candidate_count": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "complete": {
+          "description": "TypeScript contract: boolean",
+          "type": "boolean"
+        },
+        "included_count": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "indexed_count": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "omitted_categories": {
+          "description": "TypeScript contract: readonly string[]",
+          "type": "array"
+        },
+        "omitted_count": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "payload": {
+          "description": "TypeScript contract: readonly BoundedOutputItem[]",
+          "type": "array"
+        },
+        "requested_bytes": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "scan_limit": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "scanned_count": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        }
+      },
+      "required": [
+        "budget_version",
+        "requested_bytes",
+        "actual_bytes",
+        "complete",
+        "candidate_count",
+        "indexed_count",
+        "scanned_count",
+        "scan_limit",
+        "included_count",
+        "omitted_count",
+        "omitted_categories",
+        "payload"
+      ],
+      "type": "object",
+      "x-seedrop-role": "projection",
+      "x-seedrop-source": "src/observability.ts"
+    },
+    "CommandAuditTrail": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "audit_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof COMMAND_AUDIT_VERSION",
+          "type": "string"
+        },
+        "command_id": {
+          "description": "TypeScript contract: CanonicalId<\"command\">",
+          "type": "string"
+        },
+        "command_name": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "command_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "entries": {
+          "description": "TypeScript contract: readonly CommandAuditEntry[]",
+          "type": "array"
+        },
+        "idempotency_key": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "input_digest": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        }
+      },
+      "required": [
+        "audit_version",
+        "command_id",
+        "command_version",
+        "command_name",
+        "principal_id",
+        "project_id",
+        "idempotency_key",
+        "input_digest",
+        "accepted_at",
+        "entries"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/commands.ts"
+    },
+    "FieldExplanationTrace": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "description": "TypeScript contract: ExplanationConfidence"
+        },
+        "decision_record_id": {
+          "description": "TypeScript contract: GoverningRecordId | null"
+        },
+        "evidence": {
+          "description": "TypeScript contract: readonly ExplanationEvidence[]",
+          "type": "array"
+        },
+        "explanation_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof EXPLANATION_TRACE_VERSION",
+          "type": "string"
+        },
+        "field": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "policy": {
+          "description": "TypeScript contract: ExplanationPolicyTrace"
+        },
+        "projection_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "situation_id": {
+          "description": "TypeScript contract: CanonicalId<\"situation\">",
+          "type": "string"
+        },
+        "status": {
+          "description": "TypeScript contract: ExplanationStatus"
+        },
+        "unknown": {
+          "description": "TypeScript contract: ExplanationUnknown | null"
+        },
+        "value_digest": {
+          "description": "TypeScript contract: string | null",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "explanation_version",
+        "situation_id",
+        "field",
+        "status",
+        "confidence",
+        "value_digest",
+        "projection_version",
+        "policy",
+        "decision_record_id",
+        "evidence",
+        "unknown"
+      ],
+      "type": "object",
+      "x-seedrop-role": "projection",
+      "x-seedrop-source": "src/observability.ts"
+    },
+    "HealthEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "description": "TypeScript contract: HealthBudget"
+        },
+        "disagreements": {
+          "description": "TypeScript contract: readonly HealthDisagreement[]",
+          "type": "array"
+        },
+        "generated_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "health_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof HEALTH_ENVELOPE_VERSION",
+          "type": "string"
+        },
+        "pending_commands": {
+          "description": "TypeScript contract: readonly PendingCommandHealth[]",
+          "type": "array"
+        },
+        "policy": {
+          "description": "TypeScript contract: HealthPolicyRef"
+        },
+        "projection_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "quarantined": {
+          "description": "TypeScript contract: readonly QuarantineRecord[]",
+          "type": "array"
+        },
+        "reasons": {
+          "description": "TypeScript contract: readonly HealthReason[]",
+          "type": "array"
+        },
+        "sources": {
+          "description": "TypeScript contract: readonly HealthSource[]",
+          "type": "array"
+        },
+        "stale_projections": {
+          "description": "TypeScript contract: readonly StaleProjection[]",
+          "type": "array"
+        },
+        "substrate": {
+          "description": "TypeScript contract: SubstrateState"
+        }
+      },
+      "required": [
+        "health_version",
+        "generated_at",
+        "substrate",
+        "projection_version",
+        "policy",
+        "sources",
+        "quarantined",
+        "stale_projections",
+        "pending_commands",
+        "budget",
+        "disagreements",
+        "reasons"
+      ],
+      "type": "object",
+      "x-seedrop-role": "projection",
+      "x-seedrop-source": "src/health.ts"
+    },
+    "OperationalMetricsSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "alerts": {
+          "description": "TypeScript contract: readonly OperationalMetricAlert[]",
+          "type": "array"
+        },
+        "counters": {
+          "description": "TypeScript contract: OperationalMetricCounters"
+        },
+        "generated_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "metrics_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof OPERATIONAL_METRICS_VERSION",
+          "type": "string"
+        },
+        "outbox_lag": {
+          "description": "TypeScript contract: OutboxLagSummary"
+        },
+        "policy": {
+          "description": "TypeScript contract: OperationalMetricPolicy"
+        },
+        "spans": {
+          "description": "TypeScript contract: readonly OperationalMetricSpan[]",
+          "type": "array"
+        }
+      },
+      "required": [
+        "metrics_version",
+        "generated_at",
+        "policy",
+        "spans",
+        "counters",
+        "outbox_lag",
+        "alerts"
+      ],
+      "type": "object",
+      "x-seedrop-role": "projection",
+      "x-seedrop-source": "src/observability.ts"
+    },
+    "PrincipalRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "TypeScript contract: PrincipalKind"
+        },
+        "principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "source_refs": {
+          "description": "TypeScript contract: readonly string[]",
+          "type": "array"
+        }
+      },
+      "required": [
+        "principal_id",
+        "kind",
+        "source_refs"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/identity.ts"
+    },
+    "PrincipalRegistry": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "description": "TypeScript contract: readonly PrincipalAliasRecord[]",
+          "type": "array"
+        },
+        "principals": {
+          "description": "TypeScript contract: readonly PrincipalRecord[]",
+          "type": "array"
+        },
+        "registry_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof IDENTITY_REGISTRY_VERSION",
+          "type": "string"
+        },
+        "revision": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        }
+      },
+      "required": [
+        "registry_version",
+        "revision",
+        "principals",
+        "aliases"
+      ],
+      "type": "object",
+      "x-seedrop-role": "registry",
+      "x-seedrop-source": "src/identity.ts"
+    },
+    "ProjectRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "repository_identity": {
+          "description": "TypeScript contract: string | null",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_refs": {
+          "description": "TypeScript contract: readonly string[]",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project_id",
+        "repository_identity",
+        "source_refs"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/identity.ts"
+    },
+    "ProjectRegistry": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "description": "TypeScript contract: readonly ProjectAliasRecord[]",
+          "type": "array"
+        },
+        "placements": {
+          "description": "TypeScript contract: readonly ProjectPlacementRecord[]",
+          "type": "array"
+        },
+        "projects": {
+          "description": "TypeScript contract: readonly ProjectRecord[]",
+          "type": "array"
+        },
+        "registry_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof IDENTITY_REGISTRY_VERSION",
+          "type": "string"
+        },
+        "revision": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        }
+      },
+      "required": [
+        "registry_version",
+        "revision",
+        "projects",
+        "aliases",
+        "placements"
+      ],
+      "type": "object",
+      "x-seedrop-role": "registry",
+      "x-seedrop-source": "src/identity.ts"
+    },
+    "ProtocolErrorEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "description": "TypeScript contract: { code: ProtocolErrorCode; category: ProtocolErrorCategory; message: string; retryable: boolean; details: ProtocolErrorDetails; }",
+          "type": "object"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "type": "object",
+      "x-seedrop-role": "wire_envelope",
+      "x-seedrop-source": "src/errors.ts"
+    },
+    "RepairReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "after": {
+          "description": "TypeScript contract: RepairStateRef"
+        },
+        "before": {
+          "description": "TypeScript contract: RepairStateRef"
+        },
+        "command": {
+          "description": "TypeScript contract: RepairCommandRef"
+        },
+        "evidence": {
+          "description": "TypeScript contract: readonly RepairEvidenceRef[]",
+          "type": "array"
+        },
+        "failure": {
+          "description": "TypeScript contract: RepairFailure | null"
+        },
+        "issued_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "journal": {
+          "description": "TypeScript contract: RepairJournalLink"
+        },
+        "outcome": {
+          "description": "TypeScript contract: RepairOutcome"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "receipt_id": {
+          "description": "TypeScript contract: CanonicalId<\"receipt\">",
+          "type": "string"
+        },
+        "receipt_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof REPAIR_RECEIPT_VERSION",
+          "type": "string"
+        },
+        "recovery_owner_principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "repair_command_id": {
+          "description": "TypeScript contract: CanonicalId<\"command\">",
+          "type": "string"
+        },
+        "rollback": {
+          "description": "TypeScript contract: RepairRollback"
+        },
+        "target": {
+          "description": "TypeScript contract: { kind: string; referent: string; }",
+          "type": "object"
+        }
+      },
+      "required": [
+        "receipt_version",
+        "receipt_id",
+        "repair_command_id",
+        "project_id",
+        "actor_principal_id",
+        "recovery_owner_principal_id",
+        "issued_at",
+        "target",
+        "command",
+        "evidence",
+        "before",
+        "after",
+        "outcome",
+        "failure",
+        "rollback",
+        "journal"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/repairs.ts"
+    },
+    "SweepCandidateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "age_ms": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "command_id": {
+          "description": "TypeScript contract: CanonicalId<\"command\">",
+          "type": "string"
+        },
+        "idle_ms": {
+          "description": "TypeScript contract: number",
+          "type": "number"
+        },
+        "observed_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "observed_phase": {
+          "description": "TypeScript contract: NonterminalCommandPhase"
+        },
+        "policy_id": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "policy_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "proposed_event": {
+          "description": "TypeScript contract: { event_type: \"command.sweep_candidate\"; subject_command_id: CanonicalId<\"command\">; confidence: \"inferred\"; cause: string; }",
+          "type": "object"
+        },
+        "reason_codes": {
+          "description": "TypeScript contract: readonly CommandInvariantCode[]",
+          "type": "array"
+        },
+        "recovery_owner_principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "sweep_candidate_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof SWEEP_CANDIDATE_VERSION",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sweep_candidate_version",
+        "command_id",
+        "project_id",
+        "observed_phase",
+        "observed_at",
+        "age_ms",
+        "idle_ms",
+        "recovery_owner_principal_id",
+        "reason_codes",
+        "policy_id",
+        "policy_version",
+        "proposed_event"
+      ],
+      "type": "object",
+      "x-seedrop-role": "proposal",
+      "x-seedrop-source": "src/commands.ts"
+    },
+    "TelemetryConsentReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "consent_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof TELEMETRY_CONSENT_VERSION",
+          "type": "string"
+        },
+        "decision": {
+          "description": "TypeScript contract: TelemetryConsentDecision"
+        },
+        "evidence_record_id": {
+          "description": "TypeScript contract: GoverningRecordId"
+        },
+        "expires_at": {
+          "description": "TypeScript contract: string | null",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "issued_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "purpose": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "receipt_id": {
+          "description": "TypeScript contract: CanonicalId<\"receipt\">",
+          "type": "string"
+        },
+        "scope": {
+          "description": "TypeScript contract: TelemetryConsentScope"
+        }
+      },
+      "required": [
+        "consent_version",
+        "receipt_id",
+        "principal_id",
+        "project_id",
+        "decision",
+        "issued_at",
+        "expires_at",
+        "purpose",
+        "scope",
+        "evidence_record_id"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/observability.ts"
+    },
+    "TelemetryExportAuthorization": {
+      "additionalProperties": false,
+      "properties": {
+        "authorized_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "categories": {
+          "description": "TypeScript contract: readonly string[]",
+          "type": "array"
+        },
+        "consent_receipt_id": {
+          "description": "TypeScript contract: CanonicalId<\"receipt\">",
+          "type": "string"
+        },
+        "destination": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "export_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof TELEMETRY_EXPORT_VERSION",
+          "type": "string"
+        },
+        "payload_digest": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "schema_id": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "schema_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "export_version",
+        "consent_receipt_id",
+        "principal_id",
+        "project_id",
+        "authorized_at",
+        "destination",
+        "schema_id",
+        "schema_version",
+        "categories",
+        "payload_digest"
+      ],
+      "type": "object",
+      "x-seedrop-role": "authorization",
+      "x-seedrop-source": "src/observability.ts"
+    },
+    "VersionEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "command_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "projection_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "schema_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "semantic_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        },
+        "wire_version": {
+          "description": "TypeScript contract: ProtocolVersion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "semantic_version",
+        "command_version",
+        "projection_version",
+        "wire_version"
+      ],
+      "type": "object",
+      "x-seedrop-role": "wire_envelope",
+      "x-seedrop-source": "src/versions.ts"
+    }
+  },
+  "$id": "https://seedrop.dev/schema/v2/protocol-surface-shapes.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Top-level public shape inventory; runtime builders remain the semantic validators.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/VersionEnvelope"
+    },
+    {
+      "$ref": "#/$defs/ProtocolErrorEnvelope"
+    },
+    {
+      "$ref": "#/$defs/PrincipalRecord"
+    },
+    {
+      "$ref": "#/$defs/PrincipalRegistry"
+    },
+    {
+      "$ref": "#/$defs/ProjectRecord"
+    },
+    {
+      "$ref": "#/$defs/ProjectRegistry"
+    },
+    {
+      "$ref": "#/$defs/HealthEnvelope"
+    },
+    {
+      "$ref": "#/$defs/CommandAuditTrail"
+    },
+    {
+      "$ref": "#/$defs/SweepCandidateEvent"
+    },
+    {
+      "$ref": "#/$defs/RepairReceipt"
+    },
+    {
+      "$ref": "#/$defs/OperationalMetricsSnapshot"
+    },
+    {
+      "$ref": "#/$defs/FieldExplanationTrace"
+    },
+    {
+      "$ref": "#/$defs/BoundedOutputEnvelope"
+    },
+    {
+      "$ref": "#/$defs/TelemetryConsentReceipt"
+    },
+    {
+      "$ref": "#/$defs/TelemetryExportAuthorization"
+    }
+  ],
+  "title": "Seedrop v2 public protocol surface shapes",
+  "x-seedrop-inventory-version": "1.0.0",
+  "x-seedrop-prototype-scope": "top-level-shapes"
+}

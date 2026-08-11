@@ -129,7 +129,7 @@ export interface SweepCandidateEvent {
   };
 }
 
-const TRANSITIONS = Object.freeze({
+export const COMMAND_TRANSITIONS = deepFreeze({
   accepted: ["executing", "effects_pending", "completed", "rejected", "failed"],
   executing: ["effects_pending", "recovery_pending", "completed", "failed"],
   effects_pending: ["executing", "recovery_pending", "completed", "failed"],
@@ -172,7 +172,7 @@ export function buildCommandAuditTrail(input: BuildCommandAuditTrailInput): Comm
     if (Date.parse(current.recorded_at) <= Date.parse(previous.recorded_at)) {
       invalid(`entries[${index}].recorded_at`, "not_strictly_increasing");
     }
-    const allowedTransitions: readonly CommandPhase[] = TRANSITIONS[previous.phase];
+    const allowedTransitions: readonly CommandPhase[] = COMMAND_TRANSITIONS[previous.phase];
     if (!allowedTransitions.includes(current.phase)) {
       throw protocolError("seedrop.protocol.command_transition_invalid", {
         command_id: input.command_id,

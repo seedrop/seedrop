@@ -22,6 +22,9 @@ Seedrop v2's transport-neutral contract boundary. This prototype owns:
 - a stable error-code registry and wire envelope;
 - independent schema, semantic, command, projection, and wire versions;
 - validated, forward-only migration plans.
+- one executable completeness inventory whose generated catalog, top-level JSON
+  Schema prototype, TypeScript bindings, human report, and golden digests fail CI
+  if they drift independently.
 
 The package is deliberately not connected to v1 writers. It freezes mechanics for
 Wave 2 without changing the authoritative passport, View, Space, CLI, MCP, Bench,
@@ -74,7 +77,8 @@ See `docs/adr/0007-v2-canonical-protocol-mechanics.md`,
 `docs/adr/0008-v2-canonical-principal-project-identity.md`,
 `docs/adr/0009-v2-health-envelope-and-disagreement.md`,
 `docs/adr/0010-v2-command-audit-recovery-and-repair-receipts.md`,
-`docs/adr/0011-v2-explainable-bounded-consented-observability.md`, and the fixtures
+`docs/adr/0011-v2-explainable-bounded-consented-observability.md`,
+`docs/adr/0012-v2-protocol-completeness-and-generation.md`, and the fixtures
 for the frozen cross-runtime vectors and sanitized nine-passport machine corpus.
 
 After building, `node scripts/verify-golden.mjs` verifies those vectors using only
@@ -96,3 +100,10 @@ two-entry hash-chained repair journal from built package output.
 `node scripts/verify-observability-golden.mjs` checks derived reliability metrics,
 resolved and unknown explanations, exact bounded-output bytes, local-only default,
 explicit consent authorization, and fail-closed budget, secret, and consent paths.
+
+`npm run generate:artifacts -w @seedrop/protocol` deliberately refreshes the
+generated completeness contract after a reviewed source change. Normal development
+and CI use `npm run check:artifacts -w @seedrop/protocol`, which rebuilds the same
+catalog, schema prototype, bindings, report, and golden digests in memory and fails
+on byte drift. `node scripts/verify-protocol-generation.mjs` additionally verifies
+the committed SHA-256 fixture and all registered public symbol links.

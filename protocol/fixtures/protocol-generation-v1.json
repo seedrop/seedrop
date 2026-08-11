@@ -1,0 +1,18 @@
+{
+  "artifact": "seedrop-v2-protocol-generation",
+  "counts": {
+    "gap_count": 9,
+    "noun_count": 9,
+    "public_type_export_count": 111,
+    "public_value_export_count": 90,
+    "surface_count": 15
+  },
+  "fixture_version": "1.0.0",
+  "inventory_version": "1.0.0",
+  "sha256": {
+    "generated/PROTOCOL-CATALOG.md": "0d9014ce1780d2ba92461e029a9eb349b385415e1336931daf742b3167da03dd",
+    "generated/protocol-bindings.ts": "41222b8c9895e922a8a31a2d05ce87f4b6e73f73e26d1805f67d15d7e6afbd19",
+    "generated/protocol-catalog.json": "b0ce98013696c53b9cc3cef22afb0efb335def84012ce736cbce064194b11e22",
+    "generated/protocol-surface-shapes.schema.json": "75170a4cc1932d39b75f7b9cb3d435ca8de250bf5194b52d8f714ed9998bb944"
+  }
+}

@@ -14,6 +14,8 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc",
+    "generate:artifacts": "npm run build && node scripts/generate-protocol-artifacts.mjs --write",
+    "check:artifacts": "node scripts/generate-protocol-artifacts.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -23,12 +25,14 @@
     "verify:health-golden": "npm run build && node scripts/verify-health-golden.mjs",
     "verify:command-recovery-golden": "npm run build && node scripts/verify-command-recovery-golden.mjs",
     "verify:observability-golden": "npm run build && node scripts/verify-observability-golden.mjs",
+    "verify:protocol-generation": "npm run build && node scripts/verify-protocol-generation.mjs",
     "verify:runtime-goldens": "npm run build && node scripts/verify-runtime-goldens.mjs",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm run check:artifacts && npm test"
   },
   "files": [
     "src/",
     "dist/",
+    "generated/",
     "fixtures/",
     "scripts/",
     "README.md"

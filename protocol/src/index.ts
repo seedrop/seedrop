@@ -100,6 +100,7 @@ export type {
 export {
   COMMAND_AUDIT_VERSION,
   COMMAND_PHASES,
+  COMMAND_TRANSITIONS,
   SWEEP_CANDIDATE_VERSION,
   TERMINAL_COMMAND_PHASES,
   assertCommandAuditTrail,
@@ -166,6 +167,25 @@ export {
   healthBudgetFromBoundedOutput,
   telemetryExportState,
 } from "./observability.js";
+
+export {
+  PROTOCOL_INVENTORY_CORE,
+  PROTOCOL_INVENTORY_VERSION,
+  PUBLIC_NOUNS,
+  PUBLIC_EVENT_TYPES,
+  TRUST_AXES,
+  INTENT_LIFECYCLE,
+  EPISODE_LIFECYCLE,
+  LEASE_LIFECYCLE,
+  PROTOCOL_SURFACES,
+  PROTOCOL_GAPS,
+} from "./inventory.js";
+export type {
+  InventoryContractStatus,
+  ProtocolGap,
+  ProtocolNoun,
+  ProtocolSurface,
+} from "./inventory.js";
 export type {
   BoundedOutputCandidate,
   BoundedOutputEnvelope,

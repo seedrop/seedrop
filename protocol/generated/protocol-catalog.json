@@ -1,0 +1,2246 @@
+{
+  "artifact": "seedrop-v2-protocol-catalog",
+  "core": {
+    "canonical_id_kinds": [
+      "principal",
+      "project",
+      "intent",
+      "episode",
+      "claim",
+      "receipt",
+      "lease",
+      "event",
+      "situation",
+      "command"
+    ],
+    "commands": {
+      "closure": "open",
+      "registered": []
+    },
+    "current_versions": {
+      "command": "1.0.0",
+      "projection": "1.0.0",
+      "schema": "2.0.0",
+      "semantic": "2.0.0",
+      "wire": "1.0.0"
+    },
+    "errors": {
+      "seedrop.protocol.bounded_scan_exceeded": {
+        "category": "resource",
+        "message": "The bounded path scanned more candidates than its declared limit permits.",
+        "retryable": false
+      },
+      "seedrop.protocol.budget_insufficient": {
+        "category": "resource",
+        "message": "The requested byte budget cannot contain the mandatory truthful envelope.",
+        "retryable": false
+      },
+      "seedrop.protocol.budget_invalid": {
+        "category": "input",
+        "message": "The bounded-output request or candidate accounting is malformed.",
+        "retryable": false
+      },
+      "seedrop.protocol.canonical_json_cycle": {
+        "category": "input",
+        "message": "Canonical JSON cannot encode a cyclic value.",
+        "retryable": false
+      },
+      "seedrop.protocol.canonical_json_invalid_unicode": {
+        "category": "input",
+        "message": "Canonical JSON cannot encode an unpaired Unicode surrogate.",
+        "retryable": false
+      },
+      "seedrop.protocol.canonical_json_unsupported": {
+        "category": "input",
+        "message": "The value is outside the canonical JSON data model.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_audit_inconsistent": {
+        "category": "integrity",
+        "message": "The command audit summary disagrees with its canonical audit entries.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_audit_invalid": {
+        "category": "integrity",
+        "message": "The command audit trail is malformed, incomplete, or internally inconsistent.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_transition_invalid": {
+        "category": "conflict",
+        "message": "The command phase transition is not permitted by the command protocol.",
+        "retryable": false
+      },
+      "seedrop.protocol.command_unrecoverable": {
+        "category": "integrity",
+        "message": "A nonterminal command has no valid recovery path or a terminal command retains one.",
+        "retryable": false
+      },
+      "seedrop.protocol.explanation_trace_inconsistent": {
+        "category": "integrity",
+        "message": "The field explanation summary disagrees with its canonical evidence trace.",
+        "retryable": false
+      },
+      "seedrop.protocol.explanation_trace_invalid": {
+        "category": "integrity",
+        "message": "The field explanation is missing evidence, policy, projection, or typed unknown state.",
+        "retryable": false
+      },
+      "seedrop.protocol.health_disagreement_invalid": {
+        "category": "integrity",
+        "message": "The HealthEnvelope disagreement record is malformed or does not preserve a real contradiction.",
+        "retryable": false
+      },
+      "seedrop.protocol.health_inconsistent": {
+        "category": "integrity",
+        "message": "The HealthEnvelope summary disagrees with its structured evidence.",
+        "retryable": false
+      },
+      "seedrop.protocol.health_invalid": {
+        "category": "input",
+        "message": "The HealthEnvelope input is malformed or incomplete.",
+        "retryable": false
+      },
+      "seedrop.protocol.id_prefix_ambiguous": {
+        "category": "conflict",
+        "message": "The identifier prefix matched more than one canonical identifier.",
+        "retryable": false
+      },
+      "seedrop.protocol.id_prefix_not_found": {
+        "category": "not_found",
+        "message": "The identifier prefix did not match a canonical identifier.",
+        "retryable": false
+      },
+      "seedrop.protocol.id_prefix_too_short": {
+        "category": "input",
+        "message": "The identifier prefix is shorter than the protocol minimum.",
+        "retryable": false
+      },
+      "seedrop.protocol.identity_alias_ambiguous": {
+        "category": "authorization",
+        "message": "The identity alias resolves to multiple canonical identities and is denied.",
+        "retryable": false
+      },
+      "seedrop.protocol.identity_alias_not_found": {
+        "category": "not_found",
+        "message": "The identity alias did not resolve to a registered canonical identity.",
+        "retryable": false
+      },
+      "seedrop.protocol.identity_registry_invalid": {
+        "category": "integrity",
+        "message": "The identity registry is malformed or internally inconsistent.",
+        "retryable": false
+      },
+      "seedrop.protocol.invalid_id": {
+        "category": "input",
+        "message": "The identifier is not a canonical Seedrop v2 identifier.",
+        "retryable": false
+      },
+      "seedrop.protocol.migration_failed": {
+        "category": "integrity",
+        "message": "A registered protocol migration failed.",
+        "retryable": false
+      },
+      "seedrop.protocol.migration_graph_invalid": {
+        "category": "integrity",
+        "message": "The migration graph is ambiguous, cyclic, orphaned, or has a gap.",
+        "retryable": false
+      },
+      "seedrop.protocol.operational_metrics_inconsistent": {
+        "category": "integrity",
+        "message": "The operational metrics summary disagrees with its canonical spans.",
+        "retryable": false
+      },
+      "seedrop.protocol.operational_metrics_invalid": {
+        "category": "input",
+        "message": "The operational metrics input is malformed or incomplete.",
+        "retryable": false
+      },
+      "seedrop.protocol.repair_journal_invalid": {
+        "category": "integrity",
+        "message": "The append-only repair Receipt journal has a sequence or hash-chain violation.",
+        "retryable": false
+      },
+      "seedrop.protocol.repair_receipt_invalid": {
+        "category": "integrity",
+        "message": "The repair Receipt is malformed, incomplete, or contradicts its outcome.",
+        "retryable": false
+      },
+      "seedrop.protocol.telemetry_consent_invalid": {
+        "category": "integrity",
+        "message": "The telemetry consent Receipt is malformed or internally inconsistent.",
+        "retryable": false
+      },
+      "seedrop.protocol.telemetry_export_denied": {
+        "category": "authorization",
+        "message": "Telemetry export is denied because explicit matching consent is absent or inactive.",
+        "retryable": false
+      },
+      "seedrop.protocol.telemetry_secret_detected": {
+        "category": "authorization",
+        "message": "Telemetry export is denied because the payload contains a secret-pattern finding.",
+        "retryable": false
+      },
+      "seedrop.protocol.validation_failed": {
+        "category": "input",
+        "message": "The migrated protocol value failed current-schema validation.",
+        "retryable": false
+      },
+      "seedrop.protocol.version_forward": {
+        "category": "compatibility",
+        "message": "The protocol version is newer than this implementation supports.",
+        "retryable": false
+      },
+      "seedrop.protocol.version_invalid": {
+        "category": "input",
+        "message": "The protocol version is missing or malformed.",
+        "retryable": false
+      },
+      "seedrop.protocol.version_unknown": {
+        "category": "compatibility",
+        "message": "The protocol version is not registered as supported.",
+        "retryable": false
+      }
+    },
+    "events": {
+      "closure": "open",
+      "registered": [
+        {
+          "name": "command.sweep_candidate",
+          "status": "proposal_only",
+          "surface": "SweepCandidateEvent"
+        }
+      ]
+    },
+    "gaps": [
+      {
+        "boundary": "kernel",
+        "id": "intent_record",
+        "noun": "Intent",
+        "reason": "No canonical Intent Event or root record is implemented yet."
+      },
+      {
+        "boundary": "kernel",
+        "id": "episode_record",
+        "noun": "Episode",
+        "reason": "No canonical Episode Event or root record is implemented yet."
+      },
+      {
+        "boundary": "kernel",
+        "id": "claim_record",
+        "noun": "Claim",
+        "reason": "Explanation evidence exists, but the canonical Claim record is not implemented."
+      },
+      {
+        "boundary": "kernel",
+        "id": "receipt_record",
+        "noun": "Receipt",
+        "reason": "Concrete repair and consent Receipts exist; the general Receipt contract is not implemented."
+      },
+      {
+        "boundary": "coordination",
+        "id": "lease_record",
+        "noun": "Lease",
+        "reason": "The lifecycle is frozen, but no native v2 Lease record or command exists."
+      },
+      {
+        "boundary": "kernel",
+        "id": "event_envelope",
+        "noun": "Event",
+        "reason": "Audit entries and proposals exist, but the canonical atomic Event envelope is not implemented."
+      },
+      {
+        "boundary": "projection",
+        "id": "situation_envelope",
+        "noun": "Situation",
+        "reason": "Health and bounded projections exist, but the complete Situation envelope is not implemented."
+      },
+      {
+        "boundary": "kernel",
+        "id": "event_type_registry",
+        "noun": "Event",
+        "reason": "Event names remain open until native kernel commands freeze the complete registry."
+      },
+      {
+        "boundary": "kernel",
+        "id": "command_name_registry",
+        "noun": null,
+        "reason": "CommandAuditTrail accepts a non-empty command name; the native command registry is not frozen."
+      }
+    ],
+    "inventory_version": "1.0.0",
+    "lifecycles": {
+      "command": {
+        "initial": "accepted",
+        "states": [
+          "accepted",
+          "executing",
+          "effects_pending",
+          "recovery_pending",
+          "completed",
+          "rejected",
+          "failed",
+          "compensated"
+        ],
+        "terminal": [
+          "completed",
+          "rejected",
+          "failed",
+          "compensated"
+        ],
+        "transitions": {
+          "accepted": [
+            "executing",
+            "effects_pending",
+            "completed",
+            "rejected",
+            "failed"
+          ],
+          "compensated": [],
+          "completed": [],
+          "effects_pending": [
+            "executing",
+            "recovery_pending",
+            "completed",
+            "failed"
+          ],
+          "executing": [
+            "effects_pending",
+            "recovery_pending",
+            "completed",
+            "failed"
+          ],
+          "failed": [],
+          "recovery_pending": [
+            "executing",
+            "effects_pending",
+            "completed",
+            "failed",
+            "compensated"
+          ],
+          "rejected": []
+        }
+      },
+      "episode": {
+        "initial": "active",
+        "states": [
+          "active",
+          "paused",
+          "blocked",
+          "reported_complete",
+          "failed",
+          "abandoned"
+        ],
+        "terminal": [
+          "reported_complete",
+          "failed",
+          "abandoned"
+        ],
+        "transitions": {
+          "abandoned": [],
+          "active": [
+            "paused",
+            "blocked",
+            "reported_complete",
+            "failed",
+            "abandoned"
+          ],
+          "blocked": [
+            "active",
+            "paused",
+            "failed",
+            "abandoned"
+          ],
+          "failed": [],
+          "paused": [
+            "active",
+            "blocked",
+            "failed",
+            "abandoned"
+          ],
+          "reported_complete": []
+        }
+      },
+      "intent": {
+        "initial": "queued",
+        "states": [
+          "queued",
+          "active",
+          "paused",
+          "blocked",
+          "reported_complete",
+          "abandoned"
+        ],
+        "terminal": [
+          "reported_complete",
+          "abandoned"
+        ],
+        "transitions": {
+          "abandoned": [],
+          "active": [
+            "paused",
+            "blocked",
+            "reported_complete",
+            "abandoned"
+          ],
+          "blocked": [
+            "active",
+            "paused",
+            "abandoned"
+          ],
+          "paused": [
+            "active",
+            "blocked",
+            "abandoned"
+          ],
+          "queued": [
+            "active",
+            "paused",
+            "blocked",
+            "abandoned"
+          ],
+          "reported_complete": []
+        }
+      },
+      "lease": {
+        "initial": "active",
+        "states": [
+          "active",
+          "released",
+          "expired",
+          "revoked"
+        ],
+        "terminal": [
+          "released",
+          "expired",
+          "revoked"
+        ],
+        "transitions": {
+          "active": [
+            "released",
+            "expired",
+            "revoked"
+          ],
+          "expired": [],
+          "released": [],
+          "revoked": []
+        }
+      }
+    },
+    "ontology": [
+      {
+        "authority": "machine",
+        "contract_status": "implemented",
+        "gap_ids": [],
+        "implemented_surfaces": [
+          "PrincipalRecord",
+          "PrincipalRegistry"
+        ],
+        "name": "Principal"
+      },
+      {
+        "authority": "mixed",
+        "contract_status": "implemented",
+        "gap_ids": [],
+        "implemented_surfaces": [
+          "ProjectRecord",
+          "ProjectRegistry"
+        ],
+        "name": "Project"
+      },
+      {
+        "authority": "project",
+        "contract_status": "declared",
+        "gap_ids": [
+          "intent_record"
+        ],
+        "implemented_surfaces": [],
+        "name": "Intent"
+      },
+      {
+        "authority": "project",
+        "contract_status": "declared",
+        "gap_ids": [
+          "episode_record"
+        ],
+        "implemented_surfaces": [],
+        "name": "Episode"
+      },
+      {
+        "authority": "mixed",
+        "contract_status": "partial",
+        "gap_ids": [
+          "claim_record"
+        ],
+        "implemented_surfaces": [
+          "FieldExplanationTrace"
+        ],
+        "name": "Claim"
+      },
+      {
+        "authority": "external",
+        "contract_status": "partial",
+        "gap_ids": [
+          "receipt_record"
+        ],
+        "implemented_surfaces": [
+          "RepairReceipt",
+          "TelemetryConsentReceipt",
+          "TelemetryExportAuthorization"
+        ],
+        "name": "Receipt"
+      },
+      {
+        "authority": "machine",
+        "contract_status": "declared",
+        "gap_ids": [
+          "lease_record"
+        ],
+        "implemented_surfaces": [],
+        "name": "Lease"
+      },
+      {
+        "authority": "project",
+        "contract_status": "partial",
+        "gap_ids": [
+          "event_envelope",
+          "event_type_registry"
+        ],
+        "implemented_surfaces": [
+          "CommandAuditTrail",
+          "SweepCandidateEvent"
+        ],
+        "name": "Event"
+      },
+      {
+        "authority": "projection",
+        "contract_status": "partial",
+        "gap_ids": [
+          "situation_envelope"
+        ],
+        "implemented_surfaces": [
+          "HealthEnvelope",
+          "OperationalMetricsSnapshot",
+          "BoundedOutputEnvelope"
+        ],
+        "name": "Situation"
+      }
+    ],
+    "surfaces": [
+      {
+        "builder": null,
+        "name": "VersionEnvelope",
+        "noun": null,
+        "role": "wire_envelope",
+        "source_file": "src/versions.ts",
+        "validator": "parseVersionEnvelope",
+        "version_constant": null,
+        "version_field": null
+      },
+      {
+        "builder": "protocolErrorEnvelope",
+        "name": "ProtocolErrorEnvelope",
+        "noun": null,
+        "role": "wire_envelope",
+        "source_file": "src/errors.ts",
+        "validator": null,
+        "version_constant": null,
+        "version_field": null
+      },
+      {
+        "builder": null,
+        "name": "PrincipalRecord",
+        "noun": "Principal",
+        "role": "durable_record",
+        "source_file": "src/identity.ts",
+        "validator": null,
+        "version_constant": null,
+        "version_field": null
+      },
+      {
+        "builder": null,
+        "name": "PrincipalRegistry",
+        "noun": "Principal",
+        "role": "registry",
+        "source_file": "src/identity.ts",
+        "validator": "assertPrincipalRegistry",
+        "version_constant": "IDENTITY_REGISTRY_VERSION",
+        "version_field": "registry_version"
+      },
+      {
+        "builder": null,
+        "name": "ProjectRecord",
+        "noun": "Project",
+        "role": "durable_record",
+        "source_file": "src/identity.ts",
+        "validator": null,
+        "version_constant": null,
+        "version_field": null
+      },
+      {
+        "builder": null,
+        "name": "ProjectRegistry",
+        "noun": "Project",
+        "role": "registry",
+        "source_file": "src/identity.ts",
+        "validator": "assertProjectRegistry",
+        "version_constant": "IDENTITY_REGISTRY_VERSION",
+        "version_field": "registry_version"
+      },
+      {
+        "builder": "buildHealthEnvelope",
+        "name": "HealthEnvelope",
+        "noun": "Situation",
+        "role": "projection",
+        "source_file": "src/health.ts",
+        "validator": "assertHealthEnvelope",
+        "version_constant": "HEALTH_ENVELOPE_VERSION",
+        "version_field": "health_version"
+      },
+      {
+        "builder": "buildCommandAuditTrail",
+        "name": "CommandAuditTrail",
+        "noun": "Event",
+        "role": "durable_record",
+        "source_file": "src/commands.ts",
+        "validator": "assertCommandAuditTrail",
+        "version_constant": "COMMAND_AUDIT_VERSION",
+        "version_field": "audit_version"
+      },
+      {
+        "builder": "findCommandSweepCandidates",
+        "name": "SweepCandidateEvent",
+        "noun": "Event",
+        "role": "proposal",
+        "source_file": "src/commands.ts",
+        "validator": null,
+        "version_constant": "SWEEP_CANDIDATE_VERSION",
+        "version_field": "sweep_candidate_version"
+      },
+      {
+        "builder": "buildRepairReceipt",
+        "name": "RepairReceipt",
+        "noun": "Receipt",
+        "role": "durable_record",
+        "source_file": "src/repairs.ts",
+        "validator": "assertRepairReceipt",
+        "version_constant": "REPAIR_RECEIPT_VERSION",
+        "version_field": "receipt_version"
+      },
+      {
+        "builder": "buildOperationalMetricsSnapshot",
+        "name": "OperationalMetricsSnapshot",
+        "noun": "Situation",
+        "role": "projection",
+        "source_file": "src/observability.ts",
+        "validator": "assertOperationalMetricsSnapshot",
+        "version_constant": "OPERATIONAL_METRICS_VERSION",
+        "version_field": "metrics_version"
+      },
+      {
+        "builder": "buildFieldExplanation",
+        "name": "FieldExplanationTrace",
+        "noun": "Claim",
+        "role": "projection",
+        "source_file": "src/observability.ts",
+        "validator": "assertFieldExplanation",
+        "version_constant": "EXPLANATION_TRACE_VERSION",
+        "version_field": "explanation_version"
+      },
+      {
+        "builder": "compileBoundedOutput",
+        "name": "BoundedOutputEnvelope",
+        "noun": "Situation",
+        "role": "projection",
+        "source_file": "src/observability.ts",
+        "validator": "assertBoundedOutput",
+        "version_constant": "BOUNDED_OUTPUT_VERSION",
+        "version_field": "budget_version"
+      },
+      {
+        "builder": "buildTelemetryConsentReceipt",
+        "name": "TelemetryConsentReceipt",
+        "noun": "Receipt",
+        "role": "durable_record",
+        "source_file": "src/observability.ts",
+        "validator": "assertTelemetryConsentReceipt",
+        "version_constant": "TELEMETRY_CONSENT_VERSION",
+        "version_field": "consent_version"
+      },
+      {
+        "builder": "authorizeTelemetryExport",
+        "name": "TelemetryExportAuthorization",
+        "noun": "Receipt",
+        "role": "authorization",
+        "source_file": "src/observability.ts",
+        "validator": null,
+        "version_constant": "TELEMETRY_EXPORT_VERSION",
+        "version_field": "export_version"
+      }
+    ],
+    "trust_axes": {
+      "confidence": [
+        "observed",
+        "inferred_high",
+        "inferred_low",
+        "unknown"
+      ],
+      "delivery": [
+        "not_applicable",
+        "unobserved",
+        "uncommitted",
+        "committed",
+        "review_open",
+        "merged",
+        "reverted",
+        "superseded",
+        "absent"
+      ],
+      "evidence": [
+        "unverified",
+        "passed",
+        "failed",
+        "stale",
+        "unavailable"
+      ],
+      "readiness": [
+        "not_ready",
+        "resumable_with_risk",
+        "ready"
+      ],
+      "substrate": [
+        "healthy",
+        "degraded",
+        "corrupt",
+        "migrating",
+        "unreachable"
+      ]
+    },
+    "version_axes": [
+      "schema",
+      "semantic",
+      "command",
+      "projection",
+      "wire"
+    ]
+  },
+  "coverage": {
+    "gap_count": 9,
+    "noun_count": 9,
+    "public_type_export_count": 111,
+    "public_value_export_count": 90,
+    "surface_count": 15
+  },
+  "generated_from": [
+    "src/index.ts",
+    "src/inventory.ts",
+    "registered public interface declarations"
+  ],
+  "prototype_scope": "Top-level public shape inventory; runtime builders remain the semantic validators.",
+  "public_exports": {
+    "types": [
+      {
+        "name": "BoundedOutputCandidate",
+        "source": "./observability.js"
+      },
+      {
+        "name": "BoundedOutputEnvelope",
+        "source": "./observability.js"
+      },
+      {
+        "name": "BoundedOutputItem",
+        "source": "./observability.js"
+      },
+      {
+        "name": "BuildCommandAuditTrailInput",
+        "source": "./commands.js"
+      },
+      {
+        "name": "BuildFieldExplanationInput",
+        "source": "./observability.js"
+      },
+      {
+        "name": "BuildHealthEnvelopeInput",
+        "source": "./health.js"
+      },
+      {
+        "name": "BuildOperationalMetricsInput",
+        "source": "./observability.js"
+      },
+      {
+        "name": "BuildRepairReceiptInput",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "BuildTelemetryConsentInput",
+        "source": "./observability.js"
+      },
+      {
+        "name": "CandidateAcquisition",
+        "source": "./observability.js"
+      },
+      {
+        "name": "CanonicalId",
+        "source": "./ids.js"
+      },
+      {
+        "name": "CanonicalIdKind",
+        "source": "./ids.js"
+      },
+      {
+        "name": "CommandAuditEntry",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CommandAuditError",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CommandAuditTrail",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CommandInvariantCode",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CommandInvariantReport",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CommandInvariantViolation",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CommandPhase",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CommandRecoveryPlan",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CommandSweepPolicy",
+        "source": "./commands.js"
+      },
+      {
+        "name": "CompileBoundedOutputInput",
+        "source": "./observability.js"
+      },
+      {
+        "name": "DisagreementClaim",
+        "source": "./health.js"
+      },
+      {
+        "name": "ExplanationConfidence",
+        "source": "./observability.js"
+      },
+      {
+        "name": "ExplanationEvidence",
+        "source": "./observability.js"
+      },
+      {
+        "name": "ExplanationPolicyTrace",
+        "source": "./observability.js"
+      },
+      {
+        "name": "ExplanationStatus",
+        "source": "./observability.js"
+      },
+      {
+        "name": "ExplanationUnknown",
+        "source": "./observability.js"
+      },
+      {
+        "name": "FieldExplanationTrace",
+        "source": "./observability.js"
+      },
+      {
+        "name": "GenerateCanonicalIdOptions",
+        "source": "./ids.js"
+      },
+      {
+        "name": "GoverningPolicyTrace",
+        "source": "./health.js"
+      },
+      {
+        "name": "GoverningRecordId",
+        "source": "./health.js"
+      },
+      {
+        "name": "HealthBudget",
+        "source": "./health.js"
+      },
+      {
+        "name": "HealthDisagreement",
+        "source": "./health.js"
+      },
+      {
+        "name": "HealthEnvelope",
+        "source": "./health.js"
+      },
+      {
+        "name": "HealthPolicyRef",
+        "source": "./health.js"
+      },
+      {
+        "name": "HealthReason",
+        "source": "./health.js"
+      },
+      {
+        "name": "HealthReasonCode",
+        "source": "./health.js"
+      },
+      {
+        "name": "HealthSource",
+        "source": "./health.js"
+      },
+      {
+        "name": "HealthSourceStatus",
+        "source": "./health.js"
+      },
+      {
+        "name": "IdentityDiagnostic",
+        "source": "./identity.js"
+      },
+      {
+        "name": "IdentityInput",
+        "source": "./identity.js"
+      },
+      {
+        "name": "InventoryContractStatus",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "JsonPrimitive",
+        "source": "./canonical-json.js"
+      },
+      {
+        "name": "JsonValue",
+        "source": "./canonical-json.js"
+      },
+      {
+        "name": "MigrationPlan",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "MigrationPlanMetadata",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "MigrationResult",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "MigrationStep",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "MigrationStepMetadata",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "NonterminalCommandPhase",
+        "source": "./commands.js"
+      },
+      {
+        "name": "OperationalMetricAlert",
+        "source": "./observability.js"
+      },
+      {
+        "name": "OperationalMetricAlertCode",
+        "source": "./observability.js"
+      },
+      {
+        "name": "OperationalMetricCounters",
+        "source": "./observability.js"
+      },
+      {
+        "name": "OperationalMetricKind",
+        "source": "./observability.js"
+      },
+      {
+        "name": "OperationalMetricPolicy",
+        "source": "./observability.js"
+      },
+      {
+        "name": "OperationalMetricSpan",
+        "source": "./observability.js"
+      },
+      {
+        "name": "OperationalMetricsSnapshot",
+        "source": "./observability.js"
+      },
+      {
+        "name": "OutboxLagSummary",
+        "source": "./observability.js"
+      },
+      {
+        "name": "ParsedCanonicalId",
+        "source": "./ids.js"
+      },
+      {
+        "name": "PendingCommandHealth",
+        "source": "./health.js"
+      },
+      {
+        "name": "PrincipalAliasNamespace",
+        "source": "./identity.js"
+      },
+      {
+        "name": "PrincipalAliasRecord",
+        "source": "./identity.js"
+      },
+      {
+        "name": "PrincipalCandidate",
+        "source": "./identity.js"
+      },
+      {
+        "name": "PrincipalKind",
+        "source": "./identity.js"
+      },
+      {
+        "name": "PrincipalReconciliationResult",
+        "source": "./identity.js"
+      },
+      {
+        "name": "PrincipalRecord",
+        "source": "./identity.js"
+      },
+      {
+        "name": "PrincipalRegistry",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProjectAliasNamespace",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProjectAliasRecord",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProjectCandidate",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProjectPlacementKind",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProjectPlacementRecord",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProjectReconciliationResult",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProjectRecord",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProjectRegistry",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ProtocolErrorCategory",
+        "source": "./errors.js"
+      },
+      {
+        "name": "ProtocolErrorCode",
+        "source": "./errors.js"
+      },
+      {
+        "name": "ProtocolErrorDetails",
+        "source": "./errors.js"
+      },
+      {
+        "name": "ProtocolErrorEnvelope",
+        "source": "./errors.js"
+      },
+      {
+        "name": "ProtocolGap",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "ProtocolNoun",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "ProtocolSurface",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "ProtocolVersion",
+        "source": "./versions.js"
+      },
+      {
+        "name": "QuarantineRecord",
+        "source": "./health.js"
+      },
+      {
+        "name": "ReconciliationOptions",
+        "source": "./identity.js"
+      },
+      {
+        "name": "RepairCommandRef",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairEvidenceRecordId",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairEvidenceRef",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairFailure",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairJournalLink",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairOutcome",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairReceipt",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairReceiptQuery",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairRollback",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepairStateRef",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "RepositoryIdentityKind",
+        "source": "./identity.js"
+      },
+      {
+        "name": "ResolvedCommandIdentity",
+        "source": "./identity.js"
+      },
+      {
+        "name": "StaleProjection",
+        "source": "./health.js"
+      },
+      {
+        "name": "SubstrateState",
+        "source": "./health.js"
+      },
+      {
+        "name": "SweepCandidateEvent",
+        "source": "./commands.js"
+      },
+      {
+        "name": "TelemetryConsentDecision",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TelemetryConsentReceipt",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TelemetryConsentScope",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TelemetryExportAuthorization",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TelemetryExportRequest",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TelemetryExportState",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TelemetrySecretFinding",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TerminalCommandPhase",
+        "source": "./commands.js"
+      },
+      {
+        "name": "VersionAxis",
+        "source": "./versions.js"
+      },
+      {
+        "name": "VersionEnvelope",
+        "source": "./versions.js"
+      }
+    ],
+    "values": [
+      {
+        "name": "assertBoundedOutput",
+        "source": "./observability.js"
+      },
+      {
+        "name": "assertCommandAuditTrail",
+        "source": "./commands.js"
+      },
+      {
+        "name": "assertFieldExplanation",
+        "source": "./observability.js"
+      },
+      {
+        "name": "assertHealthEnvelope",
+        "source": "./health.js"
+      },
+      {
+        "name": "assertOperationalMetricsSnapshot",
+        "source": "./observability.js"
+      },
+      {
+        "name": "assertPrincipalRegistry",
+        "source": "./identity.js"
+      },
+      {
+        "name": "assertProjectRegistry",
+        "source": "./identity.js"
+      },
+      {
+        "name": "assertRepairJournal",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "assertRepairReceipt",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "assertSupportedVersion",
+        "source": "./versions.js"
+      },
+      {
+        "name": "assertTelemetryConsentReceipt",
+        "source": "./observability.js"
+      },
+      {
+        "name": "authorizeTelemetryExport",
+        "source": "./observability.js"
+      },
+      {
+        "name": "BOUNDED_OUTPUT_VERSION",
+        "source": "./observability.js"
+      },
+      {
+        "name": "buildCommandAuditTrail",
+        "source": "./commands.js"
+      },
+      {
+        "name": "buildFieldExplanation",
+        "source": "./observability.js"
+      },
+      {
+        "name": "buildHealthEnvelope",
+        "source": "./health.js"
+      },
+      {
+        "name": "buildOperationalMetricsSnapshot",
+        "source": "./observability.js"
+      },
+      {
+        "name": "buildRepairReceipt",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "buildTelemetryConsentReceipt",
+        "source": "./observability.js"
+      },
+      {
+        "name": "CANONICAL_ID_KIND_CODES",
+        "source": "./ids.js"
+      },
+      {
+        "name": "CANONICAL_ID_KINDS",
+        "source": "./ids.js"
+      },
+      {
+        "name": "canonicalJson",
+        "source": "./canonical-json.js"
+      },
+      {
+        "name": "canonicalJsonBytes",
+        "source": "./canonical-json.js"
+      },
+      {
+        "name": "canonicalJsonDigest",
+        "source": "./canonical-json.js"
+      },
+      {
+        "name": "COMMAND_AUDIT_VERSION",
+        "source": "./commands.js"
+      },
+      {
+        "name": "COMMAND_PHASES",
+        "source": "./commands.js"
+      },
+      {
+        "name": "COMMAND_TRANSITIONS",
+        "source": "./commands.js"
+      },
+      {
+        "name": "compareProtocolVersions",
+        "source": "./versions.js"
+      },
+      {
+        "name": "compileBoundedOutput",
+        "source": "./observability.js"
+      },
+      {
+        "name": "CURRENT_VERSION_ENVELOPE",
+        "source": "./versions.js"
+      },
+      {
+        "name": "CURRENT_VERSIONS",
+        "source": "./versions.js"
+      },
+      {
+        "name": "defineMigrationPlan",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "EPISODE_LIFECYCLE",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "ERROR_REGISTRY",
+        "source": "./errors.js"
+      },
+      {
+        "name": "evaluateCommandInvariants",
+        "source": "./commands.js"
+      },
+      {
+        "name": "EXPLANATION_TRACE_VERSION",
+        "source": "./observability.js"
+      },
+      {
+        "name": "findCommandSweepCandidates",
+        "source": "./commands.js"
+      },
+      {
+        "name": "findTelemetrySecretPatterns",
+        "source": "./observability.js"
+      },
+      {
+        "name": "generateCanonicalId",
+        "source": "./ids.js"
+      },
+      {
+        "name": "HEALTH_ENVELOPE_VERSION",
+        "source": "./health.js"
+      },
+      {
+        "name": "healthBudgetFromBoundedOutput",
+        "source": "./observability.js"
+      },
+      {
+        "name": "IDENTITY_REGISTRY_VERSION",
+        "source": "./identity.js"
+      },
+      {
+        "name": "INTENT_LIFECYCLE",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "isCanonicalId",
+        "source": "./ids.js"
+      },
+      {
+        "name": "isProtocolError",
+        "source": "./errors.js"
+      },
+      {
+        "name": "isTerminalCommandPhase",
+        "source": "./commands.js"
+      },
+      {
+        "name": "LEASE_LIFECYCLE",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "migrateToCurrent",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "migrationPlanMetadata",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "MIN_ID_PREFIX_HEX_LENGTH",
+        "source": "./ids.js"
+      },
+      {
+        "name": "normalizeGitRemote",
+        "source": "./identity.js"
+      },
+      {
+        "name": "normalizePlacementPath",
+        "source": "./identity.js"
+      },
+      {
+        "name": "normalizePrincipalAlias",
+        "source": "./identity.js"
+      },
+      {
+        "name": "OPERATIONAL_METRIC_KINDS",
+        "source": "./observability.js"
+      },
+      {
+        "name": "OPERATIONAL_METRICS_VERSION",
+        "source": "./observability.js"
+      },
+      {
+        "name": "orderedMigrationPath",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "parseCanonicalId",
+        "source": "./ids.js"
+      },
+      {
+        "name": "parseProtocolVersion",
+        "source": "./versions.js"
+      },
+      {
+        "name": "parseVersionEnvelope",
+        "source": "./versions.js"
+      },
+      {
+        "name": "PRINCIPAL_ALIAS_NAMESPACES",
+        "source": "./identity.js"
+      },
+      {
+        "name": "PROJECT_ALIAS_NAMESPACES",
+        "source": "./identity.js"
+      },
+      {
+        "name": "PROTOCOL_ENVELOPE_MIGRATIONS",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "PROTOCOL_GAPS",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "PROTOCOL_INVENTORY_CORE",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "PROTOCOL_INVENTORY_VERSION",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "PROTOCOL_SURFACES",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "protocolError",
+        "source": "./errors.js"
+      },
+      {
+        "name": "ProtocolError",
+        "source": "./errors.js"
+      },
+      {
+        "name": "protocolErrorEnvelope",
+        "source": "./errors.js"
+      },
+      {
+        "name": "PUBLIC_EVENT_TYPES",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "PUBLIC_NOUNS",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "queryRepairReceipts",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "reconcilePrincipalCandidates",
+        "source": "./identity.js"
+      },
+      {
+        "name": "reconcileProjectCandidates",
+        "source": "./identity.js"
+      },
+      {
+        "name": "REPAIR_RECEIPT_VERSION",
+        "source": "./repairs.js"
+      },
+      {
+        "name": "resolveCanonicalIdInput",
+        "source": "./ids.js"
+      },
+      {
+        "name": "resolveCommandIdentities",
+        "source": "./identity.js"
+      },
+      {
+        "name": "resolvePrincipalIdentity",
+        "source": "./identity.js"
+      },
+      {
+        "name": "resolveProjectIdentity",
+        "source": "./identity.js"
+      },
+      {
+        "name": "SUBSTRATE_STATES",
+        "source": "./health.js"
+      },
+      {
+        "name": "SUPPORTED_VERSIONS",
+        "source": "./versions.js"
+      },
+      {
+        "name": "SWEEP_CANDIDATE_VERSION",
+        "source": "./commands.js"
+      },
+      {
+        "name": "TELEMETRY_CONSENT_VERSION",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TELEMETRY_DEFAULT_MODE",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TELEMETRY_EXPORT_VERSION",
+        "source": "./observability.js"
+      },
+      {
+        "name": "telemetryExportState",
+        "source": "./observability.js"
+      },
+      {
+        "name": "TERMINAL_COMMAND_PHASES",
+        "source": "./commands.js"
+      },
+      {
+        "name": "TRUST_AXES",
+        "source": "./inventory.js"
+      },
+      {
+        "name": "validateMigrationPlan",
+        "source": "./migrations.js"
+      },
+      {
+        "name": "VERSION_AXES",
+        "source": "./versions.js"
+      }
+    ]
+  },
+  "surface_shapes": [
+    {
+      "fields": [
+        {
+          "name": "schema_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "semantic_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "command_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "projection_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "wire_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        }
+      ],
+      "name": "VersionEnvelope",
+      "source_file": "src/versions.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "error",
+          "optional": false,
+          "typescript_type": "{ code: ProtocolErrorCode; category: ProtocolErrorCategory; message: string; retryable: boolean; details: ProtocolErrorDetails; }"
+        }
+      ],
+      "name": "ProtocolErrorEnvelope",
+      "source_file": "src/errors.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "kind",
+          "optional": false,
+          "typescript_type": "PrincipalKind"
+        },
+        {
+          "name": "source_refs",
+          "optional": false,
+          "typescript_type": "readonly string[]"
+        }
+      ],
+      "name": "PrincipalRecord",
+      "source_file": "src/identity.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "registry_version",
+          "optional": false,
+          "typescript_type": "typeof IDENTITY_REGISTRY_VERSION"
+        },
+        {
+          "name": "revision",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "principals",
+          "optional": false,
+          "typescript_type": "readonly PrincipalRecord[]"
+        },
+        {
+          "name": "aliases",
+          "optional": false,
+          "typescript_type": "readonly PrincipalAliasRecord[]"
+        }
+      ],
+      "name": "PrincipalRegistry",
+      "source_file": "src/identity.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "repository_identity",
+          "optional": false,
+          "typescript_type": "string | null"
+        },
+        {
+          "name": "source_refs",
+          "optional": false,
+          "typescript_type": "readonly string[]"
+        }
+      ],
+      "name": "ProjectRecord",
+      "source_file": "src/identity.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "registry_version",
+          "optional": false,
+          "typescript_type": "typeof IDENTITY_REGISTRY_VERSION"
+        },
+        {
+          "name": "revision",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "projects",
+          "optional": false,
+          "typescript_type": "readonly ProjectRecord[]"
+        },
+        {
+          "name": "aliases",
+          "optional": false,
+          "typescript_type": "readonly ProjectAliasRecord[]"
+        },
+        {
+          "name": "placements",
+          "optional": false,
+          "typescript_type": "readonly ProjectPlacementRecord[]"
+        }
+      ],
+      "name": "ProjectRegistry",
+      "source_file": "src/identity.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "health_version",
+          "optional": false,
+          "typescript_type": "typeof HEALTH_ENVELOPE_VERSION"
+        },
+        {
+          "name": "generated_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "substrate",
+          "optional": false,
+          "typescript_type": "SubstrateState"
+        },
+        {
+          "name": "projection_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "policy",
+          "optional": false,
+          "typescript_type": "HealthPolicyRef"
+        },
+        {
+          "name": "sources",
+          "optional": false,
+          "typescript_type": "readonly HealthSource[]"
+        },
+        {
+          "name": "quarantined",
+          "optional": false,
+          "typescript_type": "readonly QuarantineRecord[]"
+        },
+        {
+          "name": "stale_projections",
+          "optional": false,
+          "typescript_type": "readonly StaleProjection[]"
+        },
+        {
+          "name": "pending_commands",
+          "optional": false,
+          "typescript_type": "readonly PendingCommandHealth[]"
+        },
+        {
+          "name": "budget",
+          "optional": false,
+          "typescript_type": "HealthBudget"
+        },
+        {
+          "name": "disagreements",
+          "optional": false,
+          "typescript_type": "readonly HealthDisagreement[]"
+        },
+        {
+          "name": "reasons",
+          "optional": false,
+          "typescript_type": "readonly HealthReason[]"
+        }
+      ],
+      "name": "HealthEnvelope",
+      "source_file": "src/health.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "audit_version",
+          "optional": false,
+          "typescript_type": "typeof COMMAND_AUDIT_VERSION"
+        },
+        {
+          "name": "command_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"command\">"
+        },
+        {
+          "name": "command_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "command_name",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "idempotency_key",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "input_digest",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "accepted_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "entries",
+          "optional": false,
+          "typescript_type": "readonly CommandAuditEntry[]"
+        }
+      ],
+      "name": "CommandAuditTrail",
+      "source_file": "src/commands.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "sweep_candidate_version",
+          "optional": false,
+          "typescript_type": "typeof SWEEP_CANDIDATE_VERSION"
+        },
+        {
+          "name": "command_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"command\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "observed_phase",
+          "optional": false,
+          "typescript_type": "NonterminalCommandPhase"
+        },
+        {
+          "name": "observed_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "age_ms",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "idle_ms",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "recovery_owner_principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "reason_codes",
+          "optional": false,
+          "typescript_type": "readonly CommandInvariantCode[]"
+        },
+        {
+          "name": "policy_id",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "policy_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "proposed_event",
+          "optional": false,
+          "typescript_type": "{ event_type: \"command.sweep_candidate\"; subject_command_id: CanonicalId<\"command\">; confidence: \"inferred\"; cause: string; }"
+        }
+      ],
+      "name": "SweepCandidateEvent",
+      "source_file": "src/commands.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "receipt_version",
+          "optional": false,
+          "typescript_type": "typeof REPAIR_RECEIPT_VERSION"
+        },
+        {
+          "name": "receipt_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"receipt\">"
+        },
+        {
+          "name": "repair_command_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"command\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "actor_principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "recovery_owner_principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "issued_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "target",
+          "optional": false,
+          "typescript_type": "{ kind: string; referent: string; }"
+        },
+        {
+          "name": "command",
+          "optional": false,
+          "typescript_type": "RepairCommandRef"
+        },
+        {
+          "name": "evidence",
+          "optional": false,
+          "typescript_type": "readonly RepairEvidenceRef[]"
+        },
+        {
+          "name": "before",
+          "optional": false,
+          "typescript_type": "RepairStateRef"
+        },
+        {
+          "name": "after",
+          "optional": false,
+          "typescript_type": "RepairStateRef"
+        },
+        {
+          "name": "outcome",
+          "optional": false,
+          "typescript_type": "RepairOutcome"
+        },
+        {
+          "name": "failure",
+          "optional": false,
+          "typescript_type": "RepairFailure | null"
+        },
+        {
+          "name": "rollback",
+          "optional": false,
+          "typescript_type": "RepairRollback"
+        },
+        {
+          "name": "journal",
+          "optional": false,
+          "typescript_type": "RepairJournalLink"
+        }
+      ],
+      "name": "RepairReceipt",
+      "source_file": "src/repairs.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "metrics_version",
+          "optional": false,
+          "typescript_type": "typeof OPERATIONAL_METRICS_VERSION"
+        },
+        {
+          "name": "generated_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "policy",
+          "optional": false,
+          "typescript_type": "OperationalMetricPolicy"
+        },
+        {
+          "name": "spans",
+          "optional": false,
+          "typescript_type": "readonly OperationalMetricSpan[]"
+        },
+        {
+          "name": "counters",
+          "optional": false,
+          "typescript_type": "OperationalMetricCounters"
+        },
+        {
+          "name": "outbox_lag",
+          "optional": false,
+          "typescript_type": "OutboxLagSummary"
+        },
+        {
+          "name": "alerts",
+          "optional": false,
+          "typescript_type": "readonly OperationalMetricAlert[]"
+        }
+      ],
+      "name": "OperationalMetricsSnapshot",
+      "source_file": "src/observability.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "explanation_version",
+          "optional": false,
+          "typescript_type": "typeof EXPLANATION_TRACE_VERSION"
+        },
+        {
+          "name": "situation_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"situation\">"
+        },
+        {
+          "name": "field",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "status",
+          "optional": false,
+          "typescript_type": "ExplanationStatus"
+        },
+        {
+          "name": "confidence",
+          "optional": false,
+          "typescript_type": "ExplanationConfidence"
+        },
+        {
+          "name": "value_digest",
+          "optional": false,
+          "typescript_type": "string | null"
+        },
+        {
+          "name": "projection_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "policy",
+          "optional": false,
+          "typescript_type": "ExplanationPolicyTrace"
+        },
+        {
+          "name": "decision_record_id",
+          "optional": false,
+          "typescript_type": "GoverningRecordId | null"
+        },
+        {
+          "name": "evidence",
+          "optional": false,
+          "typescript_type": "readonly ExplanationEvidence[]"
+        },
+        {
+          "name": "unknown",
+          "optional": false,
+          "typescript_type": "ExplanationUnknown | null"
+        }
+      ],
+      "name": "FieldExplanationTrace",
+      "source_file": "src/observability.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "budget_version",
+          "optional": false,
+          "typescript_type": "typeof BOUNDED_OUTPUT_VERSION"
+        },
+        {
+          "name": "requested_bytes",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "actual_bytes",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "complete",
+          "optional": false,
+          "typescript_type": "boolean"
+        },
+        {
+          "name": "candidate_count",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "indexed_count",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "scanned_count",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "scan_limit",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "included_count",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "omitted_count",
+          "optional": false,
+          "typescript_type": "number"
+        },
+        {
+          "name": "omitted_categories",
+          "optional": false,
+          "typescript_type": "readonly string[]"
+        },
+        {
+          "name": "payload",
+          "optional": false,
+          "typescript_type": "readonly BoundedOutputItem[]"
+        }
+      ],
+      "name": "BoundedOutputEnvelope",
+      "source_file": "src/observability.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "consent_version",
+          "optional": false,
+          "typescript_type": "typeof TELEMETRY_CONSENT_VERSION"
+        },
+        {
+          "name": "receipt_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"receipt\">"
+        },
+        {
+          "name": "principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "decision",
+          "optional": false,
+          "typescript_type": "TelemetryConsentDecision"
+        },
+        {
+          "name": "issued_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "expires_at",
+          "optional": false,
+          "typescript_type": "string | null"
+        },
+        {
+          "name": "purpose",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "scope",
+          "optional": false,
+          "typescript_type": "TelemetryConsentScope"
+        },
+        {
+          "name": "evidence_record_id",
+          "optional": false,
+          "typescript_type": "GoverningRecordId"
+        }
+      ],
+      "name": "TelemetryConsentReceipt",
+      "source_file": "src/observability.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "export_version",
+          "optional": false,
+          "typescript_type": "typeof TELEMETRY_EXPORT_VERSION"
+        },
+        {
+          "name": "consent_receipt_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"receipt\">"
+        },
+        {
+          "name": "principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "authorized_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "destination",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "schema_id",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "schema_version",
+          "optional": false,
+          "typescript_type": "ProtocolVersion"
+        },
+        {
+          "name": "categories",
+          "optional": false,
+          "typescript_type": "readonly string[]"
+        },
+        {
+          "name": "payload_digest",
+          "optional": false,
+          "typescript_type": "string"
+        }
+      ],
+      "name": "TelemetryExportAuthorization",
+      "source_file": "src/observability.ts"
+    }
+  ]
+}
