@@ -157,6 +157,8 @@ async function execute(
       root: options.project_root,
       transaction,
       expected_high_watermark: request.expected_state_version,
+      fault: options.project_fault,
+      publish_fault: options.publish_fault,
     });
   } catch (error) {
     if (error instanceof ProtocolError && error.code === "seedrop.protocol.project_transaction_conflict") {

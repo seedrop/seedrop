@@ -25,6 +25,14 @@ in-memory phase. A thrown dispatcher leaves the command `effects_pending`; a gov
 dead letter yields `needs_repair`. Repair definitions require a validated
 `RepairReceipt` whose command, Project, actor, and input digest match the request.
 
+`KERNEL_ATOMIC_RECOVERY_MATRIX` is the executable process-crash contract. It names
+all 16 Kernel, writer-locked commit, immutable publication, and effect boundaries and
+states whether restart must execute again or recover committed bytes. The executor's
+`fault`, `project_fault`, and `publish_fault` options are proof seams for this matrix;
+they are not adapter policy. `published_unconfirmed` means the whole transaction is
+visible to an ordinary restarted process after the atomic link, but power-loss
+durability is claimed only after the containing-directory sync.
+
 `createNativeWorkCommandDefinitions` supplies the first complete domain path:
 `seedrop.work.open` atomically creates an active Intent/Episode with scope Claim,
 Receipt, and Lease; `seedrop.work.finish` records completion and outcome truth,

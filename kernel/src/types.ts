@@ -13,15 +13,21 @@ import type {
 } from "@seedrop/protocol";
 import type {
   ProjectLogScan,
+  ProjectCommitOptions,
   ProjectProjection,
   ProjectProjectionReference,
+  ProjectPublishOptions,
 } from "@seedrop/project";
 
 export const KERNEL_PACKAGE_CONTRACT = Object.freeze({
-  schema_version: "1.2",
+  schema_version: "1.3",
   package_name: "@seedrop/kernel",
   role: "command_kernel",
-  owns: Object.freeze(["state_changing_command_execution", "native_work_command_definitions"] as const),
+  owns: Object.freeze([
+    "state_changing_command_execution",
+    "native_work_command_definitions",
+    "atomic_recovery_proof",
+  ] as const),
   depends_on: Object.freeze(["@seedrop/project", "@seedrop/protocol"] as const),
   excludes: Object.freeze([
     "adapter_policy",
@@ -165,6 +171,10 @@ export interface KernelExecutorOptions {
   recovery_window_ms?: number;
   attempt_limit?: number;
   fault?: (boundary: KernelExecutionBoundary, detail?: string) => void | Promise<void>;
+  /** Test/proof seam for abrupt control loss inside the writer-locked commit. */
+  project_fault?: ProjectCommitOptions["fault"];
+  /** Test/proof seam for abrupt control loss inside immutable publication. */
+  publish_fault?: ProjectPublishOptions["fault"];
 }
 
 export interface KernelCommandOutcome {

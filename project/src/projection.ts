@@ -19,7 +19,10 @@ import type {
 
 export function reduceProjectTransactions(scan: ProjectLogScan): ProjectProjection {
   const transactions = [...scan.transactions].sort((left, right) => left.digest.localeCompare(right.digest));
-  const diagnostics = [...scan.diagnostics];
+  // Staging files are crash evidence, not canonical project truth. Discovery keeps
+  // reporting every orphan, while reduction quarantines only artifacts that could
+  // alter or obscure the authoritative transaction chain.
+  const diagnostics = scan.diagnostics.filter((item) => item.code !== "uncommitted_temp");
   const byDigest = new Map(transactions.map((entry) => [entry.digest, entry]));
   const byPrevious = new Map<ProjectTransactionDigest | null, ProjectStoredTransaction[]>();
   const commandIds = new Map<string, ProjectStoredTransaction[]>();

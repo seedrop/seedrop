@@ -12,6 +12,12 @@ the final digest path, syncs the containing directory, and only then returns a
 Receipt. Readers ignore staging as authority but report every orphan, malformed,
 unreadable, noncanonical, digest-mismatched, or wrong-Project artifact.
 
+An orphan staging file remains visible in `ProjectLogScan.diagnostics` as
+`uncommitted_temp`, but it cannot make the canonical projection incomplete. Staging
+has no address in the transaction chain; treating it as quarantine would let a crash
+before publication prevent the safe retry that recovery requires. Transaction-tree
+diagnostics continue to fail the projection closed.
+
 The reducer is a pure function over the validated transaction set. It follows one
 previous-digest chain, refuses to select a winner across roots, forks, gaps, duplicate
 commands, or duplicate Events, and emits a deterministic projection with source-set

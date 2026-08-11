@@ -13,6 +13,7 @@ import {
   projectStoreLayout,
   projectTransactionRelativePath,
   publishProjectTransaction,
+  reduceProjectTransactions,
   scanProjectTransactions,
 } from "../src/index.js";
 import type { ProjectPublishBoundary } from "../src/index.js";
@@ -91,11 +92,22 @@ describe("content-addressed project transaction publication", () => {
     const committed = boundary === "after_publish" || boundary === "after_directory_sync";
     expect(afterCrash.transactions).toHaveLength(committed ? 1 : 0);
     expect(afterCrash.transactions.every((entry) => entry.digest === projectTransactionDigest(transaction))).toBe(true);
+    expect(afterCrash.diagnostics).toEqual([
+      expect.objectContaining({ code: "uncommitted_temp" }),
+    ]);
+    expect(reduceProjectTransactions(afterCrash)).toMatchObject({
+      lag: { complete: true, quarantined_artifacts: 0 },
+      quarantined: [],
+    });
 
     await publishProjectTransaction({ root, transaction });
     const recovered = await scanProjectTransactions(root, PROJECT_ID);
     expect(recovered.transactions).toHaveLength(1);
     expect(recovered.transactions[0]?.transaction).toEqual(transaction);
+    expect(recovered.diagnostics).toEqual(boundary === "before_temp_write"
+      ? [expect.objectContaining({ code: "uncommitted_temp" })]
+      : []);
+    expect(reduceProjectTransactions(recovered).lag.complete).toBe(true);
   });
 });
 

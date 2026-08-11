@@ -28,6 +28,15 @@ export type {
 } from "./types.js";
 
 export { createKernelCommandExecutor } from "./executor.js";
+export { KERNEL_ATOMIC_RECOVERY_MATRIX } from "./recovery-proof.js";
+export type {
+  KernelAtomicRecoveryBoundary,
+  KernelAtomicRecoveryCase,
+  KernelEffectRestartState,
+  KernelPersistenceState,
+  KernelProcessRestartVisibility,
+  KernelRestartAction,
+} from "./recovery-proof.js";
 export { createNativeWorkCommandDefinitions } from "./work.js";
 export type {
   CorrectWorkPayload,
