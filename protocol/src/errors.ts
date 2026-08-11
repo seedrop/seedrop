@@ -116,6 +116,21 @@ export const ERROR_REGISTRY = Object.freeze({
     message: "A nonterminal command has no valid recovery path or a terminal command retains one.",
     retryable: false,
   },
+  "seedrop.protocol.lifecycle_state_unknown": {
+    category: "input",
+    message: "The lifecycle name or state is not registered by the protocol.",
+    retryable: false,
+  },
+  "seedrop.protocol.lifecycle_transition_invalid": {
+    category: "conflict",
+    message: "The lifecycle transition is not permitted by the protocol state model.",
+    retryable: false,
+  },
+  "seedrop.protocol.trust_state_invalid": {
+    category: "input",
+    message: "The orthogonal trust state is malformed or contains an unknown axis value.",
+    retryable: false,
+  },
   "seedrop.protocol.repair_receipt_invalid": {
     category: "integrity",
     message: "The repair Receipt is malformed, incomplete, or contradicts its outcome.",

@@ -101,6 +101,6 @@ Inventory version: `1.0.0`
 
 ## Export boundary
 
-- 90 public value exports.
-- 111 public type exports.
+- 97 public value exports.
+- 122 public type exports.
 - Every export is enumerated in `protocol-catalog.json`; the generated schema intentionally covers registered top-level data surfaces, not helper inputs or semantic validation.

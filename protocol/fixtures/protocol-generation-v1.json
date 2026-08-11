@@ -3,16 +3,16 @@
   "counts": {
     "gap_count": 9,
     "noun_count": 9,
-    "public_type_export_count": 111,
-    "public_value_export_count": 90,
+    "public_type_export_count": 122,
+    "public_value_export_count": 97,
     "surface_count": 15
   },
   "fixture_version": "1.0.0",
   "inventory_version": "1.0.0",
   "sha256": {
-    "generated/PROTOCOL-CATALOG.md": "0d9014ce1780d2ba92461e029a9eb349b385415e1336931daf742b3167da03dd",
-    "generated/protocol-bindings.ts": "41222b8c9895e922a8a31a2d05ce87f4b6e73f73e26d1805f67d15d7e6afbd19",
-    "generated/protocol-catalog.json": "b0ce98013696c53b9cc3cef22afb0efb335def84012ce736cbce064194b11e22",
+    "generated/PROTOCOL-CATALOG.md": "445b10e62d8603b6f1c57d48ecb738a0efe85cf41e63d6e9f99d44e60d76fe1d",
+    "generated/protocol-bindings.ts": "7d1d67ff520b88b5cc9f5a59abed6bfb85fc9e0b0659f5a42b2b713a800ad601",
+    "generated/protocol-catalog.json": "17adf4e2e0a71f002bf800d36fb856c5ae97a417d5518a1823cd4e4d909bbba3",
     "generated/protocol-surface-shapes.schema.json": "75170a4cc1932d39b75f7b9cb3d435ca8de250bf5194b52d8f714ed9998bb944"
   }
 }

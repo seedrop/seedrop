@@ -25,6 +25,9 @@ Seedrop v2's transport-neutral contract boundary. This prototype owns:
 - one executable completeness inventory whose generated catalog, top-level JSON
   Schema prototype, TypeScript bindings, human report, and golden digests fail CI
   if they drift independently.
+- an executable lifecycle/trust state model with a generated exhaustive proof over
+  every known lifecycle pair, all 2,700 orthogonal trust tuples, pairwise witnesses,
+  forbidden-implication counterexamples, and observed machine classes.
 
 The package is deliberately not connected to v1 writers. It freezes mechanics for
 Wave 2 without changing the authoritative passport, View, Space, CLI, MCP, Bench,
@@ -72,6 +75,12 @@ Observer, or Desktop paths.
 - Telemetry is local-only when consent is absent, denied, revoked, not yet active, or
   expired. Authorization additionally requires exact Principal, Project, destination,
   schema, category, and payload-category scope and rejects secret-pattern findings.
+- Unknown lifecycle names/states fail closed. Of the 152 known Intent, Episode,
+  Lease, and command state pairs, only the 48 registered edges are permitted; no
+  self-transition or implicit edge is invented.
+- Evidence, delivery, substrate, readiness, and confidence are represented as five
+  exact axes. The protocol accepts no summary axis, missing axis, extra axis, or
+  unknown value, and it does not derive one axis from another without named policy.
 
 See `docs/adr/0007-v2-canonical-protocol-mechanics.md`,
 `docs/adr/0008-v2-canonical-principal-project-identity.md`,
@@ -107,3 +116,10 @@ and CI use `npm run check:artifacts -w @seedrop/protocol`, which rebuilds the sa
 catalog, schema prototype, bindings, report, and golden digests in memory and fails
 on byte drift. `node scripts/verify-protocol-generation.mjs` additionally verifies
 the committed SHA-256 fixture and all registered public symbol links.
+
+`npm run generate:state-model -w @seedrop/protocol` refreshes the exhaustive state
+proof after a reviewed contract change. Normal development and CI use
+`npm run check:state-model -w @seedrop/protocol`, which verifies all 152 lifecycle
+pairs, 2,700 trust tuples, 260 pairwise witnesses, eight forbidden-implication
+counterexamples, 14 observed classes, the catalog dependency digest, and the proof
+golden digest using the built public package.

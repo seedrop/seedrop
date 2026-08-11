@@ -16,6 +16,8 @@
     "build": "npm run clean && tsc",
     "generate:artifacts": "npm run build && node scripts/generate-protocol-artifacts.mjs --write",
     "check:artifacts": "node scripts/generate-protocol-artifacts.mjs --check",
+    "generate:state-model": "npm run build && npm run check:artifacts && node scripts/generate-state-model-proof.mjs --write",
+    "check:state-model": "node scripts/verify-state-model-proof.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -26,8 +28,9 @@
     "verify:command-recovery-golden": "npm run build && node scripts/verify-command-recovery-golden.mjs",
     "verify:observability-golden": "npm run build && node scripts/verify-observability-golden.mjs",
     "verify:protocol-generation": "npm run build && node scripts/verify-protocol-generation.mjs",
+    "verify:state-model": "npm run build && npm run check:artifacts && npm run check:state-model",
     "verify:runtime-goldens": "npm run build && node scripts/verify-runtime-goldens.mjs",
-    "prepublishOnly": "npm run build && npm run check:artifacts && npm test"
+    "prepublishOnly": "npm run build && npm run check:artifacts && npm run check:state-model && npm test"
   },
   "files": [
     "src/",
@@ -47,6 +50,8 @@
     "repair-receipts",
     "bounded-observability",
     "telemetry-consent",
+    "state-model",
+    "property-testing",
     "migrations"
   ],
   "author": "Mariusz Czaykowski",

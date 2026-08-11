@@ -135,6 +135,16 @@
         "message": "The identifier is not a canonical Seedrop v2 identifier.",
         "retryable": false
       },
+      "seedrop.protocol.lifecycle_state_unknown": {
+        "category": "input",
+        "message": "The lifecycle name or state is not registered by the protocol.",
+        "retryable": false
+      },
+      "seedrop.protocol.lifecycle_transition_invalid": {
+        "category": "conflict",
+        "message": "The lifecycle transition is not permitted by the protocol state model.",
+        "retryable": false
+      },
       "seedrop.protocol.migration_failed": {
         "category": "integrity",
         "message": "A registered protocol migration failed.",
@@ -178,6 +188,11 @@
       "seedrop.protocol.telemetry_secret_detected": {
         "category": "authorization",
         "message": "Telemetry export is denied because the payload contains a secret-pattern finding.",
+        "retryable": false
+      },
+      "seedrop.protocol.trust_state_invalid": {
+        "category": "input",
+        "message": "The orthogonal trust state is malformed or contains an unknown axis value.",
         "retryable": false
       },
       "seedrop.protocol.validation_failed": {
@@ -726,8 +741,8 @@
   "coverage": {
     "gap_count": 9,
     "noun_count": 9,
-    "public_type_export_count": 111,
-    "public_value_export_count": 90,
+    "public_type_export_count": 122,
+    "public_value_export_count": 97,
     "surface_count": 15
   },
   "generated_from": [
@@ -827,8 +842,20 @@
         "source": "./observability.js"
       },
       {
+        "name": "ConfidenceState",
+        "source": "./state-model.js"
+      },
+      {
+        "name": "DeliveryState",
+        "source": "./state-model.js"
+      },
+      {
         "name": "DisagreementClaim",
         "source": "./health.js"
+      },
+      {
+        "name": "EvidenceState",
+        "source": "./state-model.js"
       },
       {
         "name": "ExplanationConfidence",
@@ -853,6 +880,10 @@
       {
         "name": "FieldExplanationTrace",
         "source": "./observability.js"
+      },
+      {
+        "name": "ForbiddenCrossAxisImplication",
+        "source": "./state-model.js"
       },
       {
         "name": "GenerateCanonicalIdOptions",
@@ -919,6 +950,14 @@
         "source": "./canonical-json.js"
       },
       {
+        "name": "LifecycleName",
+        "source": "./state-model.js"
+      },
+      {
+        "name": "LifecycleState",
+        "source": "./state-model.js"
+      },
+      {
         "name": "MigrationPlan",
         "source": "./migrations.js"
       },
@@ -941,6 +980,10 @@
       {
         "name": "NonterminalCommandPhase",
         "source": "./commands.js"
+      },
+      {
+        "name": "ObservedStateClass",
+        "source": "./state-model.js"
       },
       {
         "name": "OperationalMetricAlert",
@@ -969,6 +1012,10 @@
       {
         "name": "OperationalMetricsSnapshot",
         "source": "./observability.js"
+      },
+      {
+        "name": "OrthogonalTrustState",
+        "source": "./state-model.js"
       },
       {
         "name": "OutboxLagSummary",
@@ -1079,6 +1126,10 @@
         "source": "./health.js"
       },
       {
+        "name": "ReadinessState",
+        "source": "./state-model.js"
+      },
+      {
         "name": "ReconciliationOptions",
         "source": "./identity.js"
       },
@@ -1139,6 +1190,10 @@
         "source": "./health.js"
       },
       {
+        "name": "SubstrateTrustState",
+        "source": "./state-model.js"
+      },
+      {
         "name": "SweepCandidateEvent",
         "source": "./commands.js"
       },
@@ -1175,6 +1230,10 @@
         "source": "./commands.js"
       },
       {
+        "name": "TrustAxisName",
+        "source": "./state-model.js"
+      },
+      {
         "name": "VersionAxis",
         "source": "./versions.js"
       },
@@ -1199,6 +1258,10 @@
       {
         "name": "assertHealthEnvelope",
         "source": "./health.js"
+      },
+      {
+        "name": "assertLifecycleTransition",
+        "source": "./state-model.js"
       },
       {
         "name": "assertOperationalMetricsSnapshot",
@@ -1253,12 +1316,20 @@
         "source": "./observability.js"
       },
       {
+        "name": "buildOrthogonalTrustState",
+        "source": "./state-model.js"
+      },
+      {
         "name": "buildRepairReceipt",
         "source": "./repairs.js"
       },
       {
         "name": "buildTelemetryConsentReceipt",
         "source": "./observability.js"
+      },
+      {
+        "name": "canLifecycleTransition",
+        "source": "./state-model.js"
       },
       {
         "name": "CANONICAL_ID_KIND_CODES",
@@ -1337,6 +1408,10 @@
         "source": "./observability.js"
       },
       {
+        "name": "FORBIDDEN_CROSS_AXIS_IMPLICATIONS",
+        "source": "./state-model.js"
+      },
+      {
         "name": "generateCanonicalId",
         "source": "./ids.js"
       },
@@ -1361,6 +1436,10 @@
         "source": "./ids.js"
       },
       {
+        "name": "isLifecycleState",
+        "source": "./state-model.js"
+      },
+      {
         "name": "isProtocolError",
         "source": "./errors.js"
       },
@@ -1371,6 +1450,10 @@
       {
         "name": "LEASE_LIFECYCLE",
         "source": "./inventory.js"
+      },
+      {
+        "name": "LIFECYCLE_NAMES",
+        "source": "./state-model.js"
       },
       {
         "name": "migrateToCurrent",
@@ -1395,6 +1478,10 @@
       {
         "name": "normalizePrincipalAlias",
         "source": "./identity.js"
+      },
+      {
+        "name": "OBSERVED_STATE_CLASSES",
+        "source": "./state-model.js"
       },
       {
         "name": "OPERATIONAL_METRIC_KINDS",

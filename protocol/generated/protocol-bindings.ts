@@ -218,6 +218,104 @@ export const PROTOCOL_EVENT_TYPES = {
     }
   ]
 } as const;
+export const PROTOCOL_FORBIDDEN_CROSS_AXIS_IMPLICATIONS = [
+  {
+    "id": "reported_complete_not_passed",
+    "antecedent": {
+      "axis": "intent_lifecycle",
+      "value": "reported_complete"
+    },
+    "consequent": {
+      "axis": "evidence",
+      "value": "passed"
+    },
+    "reason": "A completion report is not validation evidence."
+  },
+  {
+    "id": "reported_complete_not_committed",
+    "antecedent": {
+      "axis": "intent_lifecycle",
+      "value": "reported_complete"
+    },
+    "consequent": {
+      "axis": "delivery",
+      "value": "committed"
+    },
+    "reason": "A completion report is not a delivery observation."
+  },
+  {
+    "id": "passed_not_merged",
+    "antecedent": {
+      "axis": "evidence",
+      "value": "passed"
+    },
+    "consequent": {
+      "axis": "delivery",
+      "value": "merged"
+    },
+    "reason": "Passing evidence does not prove delivery."
+  },
+  {
+    "id": "merged_not_passed",
+    "antecedent": {
+      "axis": "delivery",
+      "value": "merged"
+    },
+    "consequent": {
+      "axis": "evidence",
+      "value": "passed"
+    },
+    "reason": "Delivery does not prove applicable validation."
+  },
+  {
+    "id": "healthy_not_ready",
+    "antecedent": {
+      "axis": "substrate",
+      "value": "healthy"
+    },
+    "consequent": {
+      "axis": "readiness",
+      "value": "ready"
+    },
+    "reason": "Healthy substrate does not prove handoff readiness."
+  },
+  {
+    "id": "ready_not_merged",
+    "antecedent": {
+      "axis": "readiness",
+      "value": "ready"
+    },
+    "consequent": {
+      "axis": "delivery",
+      "value": "merged"
+    },
+    "reason": "Readiness does not prove delivery."
+  },
+  {
+    "id": "unknown_not_absent",
+    "antecedent": {
+      "axis": "confidence",
+      "value": "unknown"
+    },
+    "consequent": {
+      "axis": "delivery",
+      "value": "absent"
+    },
+    "reason": "Unknown evidence cannot be promoted to observed absence."
+  },
+  {
+    "id": "unreachable_not_unavailable",
+    "antecedent": {
+      "axis": "substrate",
+      "value": "unreachable"
+    },
+    "consequent": {
+      "axis": "evidence",
+      "value": "unavailable"
+    },
+    "reason": "An unreachable substrate does not erase independently retained evidence."
+  }
+] as const;
 export const PROTOCOL_ERROR_CODES = [
   "seedrop.protocol.invalid_id",
   "seedrop.protocol.id_prefix_too_short",
@@ -242,6 +340,9 @@ export const PROTOCOL_ERROR_CODES = [
   "seedrop.protocol.command_audit_inconsistent",
   "seedrop.protocol.command_transition_invalid",
   "seedrop.protocol.command_unrecoverable",
+  "seedrop.protocol.lifecycle_state_unknown",
+  "seedrop.protocol.lifecycle_transition_invalid",
+  "seedrop.protocol.trust_state_invalid",
   "seedrop.protocol.repair_receipt_invalid",
   "seedrop.protocol.repair_journal_invalid",
   "seedrop.protocol.operational_metrics_invalid",

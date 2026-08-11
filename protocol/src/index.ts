@@ -180,6 +180,29 @@ export {
   PROTOCOL_SURFACES,
   PROTOCOL_GAPS,
 } from "./inventory.js";
+
+export {
+  FORBIDDEN_CROSS_AXIS_IMPLICATIONS,
+  LIFECYCLE_NAMES,
+  OBSERVED_STATE_CLASSES,
+  assertLifecycleTransition,
+  buildOrthogonalTrustState,
+  canLifecycleTransition,
+  isLifecycleState,
+} from "./state-model.js";
+export type {
+  ConfidenceState,
+  DeliveryState,
+  EvidenceState,
+  ForbiddenCrossAxisImplication,
+  LifecycleName,
+  LifecycleState,
+  ObservedStateClass,
+  OrthogonalTrustState,
+  ReadinessState,
+  SubstrateTrustState,
+  TrustAxisName,
+} from "./state-model.js";
 export type {
   InventoryContractStatus,
   ProtocolGap,

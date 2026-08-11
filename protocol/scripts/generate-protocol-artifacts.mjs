@@ -239,6 +239,7 @@ function buildBindings(catalogInput) {
     + `export const PROTOCOL_LIFECYCLES = ${JSON.stringify(catalogInput.core.lifecycles, null, 2)} as const;\n`
     + `export const PROTOCOL_TRUST_AXES = ${JSON.stringify(catalogInput.core.trust_axes, null, 2)} as const;\n`
     + `export const PROTOCOL_EVENT_TYPES = ${JSON.stringify(catalogInput.core.events, null, 2)} as const;\n`
+    + `export const PROTOCOL_FORBIDDEN_CROSS_AXIS_IMPLICATIONS = ${JSON.stringify(runtimeBinding("FORBIDDEN_CROSS_AXIS_IMPLICATIONS"), null, 2)} as const;\n`
     + `export const PROTOCOL_ERROR_CODES = ${JSON.stringify(Object.keys(catalogInput.core.errors), null, 2)} as const;\n`
     + `export const PROTOCOL_VERSION_AXES = ${JSON.stringify(catalogInput.core.version_axes, null, 2)} as const;\n`
     + `export const PROTOCOL_SURFACE_FIELDS = ${JSON.stringify(surfaceFields, null, 2)} as const;\n\n`
@@ -246,6 +247,11 @@ function buildBindings(catalogInput) {
     + `export type ProtocolErrorCode = (typeof PROTOCOL_ERROR_CODES)[number];\n`
     + `export type ProtocolSurfaceName = keyof typeof PROTOCOL_SURFACE_FIELDS;\n`;
   return bindings;
+}
+
+function runtimeBinding(name) {
+  if (!(name in protocol)) throw new Error(`missing public runtime binding: ${name}`);
+  return protocol[name];
 }
 
 function buildMarkdown(catalogInput) {

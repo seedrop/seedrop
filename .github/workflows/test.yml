@@ -43,7 +43,9 @@ jobs:
         run: npm run build --workspaces
 
       - name: generated protocol drift
-        run: npm run check:artifacts -w @seedrop/protocol
+        run: |
+          npm run check:artifacts -w @seedrop/protocol
+          npm run check:state-model -w @seedrop/protocol
 
       - name: typecheck
         run: |
