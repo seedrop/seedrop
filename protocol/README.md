@@ -12,6 +12,8 @@ Seedrop v2's transport-neutral contract boundary. This prototype owns:
   full IDs, previous-transaction content addresses, canonical bytes, and stable digests;
 - canonical outbox effect declarations, delivery Receipts, and committed-command
   Receipts whose counts, errors, recovery plans, and outcomes must agree;
+- native, versioned Intent, Episode, Claim, Work Receipt, and Lease records plus
+  lifecycle-transition and correction payloads for the Wave 3 vertical slice;
 - hash-chained repair Receipts with actor/evidence, before/after state, structured
   command identity, rollback truth, and recovery ownership;
 - derived operational metrics for idempotency duplicates, CAS conflicts, retries,
@@ -90,6 +92,9 @@ Observer, or Desktop paths.
 - Unknown lifecycle names/states fail closed. Of the 152 known Intent, Episode,
   Lease, and command state pairs, only the 48 registered edges are permitted; no
   self-transition or implicit edge is invented.
+- Native work Events consume those same lifecycle tables. Terminal work can return
+  to active only through an explicit correction Event naming the exact state Event
+  it corrects. Lease expiry is explicit and cannot precede the recorded TTL.
 - Evidence, delivery, substrate, readiness, and confidence are represented as five
   exact axes. The protocol accepts no summary axis, missing axis, extra axis, or
   unknown value, and it does not derive one axis from another without named policy.
@@ -120,6 +125,9 @@ two-entry hash-chained repair journal from built package output.
 
 `node scripts/verify-execution-golden.mjs` verifies canonical outbox declarations,
 delivery Receipts, and committed-command Receipts from built package output.
+
+`node scripts/verify-work-golden.mjs` verifies canonical Intent, Episode, Claim,
+Work Receipt, Lease, transition, expiry, and correction bytes from built output.
 
 `node scripts/verify-observability-golden.mjs` checks derived reliability metrics,
 resolved and unknown explanations, exact bounded-output bytes, local-only default,

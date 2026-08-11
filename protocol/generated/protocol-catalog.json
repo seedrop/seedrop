@@ -15,7 +15,12 @@
     ],
     "commands": {
       "closure": "open",
-      "registered": []
+      "registered": [
+        "seedrop.work.open",
+        "seedrop.work.finish",
+        "seedrop.lease.expire",
+        "seedrop.work.correct"
+      ]
     },
     "current_versions": {
       "command": "1.0.0",
@@ -170,6 +175,11 @@
         "message": "The identifier is not a canonical Seedrop v2 identifier.",
         "retryable": false
       },
+      "seedrop.protocol.lease_conflict": {
+        "category": "conflict",
+        "message": "The requested target already has an active Lease or the Lease is no longer mutable.",
+        "retryable": false
+      },
       "seedrop.protocol.lifecycle_state_unknown": {
         "category": "input",
         "message": "The lifecycle name or state is not registered by the protocol.",
@@ -284,6 +294,16 @@
         "category": "compatibility",
         "message": "The protocol version is not registered as supported.",
         "retryable": false
+      },
+      "seedrop.protocol.work_record_invalid": {
+        "category": "integrity",
+        "message": "The native work record or Event payload is malformed or internally inconsistent.",
+        "retryable": false
+      },
+      "seedrop.protocol.work_state_conflict": {
+        "category": "conflict",
+        "message": "The native work command conflicts with current Intent, Episode, Claim, Receipt, or Lease state.",
+        "retryable": false
       }
     },
     "events": {
@@ -315,6 +335,66 @@
           "surface": "ProjectEventEnvelope"
         },
         {
+          "name": "seedrop.intent.created",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.intent.transitioned",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.intent.corrected",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.episode.started",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.episode.transitioned",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.episode.corrected",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.claim.recorded",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.receipt.recorded",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.lease.acquired",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.lease.released",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.lease.expired",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
+          "name": "seedrop.lease.revoked",
+          "status": "implemented",
+          "surface": "ProjectEventEnvelope"
+        },
+        {
           "name": "command.sweep_candidate",
           "status": "proposal_only",
           "surface": "SweepCandidateEvent"
@@ -322,36 +402,6 @@
       ]
     },
     "gaps": [
-      {
-        "boundary": "kernel",
-        "id": "intent_record",
-        "noun": "Intent",
-        "reason": "No canonical Intent Event or root record is implemented yet."
-      },
-      {
-        "boundary": "kernel",
-        "id": "episode_record",
-        "noun": "Episode",
-        "reason": "No canonical Episode Event or root record is implemented yet."
-      },
-      {
-        "boundary": "kernel",
-        "id": "claim_record",
-        "noun": "Claim",
-        "reason": "Explanation evidence exists, but the canonical Claim record is not implemented."
-      },
-      {
-        "boundary": "kernel",
-        "id": "receipt_record",
-        "noun": "Receipt",
-        "reason": "Concrete repair and consent Receipts exist; the general Receipt contract is not implemented."
-      },
-      {
-        "boundary": "coordination",
-        "id": "lease_record",
-        "noun": "Lease",
-        "reason": "The lifecycle is frozen, but no native v2 Lease record or command exists."
-      },
       {
         "boundary": "projection",
         "id": "situation_envelope",
@@ -362,13 +412,13 @@
         "boundary": "kernel",
         "id": "event_type_registry",
         "noun": "Event",
-        "reason": "Event names remain open until native kernel commands freeze the complete registry."
+        "reason": "Execution and native work Events are registered; migration and Situation Event families remain open."
       },
       {
         "boundary": "kernel",
         "id": "command_name_registry",
         "noun": null,
-        "reason": "CommandAuditTrail accepts a non-empty command name; the native command registry is not frozen."
+        "reason": "Native work commands are registered; migration and adapter command families remain open."
       }
     ],
     "inventory_version": "1.0.0",
@@ -554,40 +604,38 @@
       },
       {
         "authority": "project",
-        "contract_status": "declared",
-        "gap_ids": [
-          "intent_record"
+        "contract_status": "implemented",
+        "gap_ids": [],
+        "implemented_surfaces": [
+          "IntentRecord"
         ],
-        "implemented_surfaces": [],
         "name": "Intent"
       },
       {
         "authority": "project",
-        "contract_status": "declared",
-        "gap_ids": [
-          "episode_record"
+        "contract_status": "implemented",
+        "gap_ids": [],
+        "implemented_surfaces": [
+          "EpisodeRecord"
         ],
-        "implemented_surfaces": [],
         "name": "Episode"
       },
       {
         "authority": "mixed",
-        "contract_status": "partial",
-        "gap_ids": [
-          "claim_record"
-        ],
+        "contract_status": "implemented",
+        "gap_ids": [],
         "implemented_surfaces": [
+          "ClaimRecord",
           "FieldExplanationTrace"
         ],
         "name": "Claim"
       },
       {
         "authority": "external",
-        "contract_status": "partial",
-        "gap_ids": [
-          "receipt_record"
-        ],
+        "contract_status": "implemented",
+        "gap_ids": [],
         "implemented_surfaces": [
+          "WorkReceipt",
           "OutboxDeliveryReceipt",
           "CommandCommitReceipt",
           "RepairReceipt",
@@ -598,11 +646,11 @@
       },
       {
         "authority": "machine",
-        "contract_status": "declared",
-        "gap_ids": [
-          "lease_record"
+        "contract_status": "implemented",
+        "gap_ids": [],
+        "implemented_surfaces": [
+          "LeaseRecord"
         ],
-        "implemented_surfaces": [],
         "name": "Lease"
       },
       {
@@ -765,6 +813,76 @@
         "version_field": "transaction_version"
       },
       {
+        "builder": "buildIntentRecord",
+        "name": "IntentRecord",
+        "noun": "Intent",
+        "role": "durable_record",
+        "source_file": "src/work.ts",
+        "validator": "assertIntentRecord",
+        "version_constant": "WORK_RECORD_VERSION",
+        "version_field": "intent_version"
+      },
+      {
+        "builder": "buildEpisodeRecord",
+        "name": "EpisodeRecord",
+        "noun": "Episode",
+        "role": "durable_record",
+        "source_file": "src/work.ts",
+        "validator": "assertEpisodeRecord",
+        "version_constant": "WORK_RECORD_VERSION",
+        "version_field": "episode_version"
+      },
+      {
+        "builder": "buildClaimRecord",
+        "name": "ClaimRecord",
+        "noun": "Claim",
+        "role": "durable_record",
+        "source_file": "src/work.ts",
+        "validator": "assertClaimRecord",
+        "version_constant": "WORK_RECORD_VERSION",
+        "version_field": "claim_version"
+      },
+      {
+        "builder": "buildWorkReceipt",
+        "name": "WorkReceipt",
+        "noun": "Receipt",
+        "role": "durable_record",
+        "source_file": "src/work.ts",
+        "validator": "assertWorkReceipt",
+        "version_constant": "WORK_RECEIPT_VERSION",
+        "version_field": "receipt_version"
+      },
+      {
+        "builder": "buildLeaseRecord",
+        "name": "LeaseRecord",
+        "noun": "Lease",
+        "role": "durable_record",
+        "source_file": "src/work.ts",
+        "validator": "assertLeaseRecord",
+        "version_constant": "WORK_RECORD_VERSION",
+        "version_field": "lease_version"
+      },
+      {
+        "builder": "buildWorkLifecycleTransition",
+        "name": "WorkLifecycleTransition",
+        "noun": "Event",
+        "role": "durable_record",
+        "source_file": "src/work.ts",
+        "validator": "assertWorkLifecycleTransition",
+        "version_constant": "WORK_TRANSITION_VERSION",
+        "version_field": "transition_version"
+      },
+      {
+        "builder": "buildWorkCorrection",
+        "name": "WorkCorrection",
+        "noun": "Event",
+        "role": "durable_record",
+        "source_file": "src/work.ts",
+        "validator": "assertWorkCorrection",
+        "version_constant": "WORK_CORRECTION_VERSION",
+        "version_field": "correction_version"
+      },
+      {
         "builder": "findCommandSweepCandidates",
         "name": "SweepCandidateEvent",
         "noun": "Event",
@@ -882,11 +1000,11 @@
     ]
   },
   "coverage": {
-    "gap_count": 8,
+    "gap_count": 3,
     "noun_count": 9,
-    "public_type_export_count": 135,
-    "public_value_export_count": 117,
-    "surface_count": 20
+    "public_type_export_count": 146,
+    "public_value_export_count": 142,
+    "surface_count": 27
   },
   "generated_from": [
     "src/index.ts",
@@ -965,6 +1083,14 @@
         "source": "./ids.js"
       },
       {
+        "name": "ClaimKind",
+        "source": "./work.js"
+      },
+      {
+        "name": "ClaimRecord",
+        "source": "./work.js"
+      },
+      {
         "name": "CommandAuditEntry",
         "source": "./commands.js"
       },
@@ -1023,6 +1149,10 @@
       {
         "name": "DisagreementClaim",
         "source": "./health.js"
+      },
+      {
+        "name": "EpisodeRecord",
+        "source": "./work.js"
       },
       {
         "name": "EvidenceState",
@@ -1109,6 +1239,10 @@
         "source": "./identity.js"
       },
       {
+        "name": "IntentRecord",
+        "source": "./work.js"
+      },
+      {
         "name": "InventoryContractStatus",
         "source": "./inventory.js"
       },
@@ -1119,6 +1253,14 @@
       {
         "name": "JsonValue",
         "source": "./canonical-json.js"
+      },
+      {
+        "name": "LeaseRecord",
+        "source": "./work.js"
+      },
+      {
+        "name": "LeaseTransition",
+        "source": "./work.js"
       },
       {
         "name": "LifecycleName",
@@ -1435,12 +1577,36 @@
       {
         "name": "VersionEnvelope",
         "source": "./versions.js"
+      },
+      {
+        "name": "WorkCorrection",
+        "source": "./work.js"
+      },
+      {
+        "name": "WorkDomainRecord",
+        "source": "./work.js"
+      },
+      {
+        "name": "WorkLifecycleTransition",
+        "source": "./work.js"
+      },
+      {
+        "name": "WorkReceipt",
+        "source": "./work.js"
+      },
+      {
+        "name": "WorkReceiptKind",
+        "source": "./work.js"
       }
     ],
     "values": [
       {
         "name": "assertBoundedOutput",
         "source": "./observability.js"
+      },
+      {
+        "name": "assertClaimRecord",
+        "source": "./work.js"
       },
       {
         "name": "assertCommandAuditTrail",
@@ -1451,12 +1617,28 @@
         "source": "./execution.js"
       },
       {
+        "name": "assertEpisodeRecord",
+        "source": "./work.js"
+      },
+      {
         "name": "assertFieldExplanation",
         "source": "./observability.js"
       },
       {
         "name": "assertHealthEnvelope",
         "source": "./health.js"
+      },
+      {
+        "name": "assertIntentRecord",
+        "source": "./work.js"
+      },
+      {
+        "name": "assertLeaseRecord",
+        "source": "./work.js"
+      },
+      {
+        "name": "assertLeaseTransition",
+        "source": "./work.js"
       },
       {
         "name": "assertLifecycleTransition",
@@ -1507,12 +1689,32 @@
         "source": "./observability.js"
       },
       {
+        "name": "assertWorkCorrection",
+        "source": "./work.js"
+      },
+      {
+        "name": "assertWorkDomainEvent",
+        "source": "./work.js"
+      },
+      {
+        "name": "assertWorkLifecycleTransition",
+        "source": "./work.js"
+      },
+      {
+        "name": "assertWorkReceipt",
+        "source": "./work.js"
+      },
+      {
         "name": "authorizeTelemetryExport",
         "source": "./observability.js"
       },
       {
         "name": "BOUNDED_OUTPUT_VERSION",
         "source": "./observability.js"
+      },
+      {
+        "name": "buildClaimRecord",
+        "source": "./work.js"
       },
       {
         "name": "buildCommandAuditTrail",
@@ -1523,12 +1725,28 @@
         "source": "./execution.js"
       },
       {
+        "name": "buildEpisodeRecord",
+        "source": "./work.js"
+      },
+      {
         "name": "buildFieldExplanation",
         "source": "./observability.js"
       },
       {
         "name": "buildHealthEnvelope",
         "source": "./health.js"
+      },
+      {
+        "name": "buildIntentRecord",
+        "source": "./work.js"
+      },
+      {
+        "name": "buildLeaseRecord",
+        "source": "./work.js"
+      },
+      {
+        "name": "buildLeaseTransition",
+        "source": "./work.js"
       },
       {
         "name": "buildOperationalMetricsSnapshot",
@@ -1563,6 +1781,18 @@
         "source": "./observability.js"
       },
       {
+        "name": "buildWorkCorrection",
+        "source": "./work.js"
+      },
+      {
+        "name": "buildWorkLifecycleTransition",
+        "source": "./work.js"
+      },
+      {
+        "name": "buildWorkReceipt",
+        "source": "./work.js"
+      },
+      {
         "name": "canLifecycleTransition",
         "source": "./state-model.js"
       },
@@ -1585,6 +1815,10 @@
       {
         "name": "canonicalJsonDigest",
         "source": "./canonical-json.js"
+      },
+      {
+        "name": "CLAIM_KINDS",
+        "source": "./work.js"
       },
       {
         "name": "COMMAND_AUDIT_VERSION",
@@ -1713,6 +1947,10 @@
       {
         "name": "MIN_ID_PREFIX_HEX_LENGTH",
         "source": "./ids.js"
+      },
+      {
+        "name": "NATIVE_WORK_COMMANDS",
+        "source": "./work.js"
       },
       {
         "name": "normalizeGitRemote",
@@ -1905,6 +2143,30 @@
       {
         "name": "VERSION_AXES",
         "source": "./versions.js"
+      },
+      {
+        "name": "WORK_CORRECTION_VERSION",
+        "source": "./work.js"
+      },
+      {
+        "name": "WORK_EVENT_TYPES",
+        "source": "./work.js"
+      },
+      {
+        "name": "WORK_RECEIPT_KINDS",
+        "source": "./work.js"
+      },
+      {
+        "name": "WORK_RECEIPT_VERSION",
+        "source": "./work.js"
+      },
+      {
+        "name": "WORK_RECORD_VERSION",
+        "source": "./work.js"
+      },
+      {
+        "name": "WORK_TRANSITION_VERSION",
+        "source": "./work.js"
       }
     ]
   },
@@ -2471,6 +2733,363 @@
       ],
       "name": "ProjectTransaction",
       "source_file": "src/project-transactions.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "intent_version",
+          "optional": false,
+          "typescript_type": "typeof WORK_RECORD_VERSION"
+        },
+        {
+          "name": "intent_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"intent\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "title",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "typescript_type": "\"queued\""
+        },
+        {
+          "name": "created_by",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "created_at",
+          "optional": false,
+          "typescript_type": "string"
+        }
+      ],
+      "name": "IntentRecord",
+      "source_file": "src/work.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "episode_version",
+          "optional": false,
+          "typescript_type": "typeof WORK_RECORD_VERSION"
+        },
+        {
+          "name": "episode_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"episode\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "intent_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"intent\">"
+        },
+        {
+          "name": "goal",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "typescript_type": "\"active\""
+        },
+        {
+          "name": "started_by",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "started_at",
+          "optional": false,
+          "typescript_type": "string"
+        }
+      ],
+      "name": "EpisodeRecord",
+      "source_file": "src/work.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "claim_version",
+          "optional": false,
+          "typescript_type": "typeof WORK_RECORD_VERSION"
+        },
+        {
+          "name": "claim_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"claim\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "intent_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"intent\">"
+        },
+        {
+          "name": "episode_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"episode\"> | null"
+        },
+        {
+          "name": "claim_kind",
+          "optional": false,
+          "typescript_type": "ClaimKind"
+        },
+        {
+          "name": "statement",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "evidence_digests",
+          "optional": false,
+          "typescript_type": "readonly ProjectTransactionDigest[]"
+        },
+        {
+          "name": "corrects_claim_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"claim\"> | null"
+        },
+        {
+          "name": "recorded_by",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "recorded_at",
+          "optional": false,
+          "typescript_type": "string"
+        }
+      ],
+      "name": "ClaimRecord",
+      "source_file": "src/work.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "receipt_version",
+          "optional": false,
+          "typescript_type": "typeof WORK_RECEIPT_VERSION"
+        },
+        {
+          "name": "receipt_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"receipt\">"
+        },
+        {
+          "name": "receipt_kind",
+          "optional": false,
+          "typescript_type": "WorkReceiptKind"
+        },
+        {
+          "name": "command_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"command\">"
+        },
+        {
+          "name": "principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "subject_id",
+          "optional": false,
+          "typescript_type": "CanonicalId"
+        },
+        {
+          "name": "issued_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "summary",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "evidence_digest",
+          "optional": false,
+          "typescript_type": "ProjectTransactionDigest | null"
+        }
+      ],
+      "name": "WorkReceipt",
+      "source_file": "src/work.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "lease_version",
+          "optional": false,
+          "typescript_type": "typeof WORK_RECORD_VERSION"
+        },
+        {
+          "name": "lease_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"lease\">"
+        },
+        {
+          "name": "project_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"project\">"
+        },
+        {
+          "name": "target",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "holder_principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "intent_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"intent\">"
+        },
+        {
+          "name": "episode_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"episode\">"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "typescript_type": "\"active\""
+        },
+        {
+          "name": "acquired_at",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "expires_at",
+          "optional": false,
+          "typescript_type": "string"
+        }
+      ],
+      "name": "LeaseRecord",
+      "source_file": "src/work.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "transition_version",
+          "optional": false,
+          "typescript_type": "typeof WORK_TRANSITION_VERSION"
+        },
+        {
+          "name": "lifecycle",
+          "optional": false,
+          "typescript_type": "\"intent\" | \"episode\""
+        },
+        {
+          "name": "subject_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"intent\"> | CanonicalId<\"episode\">"
+        },
+        {
+          "name": "from",
+          "optional": false,
+          "typescript_type": "LifecycleState<\"intent\"> | LifecycleState<\"episode\">"
+        },
+        {
+          "name": "to",
+          "optional": false,
+          "typescript_type": "LifecycleState<\"intent\"> | LifecycleState<\"episode\">"
+        },
+        {
+          "name": "reason",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "actor_principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "recorded_at",
+          "optional": false,
+          "typescript_type": "string"
+        }
+      ],
+      "name": "WorkLifecycleTransition",
+      "source_file": "src/work.ts"
+    },
+    {
+      "fields": [
+        {
+          "name": "correction_version",
+          "optional": false,
+          "typescript_type": "typeof WORK_CORRECTION_VERSION"
+        },
+        {
+          "name": "lifecycle",
+          "optional": false,
+          "typescript_type": "\"intent\" | \"episode\""
+        },
+        {
+          "name": "subject_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"intent\"> | CanonicalId<\"episode\">"
+        },
+        {
+          "name": "corrects_event_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"event\">"
+        },
+        {
+          "name": "from",
+          "optional": false,
+          "typescript_type": "\"reported_complete\" | \"abandoned\" | \"failed\""
+        },
+        {
+          "name": "to",
+          "optional": false,
+          "typescript_type": "\"active\""
+        },
+        {
+          "name": "reason",
+          "optional": false,
+          "typescript_type": "string"
+        },
+        {
+          "name": "actor_principal_id",
+          "optional": false,
+          "typescript_type": "CanonicalId<\"principal\">"
+        },
+        {
+          "name": "recorded_at",
+          "optional": false,
+          "typescript_type": "string"
+        }
+      ],
+      "name": "WorkCorrection",
+      "source_file": "src/work.ts"
     },
     {
       "fields": [

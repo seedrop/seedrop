@@ -45,6 +45,47 @@ export {
   parseProtocolVersion,
   parseVersionEnvelope,
 } from "./versions.js";
+
+export {
+  CLAIM_KINDS,
+  NATIVE_WORK_COMMANDS,
+  WORK_CORRECTION_VERSION,
+  WORK_EVENT_TYPES,
+  WORK_RECEIPT_KINDS,
+  WORK_RECEIPT_VERSION,
+  WORK_RECORD_VERSION,
+  WORK_TRANSITION_VERSION,
+  assertClaimRecord,
+  assertEpisodeRecord,
+  assertIntentRecord,
+  assertLeaseRecord,
+  assertLeaseTransition,
+  assertWorkCorrection,
+  assertWorkDomainEvent,
+  assertWorkLifecycleTransition,
+  assertWorkReceipt,
+  buildClaimRecord,
+  buildEpisodeRecord,
+  buildIntentRecord,
+  buildLeaseRecord,
+  buildLeaseTransition,
+  buildWorkCorrection,
+  buildWorkLifecycleTransition,
+  buildWorkReceipt,
+} from "./work.js";
+export type {
+  ClaimKind,
+  ClaimRecord,
+  EpisodeRecord,
+  IntentRecord,
+  LeaseRecord,
+  LeaseTransition,
+  WorkCorrection,
+  WorkDomainRecord,
+  WorkLifecycleTransition,
+  WorkReceipt,
+  WorkReceiptKind,
+} from "./work.js";
 export type { ProtocolVersion, VersionAxis, VersionEnvelope } from "./versions.js";
 
 export {

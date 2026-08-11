@@ -1258,7 +1258,7 @@
     }
   ],
   "proof_version": "1.0.0",
-  "source_catalog_sha256": "06237be70fb3a3911beb2a74196ed38b7767ad7bbf348d908e8c6d692977b355",
+  "source_catalog_sha256": "75018125c9ad0565e713cc8fa907523fbe774324c19fc4389cd8fcfc29e84b4a",
   "trust_state_space": {
     "axes": {
       "confidence": [

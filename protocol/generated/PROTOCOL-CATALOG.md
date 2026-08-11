@@ -10,11 +10,11 @@ Inventory version: `1.0.0`
 |---|---|---|---|---|
 | Principal | machine | implemented | PrincipalRecord, PrincipalRegistry | — |
 | Project | mixed | implemented | ProjectRecord, ProjectRegistry, ProjectTransaction | — |
-| Intent | project | declared | — | intent_record |
-| Episode | project | declared | — | episode_record |
-| Claim | mixed | partial | FieldExplanationTrace | claim_record |
-| Receipt | external | partial | OutboxDeliveryReceipt, CommandCommitReceipt, RepairReceipt, TelemetryConsentReceipt, TelemetryExportAuthorization | receipt_record |
-| Lease | machine | declared | — | lease_record |
+| Intent | project | implemented | IntentRecord | — |
+| Episode | project | implemented | EpisodeRecord | — |
+| Claim | mixed | implemented | ClaimRecord, FieldExplanationTrace | — |
+| Receipt | external | implemented | WorkReceipt, OutboxDeliveryReceipt, CommandCommitReceipt, RepairReceipt, TelemetryConsentReceipt, TelemetryExportAuthorization | — |
+| Lease | machine | implemented | LeaseRecord | — |
 | Event | project | partial | CommandAuditTrail, OutboxEffect, ProjectEventEnvelope, SweepCandidateEvent | event_type_registry |
 | Situation | projection | partial | HealthEnvelope, OperationalMetricsSnapshot, BoundedOutputEnvelope | situation_envelope |
 
@@ -35,6 +35,13 @@ Inventory version: `1.0.0`
 | CommandCommitReceipt | durable_record | `src/execution.ts` | receipt_version, receipt_id, command_id, principal_id, project_id, command_name, idempotency_key, input_digest, transaction_digest, projection_digest, outcome, outbox_effect_count, outbox_delivered_count, recorded_at, recovery, error | — |
 | ProjectEventEnvelope | durable_record | `src/project-transactions.ts` | event_version, event_id, event_type, subject_id, occurred_at, payload | — |
 | ProjectTransaction | durable_record | `src/project-transactions.ts` | transaction_version, command_id, command_version, command_name, principal_id, project_id, idempotency_key, input_digest, previous_transaction_digest, recorded_at, events | — |
+| IntentRecord | durable_record | `src/work.ts` | intent_version, intent_id, project_id, title, state, created_by, created_at | — |
+| EpisodeRecord | durable_record | `src/work.ts` | episode_version, episode_id, project_id, intent_id, goal, state, started_by, started_at | — |
+| ClaimRecord | durable_record | `src/work.ts` | claim_version, claim_id, project_id, intent_id, episode_id, claim_kind, statement, evidence_digests, corrects_claim_id, recorded_by, recorded_at | — |
+| WorkReceipt | durable_record | `src/work.ts` | receipt_version, receipt_id, receipt_kind, command_id, principal_id, project_id, subject_id, issued_at, summary, evidence_digest | — |
+| LeaseRecord | durable_record | `src/work.ts` | lease_version, lease_id, project_id, target, holder_principal_id, intent_id, episode_id, state, acquired_at, expires_at | — |
+| WorkLifecycleTransition | durable_record | `src/work.ts` | transition_version, lifecycle, subject_id, from, to, reason, actor_principal_id, recorded_at | — |
+| WorkCorrection | durable_record | `src/work.ts` | correction_version, lifecycle, subject_id, corrects_event_id, from, to, reason, actor_principal_id, recorded_at | — |
 | SweepCandidateEvent | proposal | `src/commands.ts` | sweep_candidate_version, command_id, project_id, observed_phase, observed_at, age_ms, idle_ms, recovery_owner_principal_id, reason_codes, policy_id, policy_version, proposed_event | — |
 | RepairReceipt | durable_record | `src/repairs.ts` | receipt_version, receipt_id, repair_command_id, project_id, actor_principal_id, recovery_owner_principal_id, issued_at, target, command, evidence, before, after, outcome, failure, rollback, journal | — |
 | OperationalMetricsSnapshot | projection | `src/observability.ts` | metrics_version, generated_at, policy, spans, counters, outbox_lag, alerts | — |
@@ -91,20 +98,15 @@ Inventory version: `1.0.0`
 
 ## Open registries and explicit gaps
 
-- Event registry closure: **open** (6 registered proposal type).
-- Command registry closure: **open** (0 native commands frozen).
+- Event registry closure: **open** (18 registered proposal type).
+- Command registry closure: **open** (4 native commands frozen).
 
-- `intent_record` (kernel): No canonical Intent Event or root record is implemented yet.
-- `episode_record` (kernel): No canonical Episode Event or root record is implemented yet.
-- `claim_record` (kernel): Explanation evidence exists, but the canonical Claim record is not implemented.
-- `receipt_record` (kernel): Concrete repair and consent Receipts exist; the general Receipt contract is not implemented.
-- `lease_record` (coordination): The lifecycle is frozen, but no native v2 Lease record or command exists.
 - `situation_envelope` (projection): Health and bounded projections exist, but the complete Situation envelope is not implemented.
-- `event_type_registry` (kernel): Event names remain open until native kernel commands freeze the complete registry.
-- `command_name_registry` (kernel): CommandAuditTrail accepts a non-empty command name; the native command registry is not frozen.
+- `event_type_registry` (kernel): Execution and native work Events are registered; migration and Situation Event families remain open.
+- `command_name_registry` (kernel): Native work commands are registered; migration and adapter command families remain open.
 
 ## Export boundary
 
-- 117 public value exports.
-- 135 public type exports.
+- 142 public value exports.
+- 146 public type exports.
 - Every export is enumerated in `protocol-catalog.json`; the generated schema intentionally covers registered top-level data surfaces, not helper inputs or semantic validation.

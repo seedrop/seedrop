@@ -1,0 +1,173 @@
+{
+  "fixture_version": "1.0.0",
+  "inputs": {
+    "intent": {
+      "intent_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "title": "Native vertical slice",
+      "state": "queued",
+      "created_by": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "created_at": "2026-08-11T14:00:00.000Z"
+    },
+    "intent_transition": {
+      "lifecycle": "intent",
+      "subject_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "from": "queued",
+      "to": "active",
+      "reason": "episode_started",
+      "actor_principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "recorded_at": "2026-08-11T14:00:00.000Z"
+    },
+    "episode": {
+      "episode_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "intent_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "goal": "Prove work truth",
+      "state": "active",
+      "started_by": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "started_at": "2026-08-11T14:00:00.000Z"
+    },
+    "claim": {
+      "claim_id": "sd_clm_0191416f-41ad-7d2e-af30-313233343536",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "intent_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "episode_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "claim_kind": "scope",
+      "statement": "Own protocol/src/work.ts",
+      "evidence_digests": [],
+      "corrects_claim_id": null,
+      "recorded_by": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "recorded_at": "2026-08-11T14:00:00.000Z"
+    },
+    "lease": {
+      "lease_id": "sd_lse_0191416f-41af-7f30-b132-333435363738",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "target": "protocol/src/work.ts",
+      "holder_principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "intent_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "episode_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "state": "active",
+      "acquired_at": "2026-08-11T14:00:00.000Z",
+      "expires_at": "2026-08-11T14:01:00.000Z"
+    },
+    "receipt": {
+      "receipt_id": "sd_rcp_0191416f-41ae-7e2f-b031-323334353637",
+      "receipt_kind": "episode_started",
+      "command_id": "sd_cmd_0191416f-41aa-7a2b-ac2d-2e2f30313233",
+      "principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "subject_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "issued_at": "2026-08-11T14:00:00.000Z",
+      "summary": "Episode started",
+      "evidence_digest": null
+    },
+    "lease_expiry": {
+      "lease_id": "sd_lse_0191416f-41af-7f30-b132-333435363738",
+      "from": "active",
+      "to": "expired",
+      "reason": "ttl_elapsed",
+      "actor_principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "recorded_at": "2026-08-11T14:01:00.000Z"
+    },
+    "correction": {
+      "lifecycle": "episode",
+      "subject_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "corrects_event_id": "sd_evt_0191416f-41b0-7031-b233-343536373839",
+      "from": "reported_complete",
+      "to": "active",
+      "reason": "wrong build",
+      "actor_principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "recorded_at": "2026-08-11T14:02:00.000Z"
+    }
+  },
+  "outputs": {
+    "intent": {
+      "intent_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "title": "Native vertical slice",
+      "state": "queued",
+      "created_by": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "created_at": "2026-08-11T14:00:00.000Z",
+      "intent_version": "1.0.0"
+    },
+    "intent_transition": {
+      "lifecycle": "intent",
+      "subject_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "from": "queued",
+      "to": "active",
+      "reason": "episode_started",
+      "actor_principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "recorded_at": "2026-08-11T14:00:00.000Z",
+      "transition_version": "1.0.0"
+    },
+    "episode": {
+      "episode_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "intent_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "goal": "Prove work truth",
+      "state": "active",
+      "started_by": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "started_at": "2026-08-11T14:00:00.000Z",
+      "episode_version": "1.0.0"
+    },
+    "claim": {
+      "claim_id": "sd_clm_0191416f-41ad-7d2e-af30-313233343536",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "intent_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "episode_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "claim_kind": "scope",
+      "statement": "Own protocol/src/work.ts",
+      "evidence_digests": [],
+      "corrects_claim_id": null,
+      "recorded_by": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "recorded_at": "2026-08-11T14:00:00.000Z",
+      "claim_version": "1.0.0"
+    },
+    "lease": {
+      "lease_id": "sd_lse_0191416f-41af-7f30-b132-333435363738",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "target": "protocol/src/work.ts",
+      "holder_principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "intent_id": "sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334",
+      "episode_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "state": "active",
+      "acquired_at": "2026-08-11T14:00:00.000Z",
+      "expires_at": "2026-08-11T14:01:00.000Z",
+      "lease_version": "1.0.0"
+    },
+    "receipt": {
+      "receipt_id": "sd_rcp_0191416f-41ae-7e2f-b031-323334353637",
+      "receipt_kind": "episode_started",
+      "command_id": "sd_cmd_0191416f-41aa-7a2b-ac2d-2e2f30313233",
+      "principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "project_id": "sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031",
+      "subject_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "issued_at": "2026-08-11T14:00:00.000Z",
+      "summary": "Episode started",
+      "evidence_digest": null,
+      "receipt_version": "1.0.0"
+    },
+    "lease_expiry": {
+      "lease_id": "sd_lse_0191416f-41af-7f30-b132-333435363738",
+      "from": "active",
+      "to": "expired",
+      "reason": "ttl_elapsed",
+      "actor_principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "recorded_at": "2026-08-11T14:01:00.000Z",
+      "transition_version": "1.0.0"
+    },
+    "correction": {
+      "lifecycle": "episode",
+      "subject_id": "sd_eps_0191416f-41ac-7c2d-ae2f-303132333435",
+      "corrects_event_id": "sd_evt_0191416f-41b0-7031-b233-343536373839",
+      "from": "reported_complete",
+      "to": "active",
+      "reason": "wrong build",
+      "actor_principal_id": "sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132",
+      "recorded_at": "2026-08-11T14:02:00.000Z",
+      "correction_version": "1.0.0"
+    }
+  },
+  "canonical_json": "{\"claim\":{\"claim_id\":\"sd_clm_0191416f-41ad-7d2e-af30-313233343536\",\"claim_kind\":\"scope\",\"claim_version\":\"1.0.0\",\"corrects_claim_id\":null,\"episode_id\":\"sd_eps_0191416f-41ac-7c2d-ae2f-303132333435\",\"evidence_digests\":[],\"intent_id\":\"sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334\",\"project_id\":\"sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031\",\"recorded_at\":\"2026-08-11T14:00:00.000Z\",\"recorded_by\":\"sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132\",\"statement\":\"Own protocol/src/work.ts\"},\"correction\":{\"actor_principal_id\":\"sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132\",\"correction_version\":\"1.0.0\",\"corrects_event_id\":\"sd_evt_0191416f-41b0-7031-b233-343536373839\",\"from\":\"reported_complete\",\"lifecycle\":\"episode\",\"reason\":\"wrong build\",\"recorded_at\":\"2026-08-11T14:02:00.000Z\",\"subject_id\":\"sd_eps_0191416f-41ac-7c2d-ae2f-303132333435\",\"to\":\"active\"},\"episode\":{\"episode_id\":\"sd_eps_0191416f-41ac-7c2d-ae2f-303132333435\",\"episode_version\":\"1.0.0\",\"goal\":\"Prove work truth\",\"intent_id\":\"sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334\",\"project_id\":\"sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031\",\"started_at\":\"2026-08-11T14:00:00.000Z\",\"started_by\":\"sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132\",\"state\":\"active\"},\"intent\":{\"created_at\":\"2026-08-11T14:00:00.000Z\",\"created_by\":\"sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132\",\"intent_id\":\"sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334\",\"intent_version\":\"1.0.0\",\"project_id\":\"sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031\",\"state\":\"queued\",\"title\":\"Native vertical slice\"},\"intent_transition\":{\"actor_principal_id\":\"sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132\",\"from\":\"queued\",\"lifecycle\":\"intent\",\"reason\":\"episode_started\",\"recorded_at\":\"2026-08-11T14:00:00.000Z\",\"subject_id\":\"sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334\",\"to\":\"active\",\"transition_version\":\"1.0.0\"},\"lease\":{\"acquired_at\":\"2026-08-11T14:00:00.000Z\",\"episode_id\":\"sd_eps_0191416f-41ac-7c2d-ae2f-303132333435\",\"expires_at\":\"2026-08-11T14:01:00.000Z\",\"holder_principal_id\":\"sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132\",\"intent_id\":\"sd_int_0191416f-41ab-7b2c-ad2e-2f3031323334\",\"lease_id\":\"sd_lse_0191416f-41af-7f30-b132-333435363738\",\"lease_version\":\"1.0.0\",\"project_id\":\"sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031\",\"state\":\"active\",\"target\":\"protocol/src/work.ts\"},\"lease_expiry\":{\"actor_principal_id\":\"sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132\",\"from\":\"active\",\"lease_id\":\"sd_lse_0191416f-41af-7f30-b132-333435363738\",\"reason\":\"ttl_elapsed\",\"recorded_at\":\"2026-08-11T14:01:00.000Z\",\"to\":\"expired\",\"transition_version\":\"1.0.0\"},\"receipt\":{\"command_id\":\"sd_cmd_0191416f-41aa-7a2b-ac2d-2e2f30313233\",\"evidence_digest\":null,\"issued_at\":\"2026-08-11T14:00:00.000Z\",\"principal_id\":\"sd_prn_0191416f-41a9-792a-ab2c-2d2e2f303132\",\"project_id\":\"sd_prj_0191416f-41a8-7829-aa2b-2c2d2e2f3031\",\"receipt_id\":\"sd_rcp_0191416f-41ae-7e2f-b031-323334353637\",\"receipt_kind\":\"episode_started\",\"receipt_version\":\"1.0.0\",\"subject_id\":\"sd_eps_0191416f-41ac-7c2d-ae2f-303132333435\",\"summary\":\"Episode started\"}}",
+  "digest": "sha256:10fee05e33b0b0594e70dca77aef10a59652c98b43daf51e6ff4577e0a121e06"
+}

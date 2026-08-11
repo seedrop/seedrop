@@ -237,6 +237,66 @@ export const PROTOCOL_EVENT_TYPES = {
       "surface": "ProjectEventEnvelope"
     },
     {
+      "name": "seedrop.intent.created",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.intent.transitioned",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.intent.corrected",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.episode.started",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.episode.transitioned",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.episode.corrected",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.claim.recorded",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.receipt.recorded",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.lease.acquired",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.lease.released",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.lease.expired",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
+      "name": "seedrop.lease.revoked",
+      "status": "implemented",
+      "surface": "ProjectEventEnvelope"
+    },
+    {
       "name": "command.sweep_candidate",
       "status": "proposal_only",
       "surface": "SweepCandidateEvent"
@@ -379,6 +439,9 @@ export const PROTOCOL_ERROR_CODES = [
   "seedrop.protocol.project_transaction_digest_mismatch",
   "seedrop.protocol.project_transaction_conflict",
   "seedrop.protocol.project_projection_inconsistent",
+  "seedrop.protocol.work_record_invalid",
+  "seedrop.protocol.work_state_conflict",
+  "seedrop.protocol.lease_conflict",
   "seedrop.protocol.lifecycle_state_unknown",
   "seedrop.protocol.lifecycle_transition_invalid",
   "seedrop.protocol.trust_state_invalid",
@@ -814,6 +877,272 @@ export const PROTOCOL_SURFACE_FIELDS = {
     },
     {
       "name": "events",
+      "optional": false
+    }
+  ],
+  "IntentRecord": [
+    {
+      "name": "intent_version",
+      "optional": false
+    },
+    {
+      "name": "intent_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "title",
+      "optional": false
+    },
+    {
+      "name": "state",
+      "optional": false
+    },
+    {
+      "name": "created_by",
+      "optional": false
+    },
+    {
+      "name": "created_at",
+      "optional": false
+    }
+  ],
+  "EpisodeRecord": [
+    {
+      "name": "episode_version",
+      "optional": false
+    },
+    {
+      "name": "episode_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "intent_id",
+      "optional": false
+    },
+    {
+      "name": "goal",
+      "optional": false
+    },
+    {
+      "name": "state",
+      "optional": false
+    },
+    {
+      "name": "started_by",
+      "optional": false
+    },
+    {
+      "name": "started_at",
+      "optional": false
+    }
+  ],
+  "ClaimRecord": [
+    {
+      "name": "claim_version",
+      "optional": false
+    },
+    {
+      "name": "claim_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "intent_id",
+      "optional": false
+    },
+    {
+      "name": "episode_id",
+      "optional": false
+    },
+    {
+      "name": "claim_kind",
+      "optional": false
+    },
+    {
+      "name": "statement",
+      "optional": false
+    },
+    {
+      "name": "evidence_digests",
+      "optional": false
+    },
+    {
+      "name": "corrects_claim_id",
+      "optional": false
+    },
+    {
+      "name": "recorded_by",
+      "optional": false
+    },
+    {
+      "name": "recorded_at",
+      "optional": false
+    }
+  ],
+  "WorkReceipt": [
+    {
+      "name": "receipt_version",
+      "optional": false
+    },
+    {
+      "name": "receipt_id",
+      "optional": false
+    },
+    {
+      "name": "receipt_kind",
+      "optional": false
+    },
+    {
+      "name": "command_id",
+      "optional": false
+    },
+    {
+      "name": "principal_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "subject_id",
+      "optional": false
+    },
+    {
+      "name": "issued_at",
+      "optional": false
+    },
+    {
+      "name": "summary",
+      "optional": false
+    },
+    {
+      "name": "evidence_digest",
+      "optional": false
+    }
+  ],
+  "LeaseRecord": [
+    {
+      "name": "lease_version",
+      "optional": false
+    },
+    {
+      "name": "lease_id",
+      "optional": false
+    },
+    {
+      "name": "project_id",
+      "optional": false
+    },
+    {
+      "name": "target",
+      "optional": false
+    },
+    {
+      "name": "holder_principal_id",
+      "optional": false
+    },
+    {
+      "name": "intent_id",
+      "optional": false
+    },
+    {
+      "name": "episode_id",
+      "optional": false
+    },
+    {
+      "name": "state",
+      "optional": false
+    },
+    {
+      "name": "acquired_at",
+      "optional": false
+    },
+    {
+      "name": "expires_at",
+      "optional": false
+    }
+  ],
+  "WorkLifecycleTransition": [
+    {
+      "name": "transition_version",
+      "optional": false
+    },
+    {
+      "name": "lifecycle",
+      "optional": false
+    },
+    {
+      "name": "subject_id",
+      "optional": false
+    },
+    {
+      "name": "from",
+      "optional": false
+    },
+    {
+      "name": "to",
+      "optional": false
+    },
+    {
+      "name": "reason",
+      "optional": false
+    },
+    {
+      "name": "actor_principal_id",
+      "optional": false
+    },
+    {
+      "name": "recorded_at",
+      "optional": false
+    }
+  ],
+  "WorkCorrection": [
+    {
+      "name": "correction_version",
+      "optional": false
+    },
+    {
+      "name": "lifecycle",
+      "optional": false
+    },
+    {
+      "name": "subject_id",
+      "optional": false
+    },
+    {
+      "name": "corrects_event_id",
+      "optional": false
+    },
+    {
+      "name": "from",
+      "optional": false
+    },
+    {
+      "name": "to",
+      "optional": false
+    },
+    {
+      "name": "reason",
+      "optional": false
+    },
+    {
+      "name": "actor_principal_id",
+      "optional": false
+    },
+    {
+      "name": "recorded_at",
       "optional": false
     }
   ],

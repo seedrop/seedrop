@@ -186,6 +186,21 @@ export const ERROR_REGISTRY = Object.freeze({
     message: "The project projection does not reconcile with its canonical transaction sources.",
     retryable: false,
   },
+  "seedrop.protocol.work_record_invalid": {
+    category: "integrity",
+    message: "The native work record or Event payload is malformed or internally inconsistent.",
+    retryable: false,
+  },
+  "seedrop.protocol.work_state_conflict": {
+    category: "conflict",
+    message: "The native work command conflicts with current Intent, Episode, Claim, Receipt, or Lease state.",
+    retryable: false,
+  },
+  "seedrop.protocol.lease_conflict": {
+    category: "conflict",
+    message: "The requested target already has an active Lease or the Lease is no longer mutable.",
+    retryable: false,
+  },
   "seedrop.protocol.lifecycle_state_unknown": {
     category: "input",
     message: "The lifecycle name or state is not registered by the protocol.",

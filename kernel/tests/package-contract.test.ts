@@ -4,10 +4,10 @@ import { KERNEL_PACKAGE_CONTRACT } from "../src/index.js";
 describe("@seedrop/kernel package contract", () => {
   it("owns execution and points inward through project to protocol", () => {
     expect(KERNEL_PACKAGE_CONTRACT).toEqual({
-      schema_version: "1.1",
+      schema_version: "1.2",
       package_name: "@seedrop/kernel",
       role: "command_kernel",
-      owns: ["state_changing_command_execution"],
+      owns: ["state_changing_command_execution", "native_work_command_definitions"],
       depends_on: ["@seedrop/project", "@seedrop/protocol"],
       excludes: ["adapter_policy", "durable_project_storage", "v1_writer_connection"],
     });

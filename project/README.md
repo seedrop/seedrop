@@ -27,5 +27,13 @@ transaction predecessor with the caller's expected version. A stale writer publi
 nothing. A crash after immutable publication is recovered by retrying the same
 transaction, which rebuilds the disposable index and returns `already_committed`.
 
+`reduceWorkProjection` folds registered native work Events in canonical chain order
+into current Intent, Episode, Claim, Receipt, and Lease state. It rejects incomplete
+logs, duplicate native identities, invalid state ancestry, early expiry, stale
+correction targets, and overlapping active Leases for one target. Work Receipts keep
+their Event and transaction digests and are queryable by Receipt, kind, Command,
+Principal, or subject. The work projection remains disposable rather than becoming
+a second authority.
+
 This package is shadow-only. It does not write v1 View artifacts and it does not embed
 the separate database experiment.

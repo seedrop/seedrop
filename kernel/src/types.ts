@@ -11,13 +11,17 @@ import type {
   ProtocolVersion,
   RepairReceipt,
 } from "@seedrop/protocol";
-import type { ProjectProjectionReference } from "@seedrop/project";
+import type {
+  ProjectLogScan,
+  ProjectProjection,
+  ProjectProjectionReference,
+} from "@seedrop/project";
 
 export const KERNEL_PACKAGE_CONTRACT = Object.freeze({
-  schema_version: "1.1",
+  schema_version: "1.2",
   package_name: "@seedrop/kernel",
   role: "command_kernel",
-  owns: Object.freeze(["state_changing_command_execution"] as const),
+  owns: Object.freeze(["state_changing_command_execution", "native_work_command_definitions"] as const),
   depends_on: Object.freeze(["@seedrop/project", "@seedrop/protocol"] as const),
   excludes: Object.freeze([
     "adapter_policy",
@@ -70,6 +74,21 @@ export interface KernelCommandContext {
   request: KernelCommandRequest;
   principal: KernelResolvedPrincipal;
   input_digest: ProjectTransactionDigest;
+  project_scan: ProjectLogScan;
+  project_projection: ProjectProjection;
+}
+
+export interface NativeWorkClock {
+  now(): string;
+}
+
+export interface NativeWorkIdFactory {
+  event(): CanonicalId<"event">;
+}
+
+export interface NativeWorkCommandOptions {
+  clock?: NativeWorkClock;
+  ids?: NativeWorkIdFactory;
 }
 
 export interface KernelPlannedEffect {

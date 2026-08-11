@@ -3,6 +3,7 @@ import {
   PROJECT_PACKAGE_CONTRACT,
   PROJECT_PROJECTION_VERSION,
   PROJECT_STORE_LAYOUT_VERSION,
+  WORK_PROJECTION_VERSION,
 } from "../src/index.js";
 
 describe("@seedrop/project package contract", () => {
@@ -19,5 +20,6 @@ describe("@seedrop/project package contract", () => {
     expect(Object.isFrozen(PROJECT_PACKAGE_CONTRACT.owns)).toBe(true);
     expect(PROJECT_STORE_LAYOUT_VERSION).toBe("1.1.0");
     expect(PROJECT_PROJECTION_VERSION).toBe("1.0.0");
+    expect(WORK_PROJECTION_VERSION).toBe("1.0.0");
   });
 });

@@ -107,7 +107,6 @@ async function execute(
     commandKind: definition.kind,
   });
   const inputDigest = canonicalJsonDigest(request.payload) as ProjectTransactionDigest;
-  const context: KernelCommandContext = Object.freeze({ request, principal, input_digest: inputDigest });
   const scan = await scanProjectTransactions(options.project_root, options.project_id);
   const existing = findIdempotentTransaction(scan.transactions, request);
   if (existing) {
@@ -123,9 +122,6 @@ async function execute(
     return materializeOutcome(options, existing, true, false);
   }
 
-  await definition.validate(context);
-  await options.fault?.("after_validation");
-
   const projection = reduceProjectTransactions(scan);
   if (!projection.lag.complete) {
     throw protocolError("seedrop.protocol.project_transaction_conflict", {
@@ -133,6 +129,15 @@ async function execute(
       quarantine_count: projection.quarantined.length,
     });
   }
+  const context: KernelCommandContext = Object.freeze({
+    request,
+    principal,
+    input_digest: inputDigest,
+    project_scan: scan,
+    project_projection: projection,
+  });
+  await definition.validate(context);
+  await options.fault?.("after_validation");
   if (projection.source_high_watermark !== request.expected_state_version) {
     throw protocolError("seedrop.protocol.project_transaction_conflict", {
       reason: "expected_state_version_mismatch",

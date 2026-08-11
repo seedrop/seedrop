@@ -4,6 +4,10 @@ import { COMMAND_EXECUTION_EVENT_TYPES } from "./execution.js";
 import { CANONICAL_ID_KINDS } from "./ids.js";
 import { SUBSTRATE_STATES } from "./health.js";
 import { CURRENT_VERSIONS, VERSION_AXES } from "./versions.js";
+import { NATIVE_WORK_COMMANDS, WORK_EVENT_TYPES } from "./work.js";
+import { EPISODE_LIFECYCLE, INTENT_LIFECYCLE, LEASE_LIFECYCLE } from "./lifecycles.js";
+
+export { EPISODE_LIFECYCLE, INTENT_LIFECYCLE, LEASE_LIFECYCLE } from "./lifecycles.js";
 
 export const PROTOCOL_INVENTORY_VERSION = "1.0.0" as const;
 
@@ -35,53 +39,6 @@ export interface ProtocolGap {
   reason: string;
 }
 
-function freezeTransitions<const T extends Readonly<Record<string, readonly string[]>>>(
-  transitions: T,
-): T {
-  for (const values of Object.values(transitions)) Object.freeze(values);
-  return Object.freeze(transitions);
-}
-
-export const INTENT_LIFECYCLE = Object.freeze({
-  states: Object.freeze(["queued", "active", "paused", "blocked", "reported_complete", "abandoned"] as const),
-  initial: "queued",
-  terminal: Object.freeze(["reported_complete", "abandoned"] as const),
-  transitions: freezeTransitions({
-    queued: ["active", "paused", "blocked", "abandoned"],
-    active: ["paused", "blocked", "reported_complete", "abandoned"],
-    paused: ["active", "blocked", "abandoned"],
-    blocked: ["active", "paused", "abandoned"],
-    reported_complete: [],
-    abandoned: [],
-  }),
-});
-
-export const EPISODE_LIFECYCLE = Object.freeze({
-  states: Object.freeze(["active", "paused", "blocked", "reported_complete", "failed", "abandoned"] as const),
-  initial: "active",
-  terminal: Object.freeze(["reported_complete", "failed", "abandoned"] as const),
-  transitions: freezeTransitions({
-    active: ["paused", "blocked", "reported_complete", "failed", "abandoned"],
-    paused: ["active", "blocked", "failed", "abandoned"],
-    blocked: ["active", "paused", "failed", "abandoned"],
-    reported_complete: [],
-    failed: [],
-    abandoned: [],
-  }),
-});
-
-export const LEASE_LIFECYCLE = Object.freeze({
-  states: Object.freeze(["active", "released", "expired", "revoked"] as const),
-  initial: "active",
-  terminal: Object.freeze(["released", "expired", "revoked"] as const),
-  transitions: freezeTransitions({
-    active: ["released", "expired", "revoked"],
-    released: [],
-    expired: [],
-    revoked: [],
-  }),
-});
-
 export const TRUST_AXES = Object.freeze({
   evidence: Object.freeze(["unverified", "passed", "failed", "stale", "unavailable"] as const),
   delivery: Object.freeze([
@@ -107,6 +64,13 @@ export const PROTOCOL_SURFACES = Object.freeze([
   surface("CommandCommitReceipt", "src/execution.ts", "durable_record", "Receipt", "receipt_version", "COMMAND_COMMIT_RECEIPT_VERSION", "buildCommandCommitReceipt", "assertCommandCommitReceipt"),
   surface("ProjectEventEnvelope", "src/project-transactions.ts", "durable_record", "Event", "event_version", "PROJECT_EVENT_VERSION", "buildProjectEvent", "assertProjectEvent"),
   surface("ProjectTransaction", "src/project-transactions.ts", "durable_record", "Project", "transaction_version", "PROJECT_TRANSACTION_VERSION", "buildProjectTransaction", "assertProjectTransaction"),
+  surface("IntentRecord", "src/work.ts", "durable_record", "Intent", "intent_version", "WORK_RECORD_VERSION", "buildIntentRecord", "assertIntentRecord"),
+  surface("EpisodeRecord", "src/work.ts", "durable_record", "Episode", "episode_version", "WORK_RECORD_VERSION", "buildEpisodeRecord", "assertEpisodeRecord"),
+  surface("ClaimRecord", "src/work.ts", "durable_record", "Claim", "claim_version", "WORK_RECORD_VERSION", "buildClaimRecord", "assertClaimRecord"),
+  surface("WorkReceipt", "src/work.ts", "durable_record", "Receipt", "receipt_version", "WORK_RECEIPT_VERSION", "buildWorkReceipt", "assertWorkReceipt"),
+  surface("LeaseRecord", "src/work.ts", "durable_record", "Lease", "lease_version", "WORK_RECORD_VERSION", "buildLeaseRecord", "assertLeaseRecord"),
+  surface("WorkLifecycleTransition", "src/work.ts", "durable_record", "Event", "transition_version", "WORK_TRANSITION_VERSION", "buildWorkLifecycleTransition", "assertWorkLifecycleTransition"),
+  surface("WorkCorrection", "src/work.ts", "durable_record", "Event", "correction_version", "WORK_CORRECTION_VERSION", "buildWorkCorrection", "assertWorkCorrection"),
   surface("SweepCandidateEvent", "src/commands.ts", "proposal", "Event", "sweep_candidate_version", "SWEEP_CANDIDATE_VERSION", "findCommandSweepCandidates", null),
   surface("RepairReceipt", "src/repairs.ts", "durable_record", "Receipt", "receipt_version", "REPAIR_RECEIPT_VERSION", "buildRepairReceipt", "assertRepairReceipt"),
   surface("OperationalMetricsSnapshot", "src/observability.ts", "projection", "Situation", "metrics_version", "OPERATIONAL_METRICS_VERSION", "buildOperationalMetricsSnapshot", "assertOperationalMetricsSnapshot"),
@@ -117,14 +81,9 @@ export const PROTOCOL_SURFACES = Object.freeze([
 ] as const);
 
 export const PROTOCOL_GAPS = Object.freeze([
-  gap("intent_record", "Intent", "kernel", "No canonical Intent Event or root record is implemented yet."),
-  gap("episode_record", "Episode", "kernel", "No canonical Episode Event or root record is implemented yet."),
-  gap("claim_record", "Claim", "kernel", "Explanation evidence exists, but the canonical Claim record is not implemented."),
-  gap("receipt_record", "Receipt", "kernel", "Concrete repair and consent Receipts exist; the general Receipt contract is not implemented."),
-  gap("lease_record", "Lease", "coordination", "The lifecycle is frozen, but no native v2 Lease record or command exists."),
   gap("situation_envelope", "Situation", "projection", "Health and bounded projections exist, but the complete Situation envelope is not implemented."),
-  gap("event_type_registry", "Event", "kernel", "Event names remain open until native kernel commands freeze the complete registry."),
-  gap("command_name_registry", null, "kernel", "CommandAuditTrail accepts a non-empty command name; the native command registry is not frozen."),
+  gap("event_type_registry", "Event", "kernel", "Execution and native work Events are registered; migration and Situation Event families remain open."),
+  gap("command_name_registry", null, "kernel", "Native work commands are registered; migration and adapter command families remain open."),
 ] as const);
 
 export const PUBLIC_EVENT_TYPES = Object.freeze([
@@ -132,6 +91,11 @@ export const PUBLIC_EVENT_TYPES = Object.freeze([
     name,
     status: "implemented" as const,
     surface: name === COMMAND_EXECUTION_EVENT_TYPES.outbox_declared ? "OutboxEffect" : "ProjectEventEnvelope",
+  })),
+  ...Object.values(WORK_EVENT_TYPES).map((name) => Object.freeze({
+    name,
+    status: "implemented" as const,
+    surface: "ProjectEventEnvelope",
   })),
   Object.freeze({
     name: "command.sweep_candidate",
@@ -143,11 +107,11 @@ export const PUBLIC_EVENT_TYPES = Object.freeze([
 export const PUBLIC_NOUNS = Object.freeze([
   noun("Principal", "machine", "implemented", ["PrincipalRecord", "PrincipalRegistry"], []),
   noun("Project", "mixed", "implemented", ["ProjectRecord", "ProjectRegistry", "ProjectTransaction"], []),
-  noun("Intent", "project", "declared", [], ["intent_record"]),
-  noun("Episode", "project", "declared", [], ["episode_record"]),
-  noun("Claim", "mixed", "partial", ["FieldExplanationTrace"], ["claim_record"]),
-  noun("Receipt", "external", "partial", ["OutboxDeliveryReceipt", "CommandCommitReceipt", "RepairReceipt", "TelemetryConsentReceipt", "TelemetryExportAuthorization"], ["receipt_record"]),
-  noun("Lease", "machine", "declared", [], ["lease_record"]),
+  noun("Intent", "project", "implemented", ["IntentRecord"], []),
+  noun("Episode", "project", "implemented", ["EpisodeRecord"], []),
+  noun("Claim", "mixed", "implemented", ["ClaimRecord", "FieldExplanationTrace"], []),
+  noun("Receipt", "external", "implemented", ["WorkReceipt", "OutboxDeliveryReceipt", "CommandCommitReceipt", "RepairReceipt", "TelemetryConsentReceipt", "TelemetryExportAuthorization"], []),
+  noun("Lease", "machine", "implemented", ["LeaseRecord"], []),
   noun("Event", "project", "partial", ["CommandAuditTrail", "OutboxEffect", "ProjectEventEnvelope", "SweepCandidateEvent"], ["event_type_registry"]),
   noun("Situation", "projection", "partial", ["HealthEnvelope", "OperationalMetricsSnapshot", "BoundedOutputEnvelope"], ["situation_envelope"]),
 ] as const satisfies readonly ProtocolNoun[]);
@@ -172,7 +136,7 @@ export const PROTOCOL_INVENTORY_CORE = Object.freeze({
   current_versions: CURRENT_VERSIONS,
   errors: ERROR_REGISTRY,
   events: Object.freeze({ closure: "open", registered: PUBLIC_EVENT_TYPES }),
-  commands: Object.freeze({ closure: "open", registered: Object.freeze([] as readonly string[]) }),
+  commands: Object.freeze({ closure: "open", registered: Object.freeze(Object.values(NATIVE_WORK_COMMANDS)) }),
   surfaces: PROTOCOL_SURFACES,
   gaps: PROTOCOL_GAPS,
 });

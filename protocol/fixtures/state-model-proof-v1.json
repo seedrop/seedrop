@@ -14,6 +14,6 @@
   },
   "fixture_version": "1.0.0",
   "inventory_version": "1.0.0",
-  "proof_sha256": "b0a156667de36f12a56d1f348c9ee10108b56d256b6a3327943f5e3c7e21dd6e",
-  "source_catalog_sha256": "06237be70fb3a3911beb2a74196ed38b7767ad7bbf348d908e8c6d692977b355"
+  "proof_sha256": "eea42b3026dc5f09ab9c829759a08c083cadc47dafb7c185ca6f6a49970bf88c",
+  "source_catalog_sha256": "75018125c9ad0565e713cc8fa907523fbe774324c19fc4389cd8fcfc29e84b4a"
 }

@@ -22,6 +22,17 @@ export type {
   KernelPrincipalResolver,
   KernelRecoveryRequest,
   KernelResolvedPrincipal,
+  NativeWorkClock,
+  NativeWorkCommandOptions,
+  NativeWorkIdFactory,
 } from "./types.js";
 
 export { createKernelCommandExecutor } from "./executor.js";
+export { createNativeWorkCommandDefinitions } from "./work.js";
+export type {
+  CorrectWorkPayload,
+  ExpireLeasePayload,
+  FinishWorkPayload,
+  HandoffPayload,
+  OpenWorkPayload,
+} from "./work.js";

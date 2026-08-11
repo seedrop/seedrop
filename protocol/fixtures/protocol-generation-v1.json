@@ -1,18 +1,18 @@
 {
   "artifact": "seedrop-v2-protocol-generation",
   "counts": {
-    "gap_count": 8,
+    "gap_count": 3,
     "noun_count": 9,
-    "public_type_export_count": 135,
-    "public_value_export_count": 117,
-    "surface_count": 20
+    "public_type_export_count": 146,
+    "public_value_export_count": 142,
+    "surface_count": 27
   },
   "fixture_version": "1.0.0",
   "inventory_version": "1.0.0",
   "sha256": {
-    "generated/PROTOCOL-CATALOG.md": "d2dc772db71614c3722d4796cf280851cb8d4da4e28b7551dfe2a06fa30b7ad4",
-    "generated/protocol-bindings.ts": "709ecda1e9933e1a251352453a57db161d6873f331772556f0e68ac060e479e0",
-    "generated/protocol-catalog.json": "06237be70fb3a3911beb2a74196ed38b7767ad7bbf348d908e8c6d692977b355",
-    "generated/protocol-surface-shapes.schema.json": "a8449e7dae28d83e1b35a586a07bed1ceeae3dd16473caf6cf9416a7886333a0"
+    "generated/PROTOCOL-CATALOG.md": "16648387d8724c4ad263b60e30eba2dd3e580a335c38f074581ca824dc6f7b62",
+    "generated/protocol-bindings.ts": "13991ff7ccba57498361f56ad4265894a6c51258ccf534976f4fa988ade23c43",
+    "generated/protocol-catalog.json": "75018125c9ad0565e713cc8fa907523fbe774324c19fc4389cd8fcfc29e84b4a",
+    "generated/protocol-surface-shapes.schema.json": "8fe3e4c72199a06da423803ab5815582236d84bc148c2e15174d3fdf26d745c9"
   }
 }

@@ -71,6 +71,77 @@
       "x-seedrop-role": "projection",
       "x-seedrop-source": "src/observability.ts"
     },
+    "ClaimRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "description": "TypeScript contract: CanonicalId<\"claim\">",
+          "type": "string"
+        },
+        "claim_kind": {
+          "description": "TypeScript contract: ClaimKind"
+        },
+        "claim_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof WORK_RECORD_VERSION",
+          "type": "string"
+        },
+        "corrects_claim_id": {
+          "description": "TypeScript contract: CanonicalId<\"claim\"> | null",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "episode_id": {
+          "description": "TypeScript contract: CanonicalId<\"episode\"> | null",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence_digests": {
+          "description": "TypeScript contract: readonly ProjectTransactionDigest[]",
+          "type": "array"
+        },
+        "intent_id": {
+          "description": "TypeScript contract: CanonicalId<\"intent\">",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "recorded_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "recorded_by": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "statement": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_version",
+        "claim_id",
+        "project_id",
+        "intent_id",
+        "episode_id",
+        "claim_kind",
+        "statement",
+        "evidence_digests",
+        "corrects_claim_id",
+        "recorded_by",
+        "recorded_at"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/work.ts"
+    },
     "CommandAuditTrail": {
       "additionalProperties": false,
       "properties": {
@@ -217,6 +288,57 @@
       "x-seedrop-role": "durable_record",
       "x-seedrop-source": "src/execution.ts"
     },
+    "EpisodeRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "episode_id": {
+          "description": "TypeScript contract: CanonicalId<\"episode\">",
+          "type": "string"
+        },
+        "episode_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof WORK_RECORD_VERSION",
+          "type": "string"
+        },
+        "goal": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "intent_id": {
+          "description": "TypeScript contract: CanonicalId<\"intent\">",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "started_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "started_by": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "state": {
+          "description": "TypeScript contract: \"active\"",
+          "type": "string"
+        }
+      },
+      "required": [
+        "episode_version",
+        "episode_id",
+        "project_id",
+        "intent_id",
+        "goal",
+        "state",
+        "started_by",
+        "started_at"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/work.ts"
+    },
     "FieldExplanationTrace": {
       "additionalProperties": false,
       "properties": {
@@ -348,6 +470,113 @@
       "type": "object",
       "x-seedrop-role": "projection",
       "x-seedrop-source": "src/health.ts"
+    },
+    "IntentRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "created_by": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "intent_id": {
+          "description": "TypeScript contract: CanonicalId<\"intent\">",
+          "type": "string"
+        },
+        "intent_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof WORK_RECORD_VERSION",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "state": {
+          "description": "TypeScript contract: \"queued\"",
+          "type": "string"
+        },
+        "title": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent_version",
+        "intent_id",
+        "project_id",
+        "title",
+        "state",
+        "created_by",
+        "created_at"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/work.ts"
+    },
+    "LeaseRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "acquired_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "episode_id": {
+          "description": "TypeScript contract: CanonicalId<\"episode\">",
+          "type": "string"
+        },
+        "expires_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "holder_principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "intent_id": {
+          "description": "TypeScript contract: CanonicalId<\"intent\">",
+          "type": "string"
+        },
+        "lease_id": {
+          "description": "TypeScript contract: CanonicalId<\"lease\">",
+          "type": "string"
+        },
+        "lease_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof WORK_RECORD_VERSION",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "state": {
+          "description": "TypeScript contract: \"active\"",
+          "type": "string"
+        },
+        "target": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_version",
+        "lease_id",
+        "project_id",
+        "target",
+        "holder_principal_id",
+        "intent_id",
+        "episode_id",
+        "state",
+        "acquired_at",
+        "expires_at"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/work.ts"
     },
     "OperationalMetricsSnapshot": {
       "additionalProperties": false,
@@ -1061,6 +1290,169 @@
       "type": "object",
       "x-seedrop-role": "wire_envelope",
       "x-seedrop-source": "src/versions.ts"
+    },
+    "WorkCorrection": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "correction_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof WORK_CORRECTION_VERSION",
+          "type": "string"
+        },
+        "corrects_event_id": {
+          "description": "TypeScript contract: CanonicalId<\"event\">",
+          "type": "string"
+        },
+        "from": {
+          "description": "TypeScript contract: \"reported_complete\" | \"abandoned\" | \"failed\"",
+          "type": "string"
+        },
+        "lifecycle": {
+          "description": "TypeScript contract: \"intent\" | \"episode\"",
+          "type": "string"
+        },
+        "reason": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "recorded_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "subject_id": {
+          "description": "TypeScript contract: CanonicalId<\"intent\"> | CanonicalId<\"episode\">",
+          "type": "string"
+        },
+        "to": {
+          "description": "TypeScript contract: \"active\"",
+          "type": "string"
+        }
+      },
+      "required": [
+        "correction_version",
+        "lifecycle",
+        "subject_id",
+        "corrects_event_id",
+        "from",
+        "to",
+        "reason",
+        "actor_principal_id",
+        "recorded_at"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/work.ts"
+    },
+    "WorkLifecycleTransition": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "from": {
+          "description": "TypeScript contract: LifecycleState<\"intent\"> | LifecycleState<\"episode\">"
+        },
+        "lifecycle": {
+          "description": "TypeScript contract: \"intent\" | \"episode\"",
+          "type": "string"
+        },
+        "reason": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "recorded_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "subject_id": {
+          "description": "TypeScript contract: CanonicalId<\"intent\"> | CanonicalId<\"episode\">",
+          "type": "string"
+        },
+        "to": {
+          "description": "TypeScript contract: LifecycleState<\"intent\"> | LifecycleState<\"episode\">"
+        },
+        "transition_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof WORK_TRANSITION_VERSION",
+          "type": "string"
+        }
+      },
+      "required": [
+        "transition_version",
+        "lifecycle",
+        "subject_id",
+        "from",
+        "to",
+        "reason",
+        "actor_principal_id",
+        "recorded_at"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/work.ts"
+    },
+    "WorkReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "description": "TypeScript contract: CanonicalId<\"command\">",
+          "type": "string"
+        },
+        "evidence_digest": {
+          "description": "TypeScript contract: ProjectTransactionDigest | null"
+        },
+        "issued_at": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        },
+        "principal_id": {
+          "description": "TypeScript contract: CanonicalId<\"principal\">",
+          "type": "string"
+        },
+        "project_id": {
+          "description": "TypeScript contract: CanonicalId<\"project\">",
+          "type": "string"
+        },
+        "receipt_id": {
+          "description": "TypeScript contract: CanonicalId<\"receipt\">",
+          "type": "string"
+        },
+        "receipt_kind": {
+          "description": "TypeScript contract: WorkReceiptKind"
+        },
+        "receipt_version": {
+          "const": "1.0.0",
+          "description": "TypeScript contract: typeof WORK_RECEIPT_VERSION",
+          "type": "string"
+        },
+        "subject_id": {
+          "description": "TypeScript contract: CanonicalId"
+        },
+        "summary": {
+          "description": "TypeScript contract: string",
+          "type": "string"
+        }
+      },
+      "required": [
+        "receipt_version",
+        "receipt_id",
+        "receipt_kind",
+        "command_id",
+        "principal_id",
+        "project_id",
+        "subject_id",
+        "issued_at",
+        "summary",
+        "evidence_digest"
+      ],
+      "type": "object",
+      "x-seedrop-role": "durable_record",
+      "x-seedrop-source": "src/work.ts"
     }
   },
   "$id": "https://seedrop.dev/schema/v2/protocol-surface-shapes.schema.json",
@@ -1105,6 +1497,27 @@
     },
     {
       "$ref": "#/$defs/ProjectTransaction"
+    },
+    {
+      "$ref": "#/$defs/IntentRecord"
+    },
+    {
+      "$ref": "#/$defs/EpisodeRecord"
+    },
+    {
+      "$ref": "#/$defs/ClaimRecord"
+    },
+    {
+      "$ref": "#/$defs/WorkReceipt"
+    },
+    {
+      "$ref": "#/$defs/LeaseRecord"
+    },
+    {
+      "$ref": "#/$defs/WorkLifecycleTransition"
+    },
+    {
+      "$ref": "#/$defs/WorkCorrection"
     },
     {
       "$ref": "#/$defs/SweepCandidateEvent"

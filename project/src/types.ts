@@ -1,12 +1,19 @@
 import type {
   CanonicalId,
+  ClaimRecord,
+  EpisodeRecord,
+  IntentRecord,
   JsonValue,
+  LeaseRecord,
+  LifecycleState,
   ProjectTransaction,
   ProjectTransactionDigest,
+  WorkReceipt,
 } from "@seedrop/protocol";
 
 export const PROJECT_STORE_LAYOUT_VERSION = "1.1.0" as const;
 export const PROJECT_PROJECTION_VERSION = "1.0.0" as const;
+export const WORK_PROJECTION_VERSION = "1.0.0" as const;
 
 export const PROJECT_PACKAGE_CONTRACT = Object.freeze({
   schema_version: "1.0",
@@ -172,4 +179,49 @@ export interface ProjectProjection {
   applied: readonly ProjectProjectionEntry[];
   lag: ProjectLag;
   quarantined: readonly ProjectArtifactDiagnostic[];
+}
+
+export interface IntentProjectionRecord {
+  record: IntentRecord;
+  state: LifecycleState<"intent">;
+  state_event_id: CanonicalId<"event">;
+  correction_event_ids: readonly CanonicalId<"event">[];
+}
+
+export interface EpisodeProjectionRecord {
+  record: EpisodeRecord;
+  state: LifecycleState<"episode">;
+  state_event_id: CanonicalId<"event">;
+  correction_event_ids: readonly CanonicalId<"event">[];
+}
+
+export interface LeaseProjectionRecord {
+  record: LeaseRecord;
+  state: LifecycleState<"lease">;
+  state_event_id: CanonicalId<"event">;
+}
+
+export interface WorkReceiptProjectionRecord {
+  event_id: CanonicalId<"event">;
+  transaction_digest: ProjectTransactionDigest;
+  receipt: WorkReceipt;
+}
+
+export interface WorkProjection {
+  projection_version: typeof WORK_PROJECTION_VERSION;
+  project_id: CanonicalId<"project">;
+  source_high_watermark: ProjectTransactionDigest | null;
+  intents: readonly IntentProjectionRecord[];
+  episodes: readonly EpisodeProjectionRecord[];
+  claims: readonly ClaimRecord[];
+  receipts: readonly WorkReceiptProjectionRecord[];
+  leases: readonly LeaseProjectionRecord[];
+}
+
+export interface WorkReceiptQuery {
+  receipt_id?: CanonicalId<"receipt">;
+  receipt_kind?: WorkReceipt["receipt_kind"];
+  command_id?: CanonicalId<"command">;
+  principal_id?: CanonicalId<"principal">;
+  subject_id?: CanonicalId;
 }

@@ -1,9 +1,13 @@
 export {
+  WORK_PROJECTION_VERSION,
   PROJECT_PACKAGE_CONTRACT,
   PROJECT_PROJECTION_VERSION,
   PROJECT_STORE_LAYOUT_VERSION,
 } from "./types.js";
 export type {
+  EpisodeProjectionRecord,
+  IntentProjectionRecord,
+  LeaseProjectionRecord,
   ProjectArtifactDiagnostic,
   ProjectArtifactDiagnosticCode,
   ProjectCommitBoundary,
@@ -22,6 +26,9 @@ export type {
   ProjectStoreLayout,
   ProjectTransactionReference,
   ProjectWriterLockOptions,
+  WorkProjection,
+  WorkReceiptProjectionRecord,
+  WorkReceiptQuery,
 } from "./types.js";
 
 export {
@@ -33,6 +40,12 @@ export {
   acquireProjectWriterLock,
   commitProjectTransaction,
 } from "./commit.js";
+
+export {
+  activeLeaseForTarget,
+  queryWorkReceipts,
+  reduceWorkProjection,
+} from "./work.js";
 
 export type { HeldProjectWriterLock } from "./commit.js";
 

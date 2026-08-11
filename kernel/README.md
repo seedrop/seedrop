@@ -25,5 +25,18 @@ in-memory phase. A thrown dispatcher leaves the command `effects_pending`; a gov
 dead letter yields `needs_repair`. Repair definitions require a validated
 `RepairReceipt` whose command, Project, actor, and input digest match the request.
 
+`createNativeWorkCommandDefinitions` supplies the first complete domain path:
+`seedrop.work.open` atomically creates an active Intent/Episode with scope Claim,
+Receipt, and Lease; `seedrop.work.finish` records completion and outcome truth,
+releases the Lease, and optionally declares a required handoff effect;
+`seedrop.lease.expire` appends explicit TTL expiry; and `seedrop.work.correct`
+explicitly reopens a terminal Intent/Episode pair while citing both corrected Events,
+recording a correction Claim and Receipt, and acquiring a fresh Lease. Correction is
+separately authorizable by command name.
+
+Definitions receive the executor's complete checked project snapshot. Expected-
+version CAS remains the contention authority, so simultaneous Lease acquisition has
+one canonical winner and cannot fork project history.
+
 This package is shadow-only. It is not connected to the v1 CLI, MCP, View, passport,
 Space, Bench, Observer, or Desktop writers.
