@@ -37,3 +37,5 @@ export type {
   BenchTaskSummary,
   BenchValidationSummary,
 } from "./state.js";
+export { observeRepositorySources, planIncrementalObservation } from "./content-observer.js";
+export type { RepositoryFileStamp, RepositoryObservation, RepositoryObservationIndex, RepositorySourceKind, RepositorySourceObservation, RepositorySourceSpec } from "./content-observer.js";

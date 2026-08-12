@@ -17,6 +17,11 @@ blocked, abandoned, superseded, and unresolved attempts retain their cause, scop
 evidence Events, source transactions, retry condition, corrections, provenance, and
 completeness. A correction can make retry ready but never deletes the historical Grave.
 
+`compileSourceInvalidation` compares each Claim's recorded source digests with the
+current Git, artifact, schema, and policy observations. A mutation or missing source
+invalidates exactly its dependent Claims; unrelated source changes and additions do
+not spread staleness. This policy remains separate from disposable observation indexes.
+
 The root live verifier projects the current Seedrop corpus twice in opposing input
 orders, conserves every imported observation, and proves the View tree was not
 mutated:

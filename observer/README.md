@@ -8,3 +8,9 @@ seedrop-observe --passport ~/.seedrop/id/passport.json --space-url http://127.0.
 ```
 
 Emits the same `BenchState` JSON shape used by Bench. Desktop maps that into human-readable cards.
+
+The library also exposes `observeRepositorySources` for bounded content observation.
+Its index is a disposable cache: a missing or invalid index causes an explicit
+`full_fallback`, while a valid index reuses unchanged file digests. Callers declare
+Git, artifact, schema, and policy source groups; the observer only reports digests
+and never decides which claims are valid.
