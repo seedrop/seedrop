@@ -1,0 +1,23 @@
+{
+  "name": "@seedrop/outcomes",
+  "version": "0.1.0-alpha.1",
+  "description": "Seedrop v2 deterministic validation and delivery outcome projection.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "files": ["src/", "dist/", "README.md"],
+  "author": "Mariusz Czaykowski",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "dependencies": { "@seedrop/protocol": "^0.1.0-alpha.1" },
+  "devDependencies": { "@types/node": "^20.0.0", "typescript": "^5.4.0", "vitest": "^4.1.6" },
+  "repository": { "type": "git", "url": "git+https://github.com/seedrop/seedrop.git", "directory": "outcomes" }
+}

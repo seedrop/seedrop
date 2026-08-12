@@ -53,6 +53,18 @@
         "@seedrop/protocol",
         "@seedrop/space"
       ]
+    },
+    "@seedrop/outcomes": {
+      "workspace": "outcomes",
+      "role": "external_outcome_projection",
+      "owns": [
+        "validation_observation_projection",
+        "delivery_observation_projection",
+        "outcome_freshness_and_contradiction"
+      ],
+      "allowed_internal_dependencies": [
+        "@seedrop/protocol"
+      ]
     }
   },
   "adapters": {
@@ -65,7 +77,8 @@
   "shadow_only_packages": [
     "@seedrop/kernel",
     "@seedrop/project",
-    "@seedrop/migration"
+    "@seedrop/migration",
+    "@seedrop/outcomes"
   ],
   "rules": {
     "adapters_own_domain_semantics": false,
