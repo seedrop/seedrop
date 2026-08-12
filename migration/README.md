@@ -72,6 +72,19 @@ npm run verify:machine-corpus:live -w @seedrop/migration
 Corpus drift is a refusal, not an automatic baseline update. The proof contains no
 cutover authorization and never adds `seedrop_db` to the product dependency graph.
 
+Git portability is proven separately by committing only migrated canonical Project
+transactions, cloning them beneath a clean account root with no passport, daemon
+store, cache, or prebuilt projection, and rebuilding from those bytes:
+
+```bash
+npm run verify:clean-clone -w @seedrop/migration
+```
+
+The proof requires identical canonical transaction/Event evidence, digests,
+projection bytes, high watermark, and migration quarantine dispositions. Missing
+machine identity and coordination are reported as explicit incomplete degradation;
+they are never reconstructed from repository history or labeled healthy.
+
 Wave 4 execution is restartable through `executeShadowMigration`. The executor stores
 an immutable, content-addressed checkpoint journal under an operator-supplied shadow
 state root. Every revision binds the admitted corpus, current receipt, per-source

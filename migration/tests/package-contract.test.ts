@@ -44,4 +44,13 @@ describe("@seedrop/migration package contract", () => {
     expect(verifier).toContain("product_dependency_graph_contains_seedrop_db: false");
     expect(verifier).not.toContain("executeCommand");
   });
+
+  it("ships the Git-portable clean-account proof", async () => {
+    const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+    expect(packageJson.scripts["verify:clean-clone"]).toContain("verify-clean-clone.mjs");
+    const verifier = await readFile(new URL("../scripts/verify-clean-clone.mjs", import.meta.url), "utf8");
+    expect(verifier).toContain('status: "degraded"');
+    expect(verifier).toContain("reconstructed_from_project_history: false");
+    expect(verifier).toContain("cache_absent_before_rebuild: true");
+  });
 });
