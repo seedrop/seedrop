@@ -66,6 +66,21 @@
       "allowed_internal_dependencies": [
         "@seedrop/protocol"
       ]
+    },
+    "@seedrop/situation": {
+      "workspace": "situation",
+      "role": "deterministic_orientation_projection",
+      "owns": [
+        "situation_compilation",
+        "field_provenance_freshness_completeness",
+        "justified_next_action_or_refusal",
+        "bounded_orientation_encoding"
+      ],
+      "allowed_internal_dependencies": [
+        "@seedrop/outcomes",
+        "@seedrop/project",
+        "@seedrop/protocol"
+      ]
     }
   },
   "adapters": {
@@ -79,7 +94,8 @@
     "@seedrop/kernel",
     "@seedrop/project",
     "@seedrop/migration",
-    "@seedrop/outcomes"
+    "@seedrop/outcomes",
+    "@seedrop/situation"
   ],
   "rules": {
     "adapters_own_domain_semantics": false,

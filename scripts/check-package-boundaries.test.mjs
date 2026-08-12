@@ -8,7 +8,7 @@ test("the live workspace graph obeys the v2 package contract", async () => {
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.cycles, []);
   assert.equal(result.ok, true);
-  assert.equal(result.workspace_count, 12);
+  assert.equal(result.workspace_count, 13);
 });
 
 test("dependency cycles are reported with the closing edge", () => {
@@ -27,7 +27,7 @@ test("Wave 5 authority and ownership boundaries remain explicit", async () => {
     new URL("../architecture/package-boundaries.json", import.meta.url),
     "utf8",
   ));
-  assert.deepEqual(contract.shadow_only_packages, ["@seedrop/kernel", "@seedrop/project", "@seedrop/migration", "@seedrop/outcomes"]);
+  assert.deepEqual(contract.shadow_only_packages, ["@seedrop/kernel", "@seedrop/project", "@seedrop/migration", "@seedrop/outcomes", "@seedrop/situation"]);
   assert.deepEqual(contract.rules, {
     adapters_own_domain_semantics: false,
     v1_writers_remain_authoritative: true,
@@ -60,5 +60,16 @@ test("Wave 5 authority and ownership boundaries remain explicit", async () => {
       "negative_continuity_grave_projection",
     ],
     allowed_internal_dependencies: ["@seedrop/protocol"],
+  });
+  assert.deepEqual(contract.packages["@seedrop/situation"], {
+    workspace: "situation",
+    role: "deterministic_orientation_projection",
+    owns: [
+      "situation_compilation",
+      "field_provenance_freshness_completeness",
+      "justified_next_action_or_refusal",
+      "bounded_orientation_encoding",
+    ],
+    allowed_internal_dependencies: ["@seedrop/outcomes", "@seedrop/project", "@seedrop/protocol"],
   });
 });
