@@ -57,6 +57,7 @@ test("Wave 5 authority and ownership boundaries remain explicit", async () => {
       "validation_observation_projection",
       "delivery_observation_projection",
       "outcome_freshness_and_contradiction",
+      "negative_continuity_grave_projection",
     ],
     allowed_internal_dependencies: ["@seedrop/protocol"],
   });
