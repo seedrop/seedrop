@@ -77,3 +77,18 @@ npm run verify:executor -w @seedrop/migration
 
 The executor fault matrix interrupts before and after every published boundary and
 must always resume to `verified_not_authorized_for_cutover` with conserved counts.
+
+The v1 compatibility surface is owned by the migration edge. It compares admitted v1
+View records to their staged transaction semantics and requires each record to be
+`equal`, `intentionally_transformed`, `quarantined`, or `unresolved`. The comparison
+is source-digest bound, deterministic, and read-only.
+
+Dry-run translation currently constructs only the explicit v1 `task.create` to native
+`seedrop.work.open` collapse. Existing-work commands that require canonical Intent,
+Episode, Lease, or Receipt identities are intentionally unsupported rather than
+guessed. Drafts contain a literal `submit_capability: false`; this package has no
+kernel executor dependency or submission function.
+
+```bash
+npm run verify:compatibility:live -w @seedrop/migration
+```

@@ -196,6 +196,82 @@ export interface MigrationVerifySourceResult {
   reconciliation: MigrationReconciliation;
 }
 
+export const COMPATIBILITY_VERSION = "1.0.0" as const;
+
+export const COMPATIBILITY_DISPOSITIONS = Object.freeze([
+  "equal",
+  "intentionally_transformed",
+  "quarantined",
+  "unresolved",
+] as const);
+
+export type CompatibilityDisposition = (typeof COMPATIBILITY_DISPOSITIONS)[number];
+
+export interface CompatibilityDifference {
+  source_ref: string;
+  source_family: ViewSourceFamily;
+  source_digest: ProjectTransactionDigest;
+  disposition: CompatibilityDisposition;
+  reason_code: string;
+  v1_semantic_digest: ProjectTransactionDigest;
+  v2_semantic_digest: ProjectTransactionDigest | null;
+}
+
+export interface CompatibilityProjectionReceipt {
+  compatibility_version: typeof COMPATIBILITY_VERSION;
+  source_tree_digest: ProjectTransactionDigest;
+  transaction_chain_digest: ProjectTransactionDigest;
+  comparison_digest: ProjectTransactionDigest;
+  counts: {
+    source_records: number;
+    equal_records: number;
+    intentionally_transformed_records: number;
+    quarantined_records: number;
+    unresolved_records: number;
+  };
+}
+
+export interface CompatibilityProjectionResult {
+  receipt: CompatibilityProjectionReceipt;
+  differences: readonly CompatibilityDifference[];
+}
+
+export const V1_TRANSLATOR_DISPOSITIONS = Object.freeze([
+  "translated",
+  "intentionally_unsupported",
+  "unresolved",
+] as const);
+
+export type V1TranslatorDisposition = (typeof V1_TRANSLATOR_DISPOSITIONS)[number];
+
+export interface V1CommandInput {
+  source_ref: string;
+  command_name: string;
+  args: JsonValue;
+  principal_id: CanonicalId<"principal">;
+  project_id: CanonicalId<"project">;
+  expected_state_version: ProjectTransactionDigest | null;
+}
+
+export interface V1DryRunCommandDraft {
+  compatibility_version: typeof COMPATIBILITY_VERSION;
+  source_ref: string;
+  source_digest: ProjectTransactionDigest;
+  disposition: V1TranslatorDisposition;
+  reason_code: string;
+  submit_capability: false;
+  command: {
+    command_id: CanonicalId<"command">;
+    command_version: "1.0.0";
+    command_name: string;
+    principal_id: CanonicalId<"principal">;
+    project_id: CanonicalId<"project">;
+    idempotency_key: string;
+    expected_state_version: ProjectTransactionDigest | null;
+    payload: JsonValue;
+  } | null;
+}
+
 export const IDENTITY_IMPORT_VERSION = "1.0.0" as const;
 
 export interface IdentityImportCounts {
@@ -458,6 +534,8 @@ export const MIGRATION_PACKAGE_CONTRACT = Object.freeze({
     "source_snapshot_binding",
     "staged_shadow_import",
     "migration_reconciliation",
+    "v1_edge_compatibility",
+    "dry_run_command_translation",
   ] as const),
   depends_on: Object.freeze(["@seedrop/id", "@seedrop/project", "@seedrop/protocol", "@seedrop/space"] as const),
   excludes: Object.freeze([
@@ -465,6 +543,7 @@ export const MIGRATION_PACKAGE_CONTRACT = Object.freeze({
     "cutover_authority",
     "adapter_policy",
     "custom_database",
+    "command_submission",
   ] as const),
   terminal_state: "verified_not_authorized_for_cutover",
 } as const);

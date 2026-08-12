@@ -51,6 +51,14 @@ export type {
 } from "./executor.js";
 
 export {
+  assertCompatibilityProjectionResult,
+  assertV1DryRunCommandDraft,
+  compareV1AndV2Projection,
+  compatibilityProjectionBytes,
+  translateV1CommandDryRun,
+} from "./compatibility.js";
+
+export {
   assertViewHistoryImportResult,
   importViewHistory,
   viewHistoryImportBytes,
@@ -70,9 +78,12 @@ export {
   COORDINATION_DISPOSITIONS,
   COORDINATION_RECONCILIATION_VERSION,
   COORDINATION_SOURCE_FAMILIES,
+  COMPATIBILITY_DISPOSITIONS,
+  COMPATIBILITY_VERSION,
   MIGRATION_EXECUTION_FAULT_BOUNDARIES,
   MIGRATION_EXECUTION_PHASES,
   MIGRATION_EXECUTOR_VERSION,
+  V1_TRANSLATOR_DISPOSITIONS,
   SHADOW_MIGRATION_CONTRACT_VERSION,
   SHADOW_MIGRATION_STATES,
 } from "./types.js";
@@ -108,6 +119,10 @@ export type {
   CoordinationShadowRecord,
   CoordinationSourceFamily,
   CoordinationSourceRecord,
+  CompatibilityDifference,
+  CompatibilityDisposition,
+  CompatibilityProjectionReceipt,
+  CompatibilityProjectionResult,
   MachineCoordinationCollection,
   MachineCoordinationReconciliationReceipt,
   MachineCoordinationReconciliationResult,
@@ -121,6 +136,9 @@ export type {
   MigrationStagedSourceReceipt,
   MigrationVerifiedSourceReceipt,
   MigrationVerifySourceResult,
+  V1CommandInput,
+  V1DryRunCommandDraft,
+  V1TranslatorDisposition,
   PreviewMigrationReceipt,
   ShadowMigrationNextAction,
   ShadowMigrationReceipt,

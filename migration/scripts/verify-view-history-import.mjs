@@ -8,6 +8,8 @@ import { resolvePrincipalIdentity, resolveProjectIdentity } from "@seedrop/proto
 import {
   collectLiveIdentityCorpus,
   collectV1ViewHistory,
+  compareV1AndV2Projection,
+  compatibilityProjectionBytes,
   digestReadOnlyTree,
   identityImportBytes,
   importIdentityRegistries,
@@ -55,6 +57,16 @@ try {
     first.receipt.counts.source_records,
   );
   assert.equal(first.receipt.counts.transactions, first.receipt.counts.source_records);
+  const compatibilityFirst = compareV1AndV2Projection({ collection: firstCollection, imported: first });
+  const compatibilitySecond = compareV1AndV2Projection({ collection: secondCollection, imported: second });
+  assert.deepEqual(compatibilityProjectionBytes(compatibilitySecond), compatibilityProjectionBytes(compatibilityFirst));
+  assert.equal(
+    compatibilityFirst.receipt.counts.equal_records
+      + compatibilityFirst.receipt.counts.intentionally_transformed_records
+      + compatibilityFirst.receipt.counts.quarantined_records
+      + compatibilityFirst.receipt.counts.unresolved_records,
+    compatibilityFirst.receipt.counts.source_records,
+  );
 
   const byFamily = Object.fromEntries([
     "task", "run", "continuity", "signal", "delivery_observation",
@@ -78,6 +90,7 @@ try {
     counts: first.receipt.counts,
     by_family: byFamily,
     diagnostic_codes: Object.fromEntries(Object.entries(diagnosticCodes).sort()),
+    compatibility: compatibilityFirst.receipt,
   }));
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
