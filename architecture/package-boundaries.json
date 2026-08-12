@@ -31,7 +31,8 @@
       "owns": [
         "canonical_project_transactions",
         "project_receipts",
-        "project_projections"
+        "project_projections",
+        "project_health_and_quarantine"
       ],
       "allowed_internal_dependencies": [
         "@seedrop/protocol"
