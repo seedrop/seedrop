@@ -192,7 +192,13 @@ function analyzeRepo(root, graceDays) {
     const result = classifyRun(root, run, blameCache, graceDays, lastCommitTime);
     if (result) labeled.push(result);
   }
-  return { root, runs_total: runs.length, runs_labeled: labeled.length, runs: labeled };
+  return {
+    root,
+    head: git(root, ["rev-parse", "HEAD"])?.trim() ?? null,
+    runs_total: runs.length,
+    runs_labeled: labeled.length,
+    runs: labeled,
+  };
 }
 
 function summarize(repos) {

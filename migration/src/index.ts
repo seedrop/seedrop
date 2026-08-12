@@ -23,9 +23,24 @@ export {
 } from "./v1-passports.js";
 
 export {
+  collectV1ViewHistory,
+} from "./v1-view.js";
+
+export {
+  assertViewHistoryImportResult,
+  importViewHistory,
+  viewHistoryImportBytes,
+  viewHistoryImportDigest,
+} from "./view-history.js";
+
+export {
   MIGRATION_PACKAGE_CONTRACT,
   MIGRATION_SOURCE_KINDS,
   IDENTITY_IMPORT_VERSION,
+  VIEW_HISTORY_IMPORT_VERSION,
+  VIEW_SOURCE_DIAGNOSTIC_CODES,
+  VIEW_SOURCE_DISPOSITIONS,
+  VIEW_SOURCE_FAMILIES,
   SHADOW_MIGRATION_CONTRACT_VERSION,
   SHADOW_MIGRATION_STATES,
 } from "./types.js";
@@ -41,6 +56,16 @@ export type {
   IdentityImportReceipt,
   IdentityImportResult,
   LiveIdentityCollection,
+  ViewHistoryCollection,
+  ViewHistoryImportCounts,
+  ViewHistoryImportReceipt,
+  ViewHistoryImportResult,
+  ViewImportRecordReceipt,
+  ViewSourceDiagnostic,
+  ViewSourceDiagnosticCode,
+  ViewSourceDisposition,
+  ViewSourceFamily,
+  ViewSourceRecord,
   PreviewMigrationReceipt,
   ShadowMigrationNextAction,
   ShadowMigrationReceipt,

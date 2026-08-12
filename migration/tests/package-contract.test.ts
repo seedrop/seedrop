@@ -16,7 +16,7 @@ describe("@seedrop/migration package contract", () => {
         "staged_shadow_import",
         "migration_reconciliation",
       ],
-      depends_on: ["@seedrop/id", "@seedrop/project", "@seedrop/protocol"],
+      depends_on: ["@seedrop/id", "@seedrop/project", "@seedrop/protocol", "@seedrop/space"],
       excludes: ["v1_source_mutation", "cutover_authority", "adapter_policy", "custom_database"],
       terminal_state: "verified_not_authorized_for_cutover",
     });

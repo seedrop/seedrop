@@ -8,9 +8,10 @@ Wave 4 ends at `verified_not_authorized_for_cutover`. The package deliberately h
 cutover state or cutover receipt. V1 remains authoritative, and the separate
 `seedrop_db` experiment is not a dependency or storage path.
 
-The package depends inward on `@seedrop/protocol` and `@seedrop/project`; its explicit
-v1 passport source adapter validates source bytes through `@seedrop/id`. Adapters and
-v1 packages must not import it while it remains shadow-only.
+The package depends inward on `@seedrop/protocol` and `@seedrop/project`. Its explicit
+v1 adapters validate passport bytes through `@seedrop/id` and View artifacts through
+the frozen public schemas at `@seedrop/space/view`. Adapters and v1 packages must not
+import it while it remains shadow-only.
 
 Wave 4 identity import validates v1 passport bytes through `@seedrop/id`, then emits
 deterministic protocol Principal and Project registries. The reviewed frozen corpus and
@@ -23,3 +24,17 @@ npm run verify:identity-import:live -w @seedrop/migration
 
 The live verifier hashes the complete identity tree before and after collection. Live
 drift is reported and never updates the frozen baseline.
+
+Wave 4 View-history import reads the frozen v1 View families, emits one deterministic
+shadow Project transaction per logical source record, and accounts for every record as
+imported, quarantined, or unresolved. ContinuityPackets remain unresolved unless an
+explicit future correction supplies a Run identity; the importer never guesses from
+timestamps or text. Optional outcome-layer reports contribute observer/time/input/Git
+HEAD delivery evidence without promoting Run completion to delivery.
+
+```bash
+npm run verify:view-history-import:live -w @seedrop/migration
+```
+
+The live verifier hashes the complete View tree before and after two imports and
+requires byte-identical output for the same admitted source report.
