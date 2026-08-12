@@ -37,6 +37,20 @@
       "allowed_internal_dependencies": [
         "@seedrop/protocol"
       ]
+    },
+    "@seedrop/migration": {
+      "workspace": "migration",
+      "role": "shadow_migration",
+      "owns": [
+        "v1_read_only_source_admission",
+        "source_snapshot_binding",
+        "staged_shadow_import",
+        "migration_reconciliation"
+      ],
+      "allowed_internal_dependencies": [
+        "@seedrop/project",
+        "@seedrop/protocol"
+      ]
     }
   },
   "adapters": {
@@ -48,11 +62,14 @@
   },
   "shadow_only_packages": [
     "@seedrop/kernel",
-    "@seedrop/project"
+    "@seedrop/project",
+    "@seedrop/migration"
   ],
   "rules": {
     "adapters_own_domain_semantics": false,
     "v1_writers_remain_authoritative": true,
-    "custom_database_is_main_path": false
+    "custom_database_is_main_path": false,
+    "wave_4_cutover_authorized": false,
+    "migration_v1_source_access": "read_only"
   }
 }

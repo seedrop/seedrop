@@ -78,6 +78,12 @@ export async function inspectPackageBoundaries(root = scriptRoot) {
   if (contract.rules.custom_database_is_main_path !== false) {
     errors.push("Architecture contract must keep the custom database off the v2 main path.");
   }
+  if (contract.rules.wave_4_cutover_authorized !== false) {
+    errors.push("Architecture contract must forbid cutover during Wave 4.");
+  }
+  if (contract.rules.migration_v1_source_access !== "read_only") {
+    errors.push("Architecture contract must keep migration access to v1 sources read-only.");
+  }
 
   return {
     schema_version: contract.schema_version,
