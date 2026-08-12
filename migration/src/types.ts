@@ -236,6 +236,133 @@ export interface ViewHistoryImportResult {
   transactions: readonly ProjectTransaction[];
 }
 
+export const COORDINATION_RECONCILIATION_VERSION = "1.0.0" as const;
+
+export const COORDINATION_SOURCE_FAMILIES = Object.freeze([
+  "space",
+  "membership",
+  "message",
+  "notification",
+  "mention",
+  "outbox",
+  "session",
+  "session_cache",
+  "root_migration",
+  "unknown_sqlite_record",
+] as const);
+
+export type CoordinationSourceFamily = (typeof COORDINATION_SOURCE_FAMILIES)[number];
+
+export const COORDINATION_AUTHORITY_CLASSES = Object.freeze([
+  "durable_authority",
+  "ttl_projection",
+  "client_cache",
+  "migration_evidence",
+] as const);
+
+export type CoordinationAuthorityClass = (typeof COORDINATION_AUTHORITY_CLASSES)[number];
+
+export const COORDINATION_DISPOSITIONS = Object.freeze([
+  "imported",
+  "quarantined",
+  "unresolved",
+] as const);
+
+export type CoordinationDisposition = (typeof COORDINATION_DISPOSITIONS)[number];
+
+export const COORDINATION_DIAGNOSTIC_CODES = Object.freeze([
+  "invalid_json",
+  "schema_validation",
+  "sqlite_unreadable",
+  "unsupported_sqlite_table",
+  "principal_unresolved",
+  "space_unresolved",
+  "message_unresolved",
+  "replacement_unresolved",
+  "notification_pointer_unresolved",
+  "root_backup_mismatch",
+  "root_canonical_incomplete",
+  "root_legacy_mismatch",
+] as const);
+
+export type CoordinationDiagnosticCode = (typeof COORDINATION_DIAGNOSTIC_CODES)[number];
+
+export interface CoordinationDiagnostic {
+  code: CoordinationDiagnosticCode;
+  reason: string;
+}
+
+export interface CoordinationSourceRecord {
+  source_ref: string;
+  source_family: CoordinationSourceFamily;
+  authority_class: CoordinationAuthorityClass;
+  source_digest: ProjectTransactionDigest;
+  source_payload: JsonValue | null;
+  diagnostics: readonly CoordinationDiagnostic[];
+}
+
+export interface MachineCoordinationCollection {
+  corpus: MigrationCorpus;
+  source_tree_digest: ProjectTransactionDigest;
+  physical_file_count: number;
+  physical_byte_count: number;
+  records: readonly CoordinationSourceRecord[];
+}
+
+export interface CoordinationShadowRecord {
+  source_ref: string;
+  source_family: CoordinationSourceFamily;
+  authority_class: CoordinationAuthorityClass;
+  source_digest: ProjectTransactionDigest;
+  disposition: CoordinationDisposition;
+  mapped_principal_ids: readonly CanonicalId<"principal">[];
+  diagnostics: readonly CoordinationDiagnostic[];
+  projection: JsonValue;
+}
+
+export interface CoordinationDispositionCounts {
+  source_records: number;
+  imported_records: number;
+  quarantined_records: number;
+  unresolved_records: number;
+}
+
+export interface CoordinationFamilyCounts extends CoordinationDispositionCounts {
+  source_family: CoordinationSourceFamily;
+}
+
+export interface CoordinationAuthorityCounts extends CoordinationDispositionCounts {
+  authority_class: CoordinationAuthorityClass;
+}
+
+export interface MachineCoordinationReconciliationReceipt {
+  reconciliation_version: typeof COORDINATION_RECONCILIATION_VERSION;
+  corpus_digest: ProjectTransactionDigest;
+  source_tree_digest: ProjectTransactionDigest;
+  principal_registry_digest: ProjectTransactionDigest;
+  record_mapping_digest: ProjectTransactionDigest;
+  snapshot_at: string;
+  ttl_seconds: number;
+  counts: CoordinationDispositionCounts;
+  family_counts: readonly CoordinationFamilyCounts[];
+  authority_counts: readonly CoordinationAuthorityCounts[];
+  presence: {
+    sessions: number;
+    online: number;
+    offline: number;
+  };
+  root_migrations: {
+    manifests: number;
+    applied: number;
+    rolled_back: number;
+  };
+}
+
+export interface MachineCoordinationReconciliationResult {
+  receipt: MachineCoordinationReconciliationReceipt;
+  records: readonly CoordinationShadowRecord[];
+}
+
 export const MIGRATION_PACKAGE_CONTRACT = Object.freeze({
   schema_version: "1.0",
   package_name: "@seedrop/migration",

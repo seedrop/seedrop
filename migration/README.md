@@ -38,3 +38,22 @@ npm run verify:view-history-import:live -w @seedrop/migration
 
 The live verifier hashes the complete View tree before and after two imports and
 requires byte-identical output for the same admitted source report.
+
+Wave 4 machine-coordination reconciliation remains outside Project truth. It reads
+durable Space membership/messages/mentions/notifications and outbox state as authority,
+evaluates live sessions only as a TTL projection at an explicit snapshot timestamp,
+classifies session files as client caches, and retains root-migration manifests as
+physical evidence. Unknown SQLite tables and malformed records are quarantined rather
+than dropped; broken identity or durable references remain explicitly unresolved.
+
+The collector never calls the daemon API and verifies the selected physical corpus did
+not change during collection. The live SQLite shared-memory lock map is excluded because
+a reader may update it and it is not durable state; the database and write-ahead log are
+hashed, while historical shared-memory copies remain covered by migration receipts.
+
+```bash
+npm run verify:coordination-import:live -w @seedrop/migration
+```
+
+The result is a machine-owned reconciliation receipt and timestamp-bound projections.
+It contains no Project ID, Project event, Project transaction, or cutover authority.

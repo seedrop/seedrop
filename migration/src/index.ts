@@ -27,6 +27,17 @@ export {
 } from "./v1-view.js";
 
 export {
+  collectMachineCoordination,
+} from "./v1-coordination.js";
+
+export {
+  assertMachineCoordinationReconciliation,
+  machineCoordinationBytes,
+  machineCoordinationDigest,
+  reconcileMachineCoordination,
+} from "./coordination.js";
+
+export {
   assertViewHistoryImportResult,
   importViewHistory,
   viewHistoryImportBytes,
@@ -41,6 +52,11 @@ export {
   VIEW_SOURCE_DIAGNOSTIC_CODES,
   VIEW_SOURCE_DISPOSITIONS,
   VIEW_SOURCE_FAMILIES,
+  COORDINATION_AUTHORITY_CLASSES,
+  COORDINATION_DIAGNOSTIC_CODES,
+  COORDINATION_DISPOSITIONS,
+  COORDINATION_RECONCILIATION_VERSION,
+  COORDINATION_SOURCE_FAMILIES,
   SHADOW_MIGRATION_CONTRACT_VERSION,
   SHADOW_MIGRATION_STATES,
 } from "./types.js";
@@ -66,6 +82,19 @@ export type {
   ViewSourceDisposition,
   ViewSourceFamily,
   ViewSourceRecord,
+  CoordinationAuthorityClass,
+  CoordinationAuthorityCounts,
+  CoordinationDiagnostic,
+  CoordinationDiagnosticCode,
+  CoordinationDisposition,
+  CoordinationDispositionCounts,
+  CoordinationFamilyCounts,
+  CoordinationShadowRecord,
+  CoordinationSourceFamily,
+  CoordinationSourceRecord,
+  MachineCoordinationCollection,
+  MachineCoordinationReconciliationReceipt,
+  MachineCoordinationReconciliationResult,
   PreviewMigrationReceipt,
   ShadowMigrationNextAction,
   ShadowMigrationReceipt,

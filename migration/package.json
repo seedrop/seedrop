@@ -20,6 +20,7 @@
     "verify:identity-import": "npm run build && node scripts/verify-identity-import.mjs",
     "verify:identity-import:live": "npm run build && node scripts/verify-identity-import.mjs --live",
     "verify:view-history-import:live": "npm run build && node scripts/verify-view-history-import.mjs",
+    "verify:coordination-import:live": "npm run build && node scripts/verify-coordination-import.mjs",
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [
@@ -39,7 +40,11 @@
     "@seedrop/protocol": "^0.1.0-alpha.1",
     "@seedrop/space": "^0.2.0-alpha.5"
   },
+  "optionalDependencies": {
+    "better-sqlite3": "^12.10.0"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.0.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.6"
