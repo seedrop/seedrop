@@ -34,6 +34,7 @@ test("Wave 5 authority and ownership boundaries remain explicit", async () => {
     custom_database_is_main_path: false,
     wave_4_cutover_authorized: false,
     migration_v1_source_access: "read_only",
+    wave_5_shadow_mismatch_behavior: "serve_v1",
   });
   assert.deepEqual(contract.packages["@seedrop/project"].owns, [
     "canonical_project_transactions",
@@ -58,6 +59,7 @@ test("Wave 5 authority and ownership boundaries remain explicit", async () => {
       "delivery_observation_projection",
       "outcome_freshness_and_contradiction",
       "negative_continuity_grave_projection",
+      "source_digest_claim_invalidation",
     ],
     allowed_internal_dependencies: ["@seedrop/protocol"],
   });

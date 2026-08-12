@@ -84,6 +84,9 @@ export async function inspectPackageBoundaries(root = scriptRoot) {
   if (contract.rules.migration_v1_source_access !== "read_only") {
     errors.push("Architecture contract must keep migration access to v1 sources read-only.");
   }
+  if (contract.rules.wave_5_shadow_mismatch_behavior !== "serve_v1") {
+    errors.push("Wave 5 projection mismatch must keep the v1 surface served.");
+  }
 
   return {
     schema_version: contract.schema_version,
