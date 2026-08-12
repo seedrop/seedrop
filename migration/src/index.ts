@@ -38,6 +38,19 @@ export {
 } from "./coordination.js";
 
 export {
+  assertMigrationExecutionCheckpoint,
+  executeShadowMigration,
+  migrationExecutionCheckpointBytes,
+  migrationExecutionCheckpointDigest,
+  persistMigrationExecutionCheckpoint,
+  readMigrationExecutionCheckpoint,
+} from "./executor.js";
+
+export type {
+  ShadowMigrationExecutorOptions,
+} from "./executor.js";
+
+export {
   assertViewHistoryImportResult,
   importViewHistory,
   viewHistoryImportBytes,
@@ -57,6 +70,9 @@ export {
   COORDINATION_DISPOSITIONS,
   COORDINATION_RECONCILIATION_VERSION,
   COORDINATION_SOURCE_FAMILIES,
+  MIGRATION_EXECUTION_FAULT_BOUNDARIES,
+  MIGRATION_EXECUTION_PHASES,
+  MIGRATION_EXECUTOR_VERSION,
   SHADOW_MIGRATION_CONTRACT_VERSION,
   SHADOW_MIGRATION_STATES,
 } from "./types.js";
@@ -95,6 +111,16 @@ export type {
   MachineCoordinationCollection,
   MachineCoordinationReconciliationReceipt,
   MachineCoordinationReconciliationResult,
+  MigrationExecutionCheckpoint,
+  MigrationExecutionCursor,
+  MigrationExecutionFaultBoundary,
+  MigrationExecutionPhase,
+  MigrationSnapshotSourceReceipt,
+  MigrationSourceExecutionContext,
+  MigrationStageSourceResult,
+  MigrationStagedSourceReceipt,
+  MigrationVerifiedSourceReceipt,
+  MigrationVerifySourceResult,
   PreviewMigrationReceipt,
   ShadowMigrationNextAction,
   ShadowMigrationReceipt,

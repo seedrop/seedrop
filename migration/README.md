@@ -57,3 +57,23 @@ npm run verify:coordination-import:live -w @seedrop/migration
 
 The result is a machine-owned reconciliation receipt and timestamp-bound projections.
 It contains no Project ID, Project event, Project transaction, or cutover authority.
+
+Wave 4 execution is restartable through `executeShadowMigration`. The executor stores
+an immutable, content-addressed checkpoint journal under an operator-supplied shadow
+state root. Every revision binds the admitted corpus, current receipt, per-source
+cursor, stable idempotency keys, staged Project references, reconciliation counts, and
+the previous checkpoint digest. Temp files are never authoritative; divergent records
+for one revision are a conflict rather than a last-writer-wins update.
+
+Source adapters receive one stable key for each migration/phase/source digest. A crash
+after adapter work but before checkpoint publication can replay that key, so adapters
+must use idempotent Project publication. The executor re-observes the admitted corpus
+before and after stage/verification work and refuses drift. It writes only its supplied
+shadow state root and has no v1 mutation, deletion, rollback-expiry, or cutover API.
+
+```bash
+npm run verify:executor -w @seedrop/migration
+```
+
+The executor fault matrix interrupts before and after every published boundary and
+must always resume to `verified_not_authorized_for_cutover` with conserved counts.

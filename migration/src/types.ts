@@ -108,7 +108,93 @@ export type ShadowMigrationNextAction =
 export type MigrationContractErrorCode =
   | "invalid_contract"
   | "invalid_transition"
-  | "source_changed";
+  | "source_changed"
+  | "checkpoint_corrupt"
+  | "checkpoint_conflict";
+
+export const MIGRATION_EXECUTOR_VERSION = "1.0.0" as const;
+
+export const MIGRATION_EXECUTION_PHASES = Object.freeze([
+  "verify_source_snapshot",
+  "stage_shadow_import",
+  "verify_reconciliation",
+  "complete",
+] as const);
+
+export type MigrationExecutionPhase = (typeof MIGRATION_EXECUTION_PHASES)[number];
+
+export const MIGRATION_EXECUTION_FAULT_BOUNDARIES = Object.freeze([
+  "before_preview_commit",
+  "after_preview_commit",
+  "before_snapshot_source",
+  "after_snapshot_source",
+  "after_snapshot_checkpoint",
+  "before_snapshot_commit",
+  "after_snapshot_commit",
+  "before_stage_source",
+  "after_stage_source",
+  "after_stage_checkpoint",
+  "before_stage_commit",
+  "after_stage_commit",
+  "before_verify_source",
+  "after_verify_source",
+  "after_verify_checkpoint",
+  "before_terminal_commit",
+  "after_terminal_commit",
+] as const);
+
+export type MigrationExecutionFaultBoundary = (typeof MIGRATION_EXECUTION_FAULT_BOUNDARIES)[number];
+
+export interface MigrationExecutionCursor {
+  phase: MigrationExecutionPhase;
+  next_source_index: number;
+}
+
+export interface MigrationSnapshotSourceReceipt {
+  source_ref: string;
+  source_digest: ProjectTransactionDigest;
+}
+
+export interface MigrationStagedSourceReceipt extends MigrationSnapshotSourceReceipt {
+  idempotency_key: ProjectTransactionDigest;
+  staged_projects: readonly ProjectProjectionReference[];
+  reconciliation: MigrationReconciliation;
+}
+
+export interface MigrationVerifiedSourceReceipt extends MigrationSnapshotSourceReceipt {
+  idempotency_key: ProjectTransactionDigest;
+  reconciliation: MigrationReconciliation;
+}
+
+export interface MigrationExecutionCheckpoint {
+  executor_version: typeof MIGRATION_EXECUTOR_VERSION;
+  migration_id: string;
+  admitted_corpus: MigrationCorpus;
+  receipt: ShadowMigrationReceipt;
+  cursor: MigrationExecutionCursor;
+  snapshot_sources: readonly MigrationSnapshotSourceReceipt[];
+  staged_sources: readonly MigrationStagedSourceReceipt[];
+  verified_sources: readonly MigrationVerifiedSourceReceipt[];
+  revision: number;
+  previous_checkpoint_digest: ProjectTransactionDigest | null;
+  checkpoint_digest: ProjectTransactionDigest;
+}
+
+export interface MigrationSourceExecutionContext {
+  migration_id: string;
+  source: MigrationSourceSummary;
+  source_index: number;
+  idempotency_key: ProjectTransactionDigest;
+}
+
+export interface MigrationStageSourceResult {
+  staged_projects: readonly ProjectProjectionReference[];
+  reconciliation: MigrationReconciliation;
+}
+
+export interface MigrationVerifySourceResult {
+  reconciliation: MigrationReconciliation;
+}
 
 export const IDENTITY_IMPORT_VERSION = "1.0.0" as const;
 
