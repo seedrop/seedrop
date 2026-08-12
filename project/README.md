@@ -51,5 +51,10 @@ their Event and transaction digests and are queryable by Receipt, kind, Command,
 Principal, or subject. The work projection remains disposable rather than becoming
 a second authority.
 
+`reduceImportedOrientation` is a separate shadow projection for Wave 4 migration
+Events. It surfaces explicitly imported v1 task/run identities, states, timestamps,
+and links without promoting them to native Work records. Situation can therefore
+orient against the real corpus while the native-v2 boundary remains honest.
+
 This package is shadow-only. It does not write v1 View artifacts and it does not embed
 the separate database experiment.

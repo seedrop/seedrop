@@ -3,7 +3,7 @@ import { buildHealthEnvelope, generateCanonicalId } from "@seedrop/protocol";
 import type { CanonicalId, ProjectTransactionDigest } from "@seedrop/protocol";
 import type { ProjectProjection, WorkProjection } from "@seedrop/project";
 import type { GraveProjection, OutcomeProjection, SourceInvalidationProjection } from "@seedrop/outcomes";
-import { compileSituation, situationBytes } from "../src/index.js";
+import { boundedSituationBytes, compileBoundedSituation, compileSituation, SituationBudgetInsufficientError, situationBytes } from "../src/index.js";
 import type { CompileSituationInput, SituationReadPort } from "../src/index.js";
 
 const id = <K extends "principal" | "project" | "intent" | "episode" | "event" | "claim">(kind: K, seed: number) =>
@@ -71,6 +71,25 @@ describe("Situation compiler", () => {
     const result = compileSituation(input);
     expect(result.next_action.value).toMatchObject({ disposition: "refuse" });
     expect(result.risk.value.map((risk) => risk.code)).toContain("stale_projection:work");
+  });
+
+  it.each([2, 4, 8, 16])("emits valid exact-budget JSON at %d KiB over indexed scale", (kib) => {
+    const bounded = compileBoundedSituation(compileSituation(fixture()), { requested_bytes: kib * 1024,
+      metrics: { candidate_count: 38_000, indexed_count: 38_000, scanned_count: 0, event_count: 100_000, file_count: 38_000 } });
+    const bytes = boundedSituationBytes(bounded);
+    expect(bytes.byteLength).toBe(bounded.budget.actual_bytes);
+    expect(bytes.byteLength).toBeLessThanOrEqual(kib * 1024);
+    expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual(bounded);
+    expect(bounded.budget).toMatchObject({ requested_bytes: kib * 1024, event_count: 100_000, file_count: 38_000,
+      candidate_count: 38_000, indexed_count: 38_000, scanned_count: 0 });
+    expect(Object.keys(bounded.orientation).sort()).toEqual(["delivery", "grave", "intent", "next_action", "risk", "source_health"]);
+    if (kib >= 4) expect(bounded.trust).toBeDefined();
+  });
+
+  it("returns a typed refusal when mandatory truth cannot fit", () => {
+    expect(() => compileBoundedSituation(compileSituation(fixture()), { requested_bytes: 128,
+      metrics: { candidate_count: 1, indexed_count: 1, scanned_count: 0, event_count: 1, file_count: 1 } }))
+      .toThrow(SituationBudgetInsufficientError);
   });
 });
 

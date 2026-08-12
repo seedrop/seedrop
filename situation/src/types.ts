@@ -1,5 +1,5 @@
 import type { GraveProjection, OutcomeProjection, SourceInvalidationProjection } from "@seedrop/outcomes";
-import type { ProjectProjection, WorkProjection } from "@seedrop/project";
+import type { ImportedOrientationProjection, ProjectProjection, WorkProjection } from "@seedrop/project";
 import type { CanonicalId, HealthEnvelope, ProjectTransactionDigest } from "@seedrop/protocol";
 
 export const SITUATION_PROJECTION_VERSION = "1.0.0" as const;
@@ -30,6 +30,7 @@ export interface SituatedField<T> {
 export interface SituationProjectReadModel {
   projection: ProjectProjection;
   work: WorkProjection;
+  imported_orientation?: ImportedOrientationProjection;
   health: HealthEnvelope;
 }
 

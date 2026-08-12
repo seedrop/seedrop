@@ -11,7 +11,7 @@ export function compileSituation(input: CompileSituationInput): SituationProject
   assertTimestamp(input.generated_at);
   const ports = canonicalPorts(input);
   const project = input.project.value;
-  const intent = selectIntent(project?.work ?? null);
+  const intent = selectIntent(project?.work ?? null) ?? selectImportedIntent(project?.imported_orientation ?? null);
   const subjectId = intent?.episode_id ?? intent?.intent_id ?? null;
   const delivery = selectDelivery(input.outcomes.value, subjectId);
   const grave = selectGrave(input.graves.value, subjectId);
@@ -61,6 +61,20 @@ function selectIntent(work: CompileSituationInput["project"]["value"] extends in
   const episode = active?.record.intent_id === selected.record.intent_id ? active : episodes.find((item) => item.record.intent_id === selected.record.intent_id);
   return deepFreeze({ intent_id: selected.record.intent_id, title: selected.record.title, state: selected.state,
     episode_id: episode?.record.episode_id ?? null, goal: episode?.record.goal ?? null });
+}
+
+function selectImportedIntent(imported: NonNullable<CompileSituationInput["project"]["value"]>["imported_orientation"] | null): SituationIntent | null {
+  if (!imported) return null;
+  const episodes = [...imported.episodes].sort((a, b) => b.observed_at.localeCompare(a.observed_at) || a.episode_id.localeCompare(b.episode_id));
+  const active = episodes.find((item) => item.state === "in_progress");
+  const intents = [...imported.intents].sort((a, b) => b.observed_at.localeCompare(a.observed_at) || a.intent_id.localeCompare(b.intent_id));
+  const selected = (active ? intents.find((item) => item.related_episode_ids.includes(active.episode_id)) : undefined)
+    ?? intents.find((item) => ["claimed", "open"].includes(item.state));
+  if (!selected) return null;
+  const episode = active?.episode_id && selected.related_episode_ids.includes(active.episode_id) ? active
+    : episodes.find((item) => selected.related_episode_ids.includes(item.episode_id));
+  return deepFreeze({ intent_id: selected.intent_id, title: selected.title, state: selected.state,
+    episode_id: episode?.episode_id ?? null, goal: episode?.goal ?? null });
 }
 
 function selectDelivery(outcomes: CompileSituationInput["outcomes"]["value"], subjectId: CanonicalId | null): SituationDelivery | null {

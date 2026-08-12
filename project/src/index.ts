@@ -7,6 +7,9 @@ export {
 export type {
   EpisodeProjectionRecord,
   IntentProjectionRecord,
+  ImportedEpisodeProjectionRecord,
+  ImportedIntentProjectionRecord,
+  ImportedOrientationProjection,
   LeaseProjectionRecord,
   ProjectArtifactDiagnostic,
   ProjectArtifactDiagnosticCode,
@@ -51,6 +54,8 @@ export {
   queryWorkReceipts,
   reduceWorkProjection,
 } from "./work.js";
+
+export { reduceImportedOrientation } from "./imported-orientation.js";
 
 export type { HeldProjectWriterLock } from "./commit.js";
 

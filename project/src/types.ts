@@ -220,6 +220,32 @@ export interface WorkProjection {
   leases: readonly LeaseProjectionRecord[];
 }
 
+export interface ImportedIntentProjectionRecord {
+  intent_id: CanonicalId<"intent">;
+  title: string;
+  state: string;
+  source_ref: string;
+  observed_at: string;
+  related_episode_ids: readonly CanonicalId<"episode">[];
+}
+
+export interface ImportedEpisodeProjectionRecord {
+  episode_id: CanonicalId<"episode">;
+  goal: string;
+  state: string;
+  source_ref: string;
+  observed_at: string;
+}
+
+export interface ImportedOrientationProjection {
+  projection_version: "1.0.0";
+  project_id: CanonicalId<"project">;
+  source_high_watermark: ProjectTransactionDigest | null;
+  intents: readonly ImportedIntentProjectionRecord[];
+  episodes: readonly ImportedEpisodeProjectionRecord[];
+  ignored_event_count: number;
+}
+
 export interface WorkReceiptQuery {
   receipt_id?: CanonicalId<"receipt">;
   receipt_kind?: WorkReceipt["receipt_kind"];
