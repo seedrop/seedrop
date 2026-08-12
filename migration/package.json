@@ -22,6 +22,7 @@
     "verify:view-history-import:live": "npm run build && node scripts/verify-view-history-import.mjs",
     "verify:compatibility:live": "npm run build && node scripts/verify-view-history-import.mjs",
     "verify:coordination-import:live": "npm run build && node scripts/verify-coordination-import.mjs",
+    "verify:machine-corpus:live": "npm run build && node scripts/verify-machine-corpus.mjs",
     "verify:executor": "vitest run tests/executor.test.ts",
     "prepublishOnly": "npm run build && npm test"
   },

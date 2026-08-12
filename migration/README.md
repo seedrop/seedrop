@@ -58,6 +58,20 @@ npm run verify:coordination-import:live -w @seedrop/migration
 The result is a machine-owned reconciliation receipt and timestamp-bound projections.
 It contains no Project ID, Project event, Project transaction, or cutover authority.
 
+The production corpus gate composes identity, every meaningful non-probe View, and
+machine coordination into one deterministic read-only proof. It requires the expected
+17 meaningful Views to remain discoverable from machine identity, imports the 16
+product Views, and records `seedrop_db` exactly once as excluded experiment evidence.
+The receipt reconciles hashes, physical and logical counts, imported field coverage,
+diagnostics, identity mappings, rerun bytes, and source-tree immutability.
+
+```bash
+npm run verify:machine-corpus:live -w @seedrop/migration
+```
+
+Corpus drift is a refusal, not an automatic baseline update. The proof contains no
+cutover authorization and never adds `seedrop_db` to the product dependency graph.
+
 Wave 4 execution is restartable through `executeShadowMigration`. The executor stores
 an immutable, content-addressed checkpoint journal under an operator-supplied shadow
 state root. Every revision binds the admitted corpus, current receipt, per-source

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
 import {
   MIGRATION_PACKAGE_CONTRACT,
   SHADOW_MIGRATION_STATES,
@@ -31,5 +32,16 @@ describe("@seedrop/migration package contract", () => {
     expect(SHADOW_MIGRATION_STATES).not.toContain("cutover");
     expect(Object.isFrozen(MIGRATION_PACKAGE_CONTRACT)).toBe(true);
     expect(Object.isFrozen(SHADOW_MIGRATION_STATES)).toBe(true);
+  });
+
+  it("ships the full machine-corpus reconciliation proof", async () => {
+    const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+    expect(packageJson.scripts["verify:machine-corpus:live"]).toBe(
+      "npm run build && node scripts/verify-machine-corpus.mjs",
+    );
+    const verifier = await readFile(new URL("../scripts/verify-machine-corpus.mjs", import.meta.url), "utf8");
+    expect(verifier).toContain("EXPECTED_MEANINGFUL_VIEWS = 17");
+    expect(verifier).toContain("product_dependency_graph_contains_seedrop_db: false");
+    expect(verifier).not.toContain("executeCommand");
   });
 });
