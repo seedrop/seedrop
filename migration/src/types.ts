@@ -1,5 +1,11 @@
 import type { ProjectProjectionReference } from "@seedrop/project";
-import type { ProjectTransactionDigest } from "@seedrop/protocol";
+import type {
+  CanonicalId,
+  IdentityDiagnostic,
+  PrincipalRegistry,
+  ProjectRegistry,
+  ProjectTransactionDigest,
+} from "@seedrop/protocol";
 
 export const SHADOW_MIGRATION_CONTRACT_VERSION = "1.0.0" as const;
 
@@ -102,6 +108,45 @@ export type MigrationContractErrorCode =
   | "invalid_transition"
   | "source_changed";
 
+export const IDENTITY_IMPORT_VERSION = "1.0.0" as const;
+
+export interface IdentityImportCounts {
+  principal_sources: number;
+  project_sources: number;
+  canonical_principals: number;
+  canonical_projects: number;
+  unique_project_placements: number;
+  unresolved_project_sources: number;
+}
+
+export interface IdentityImportReceipt {
+  import_version: typeof IDENTITY_IMPORT_VERSION;
+  corpus_digest: ProjectTransactionDigest;
+  principal_registry_digest: ProjectTransactionDigest;
+  project_registry_digest: ProjectTransactionDigest;
+  source_mapping_digest: ProjectTransactionDigest;
+  counts: IdentityImportCounts;
+  unresolved_project_sources: readonly string[];
+  principal_diagnostics: readonly IdentityDiagnostic[];
+  project_diagnostics: readonly IdentityDiagnostic[];
+}
+
+export interface IdentityImportResult {
+  receipt: IdentityImportReceipt;
+  principal_registry: PrincipalRegistry;
+  project_registry: ProjectRegistry;
+  source_to_principal: Readonly<Record<string, CanonicalId<"principal">>>;
+  source_to_project: Readonly<Record<string, CanonicalId<"project">>>;
+}
+
+export interface LiveIdentityCollection {
+  corpus: MigrationCorpus;
+  principals: readonly import("@seedrop/protocol").PrincipalCandidate[];
+  projects: readonly import("@seedrop/protocol").ProjectCandidate[];
+  passport_file_count: number;
+  project_link_count: number;
+}
+
 export const MIGRATION_PACKAGE_CONTRACT = Object.freeze({
   schema_version: "1.0",
   package_name: "@seedrop/migration",
@@ -112,7 +157,7 @@ export const MIGRATION_PACKAGE_CONTRACT = Object.freeze({
     "staged_shadow_import",
     "migration_reconciliation",
   ] as const),
-  depends_on: Object.freeze(["@seedrop/project", "@seedrop/protocol"] as const),
+  depends_on: Object.freeze(["@seedrop/id", "@seedrop/project", "@seedrop/protocol"] as const),
   excludes: Object.freeze([
     "v1_source_mutation",
     "cutover_authority",

@@ -48,6 +48,7 @@
         "migration_reconciliation"
       ],
       "allowed_internal_dependencies": [
+        "@seedrop/id",
         "@seedrop/project",
         "@seedrop/protocol"
       ]
