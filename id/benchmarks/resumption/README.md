@@ -88,6 +88,13 @@ the receipt. The output file is created exclusively and is never overwritten.
 The receipt may record a failed product gate; execution success is not evidence
 that the product thresholds passed.
 
+The CLI prints its exact logical call ceiling before execution. For the frozen
+101-fixture corpus, four arms, five seeds, and two model profiles, the ceiling is
+4,040 model calls plus 4,040 batched judge calls. Retry attempts are additional
+provider requests and are counted separately in the receipt. Do not begin the
+run without an explicit provider/model/revision selection and an accepted spend
+budget for that matrix.
+
 ## Historical two-arm harness
 
 Measures whether an agent that receives a Seedrop **Situation packet** at boot

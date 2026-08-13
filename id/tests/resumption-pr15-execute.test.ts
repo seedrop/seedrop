@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { LLMClient, LLMRequest } from "../src/classifier.js";
 import {
   assertPr15ProofReceipt,
+  estimatePr15Calls,
   executePr15Proof,
   withRetries,
   writePr15ProofReceipt,
@@ -49,6 +50,7 @@ describe("PR-15 controlled proof execution", () => {
     expect(receipt.fixtures).toHaveLength(6);
     expect(receipt.profiles.map((item) => item.model_profile)).toEqual(["primary", "weak"]);
     expect(receipt.profiles.map((item) => item.total_retries)).toEqual([1, 0]);
+    expect(receipt.profiles.map((item) => item.total_provider_attempts)).toEqual([25, 24]);
     expect(receipt.results.filter((item) => item.retry_count === 1)).toHaveLength(1);
     expect(receipt.elapsed_ms).toBe(1_000);
     expect(receipt.receipt_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
@@ -71,14 +73,24 @@ describe("PR-15 controlled proof execution", () => {
       if (calls === 1) throw Object.assign(new Error("rate limited"), { status: 429 });
       return validResponse(false);
     });
-    const telemetry = { total_retries: 0 };
+    const telemetry = { total_retries: 0, total_provider_attempts: 0 };
     const delays: number[] = [];
     const client = withRetries(raw, { max_retries: 2, base_delay_ms: 10 }, telemetry,
       async (milliseconds) => { delays.push(milliseconds); });
     await client.chat.completions.create({ model: "m", messages: [], temperature: 0 });
     expect(calls).toBe(2);
     expect(telemetry.total_retries).toBe(1);
+    expect(telemetry.total_provider_attempts).toBe(2);
     expect(delays).toEqual([10]);
+  });
+
+  it("preflights the maximum logical call matrix", async () => {
+    const contract = relaxedContract(await readPr15Contract());
+    const candidate = fixture(0);
+    candidate.probes[0]!.wave7!.safety_invariant_check = { kind: "llm", question: "Is it safe?", correct_answer: "YES" };
+    const replay = freezePr15Replay(candidate);
+    const plan = estimatePr15Calls([replay], contract, 5, 2);
+    expect(plan).toEqual({ model_calls: 40, max_judge_calls: 40, max_total_logical_calls: 80 });
   });
 });
 

@@ -25,6 +25,17 @@ export interface Pr15RetryPolicy {
   base_delay_ms: number;
 }
 
+export interface Pr15CallPlan {
+  model_calls: number;
+  max_judge_calls: number;
+  max_total_logical_calls: number;
+}
+
+export interface Pr15RetryTelemetry {
+  total_retries: number;
+  total_provider_attempts: number;
+}
+
 export interface Pr15ExecutionProfile {
   model_profile: Pr15ModelProfile;
   provider_id: string;
@@ -57,6 +68,7 @@ export interface Pr15FixtureIdentity {
 
 export interface Pr15PersistedProfile extends Pr15ExecutionProfile {
   total_retries: number;
+  total_provider_attempts: number;
 }
 
 export interface Pr15ReceiptBody {
@@ -74,6 +86,7 @@ export interface Pr15ReceiptBody {
   fixtures: Pr15FixtureIdentity[];
   seeds: number;
   retry_policy: Pr15RetryPolicy;
+  call_plan: Pr15CallPlan;
   profiles: Pr15PersistedProfile[];
   accepted_subgroup_regressions: AcceptedSubgroupRegression[];
   summary: Pr15Summary;
@@ -112,7 +125,7 @@ export async function executePr15Proof(options: ExecutePr15Options): Promise<Pr1
   const persistedProfiles: Pr15PersistedProfile[] = [];
 
   for (const profile of profiles) {
-    const telemetry = { total_retries: 0 };
+    const telemetry: Pr15RetryTelemetry = { total_retries: 0, total_provider_attempts: 0 };
     const client = withRetries(profile.client, retryPolicy, telemetry, sleeper);
     const judgeClient = profile.judge_client === profile.client
       ? client : withRetries(profile.judge_client, retryPolicy, telemetry, sleeper);
@@ -128,7 +141,8 @@ export async function executePr15Proof(options: ExecutePr15Options): Promise<Pr1
       contract: options.contract,
     });
     results.push(...run.results);
-    persistedProfiles.push({ ...profile.definition, total_retries: telemetry.total_retries });
+    persistedProfiles.push({ ...profile.definition, total_retries: telemetry.total_retries,
+      total_provider_attempts: telemetry.total_provider_attempts });
   }
 
   const completed = clock();
@@ -148,6 +162,7 @@ export async function executePr15Proof(options: ExecutePr15Options): Promise<Pr1
     fixtures: fixtureIdentities(options.replays),
     seeds,
     retry_policy: { ...retryPolicy },
+    call_plan: estimatePr15Calls(options.replays, options.contract, seeds, profiles.length),
     profiles: persistedProfiles,
     accepted_subgroup_regressions: accepted,
     summary: summarizePr15(results, options.contract, accepted),
@@ -186,13 +201,14 @@ export async function writePr15ProofReceipt(path: string, receipt: Pr15ProofRece
 export function withRetries(
   client: LLMClient,
   policy: Pr15RetryPolicy,
-  telemetry: { total_retries: number },
+  telemetry: Pr15RetryTelemetry,
   sleep: (milliseconds: number) => Promise<void>,
 ): LLMClient {
   assertRetryPolicy(policy);
   return { chat: { completions: { create: async (request) => {
     for (let attempt = 0; ; attempt += 1) {
       try {
+        telemetry.total_provider_attempts += 1;
         return await client.chat.completions.create(request);
       } catch (error) {
         if (!isTransient(error) || attempt >= policy.max_retries) throw error;
@@ -201,6 +217,31 @@ export function withRetries(
       }
     }
   } } } };
+}
+
+export function estimatePr15Calls(
+  replays: readonly FrozenPr15Replay[],
+  contract: Pr15Contract,
+  seeds: number,
+  profileCount = 2,
+): Pr15CallPlan {
+  if (!Number.isSafeInteger(seeds) || seeds < 1 || !Number.isSafeInteger(profileCount) || profileCount < 1) {
+    throw new Error("PR-15 call-plan seeds and profile count must be positive safe integers.");
+  }
+  const probes = replays.flatMap((replay) => replay.probes);
+  const multiplier = contract.arms.length * seeds * profileCount;
+  const modelCalls = probes.length * multiplier;
+  const judgedProbes = probes.filter((probe) => {
+    const wave7 = probe.wave7;
+    if (!wave7) return false;
+    return (wave7.expected_behavior === "answer" && probe.check.kind === "llm")
+      || wave7.safety_invariant_check.kind === "llm"
+      || wave7.repeated_dead_work_check?.kind === "llm"
+      || wave7.missed_uncommitted_work_check?.kind === "llm";
+  }).length;
+  const maxJudgeCalls = judgedProbes * multiplier;
+  return { model_calls: modelCalls, max_judge_calls: maxJudgeCalls,
+    max_total_logical_calls: modelCalls + maxJudgeCalls };
 }
 
 function assertProfiles(input: readonly Pr15ExecutableProfile[]): Pr15ExecutableProfile[] {
@@ -300,8 +341,8 @@ async function main(): Promise<void> {
   const seeds = envInteger("SEEDROP_PR15_SEEDS", 5);
   const retryPolicy = { max_retries: envInteger("SEEDROP_PR15_MAX_RETRIES", 3),
     base_delay_ms: envInteger("SEEDROP_PR15_RETRY_BASE_MS", 5_000) };
-  const expectedCalls = replays.reduce((total, replay) => total + replay.probes.length, 0) * contract.arms.length * seeds * 2;
-  process.stdout.write(`PR-15 readiness passed. Executing ${expectedCalls} primary/weak probe calls before judge calls.\n`);
+  const callPlan = estimatePr15Calls(replays, contract, seeds, 2);
+  process.stdout.write(`PR-15 readiness passed. Call ceiling: ${callPlan.model_calls} model + ${callPlan.max_judge_calls} batched judge = ${callPlan.max_total_logical_calls}.\n`);
   const receipt = await executePr15Proof({ replays, contract,
     profiles: [makeExecutable(primary, "PRIMARY"), makeExecutable(weak, "WEAK")], seeds, retry_policy: retryPolicy });
   await writePr15ProofReceipt(outputPath, receipt);
