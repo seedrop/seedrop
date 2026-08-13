@@ -181,7 +181,8 @@ summary:focus-visible {
 }
 
 .status-pill.status-broken,
-.status-pill.status-attention {
+.status-pill.status-attention,
+.status-pill.status-needs_attention {
   background: #fff0df;
   color: #9a4b00;
 }
@@ -190,6 +191,35 @@ summary:focus-visible {
   background: #e8f6ed;
   color: #18713b;
 }
+
+.canonical-health {
+  margin-top: 8px;
+  color: var(--ink-faint);
+  font-size: 0.82rem;
+  text-transform: capitalize;
+}
+
+.canonical-situation {
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid #cedcff;
+  border-radius: var(--radius-sm);
+  background: #f5f8ff;
+}
+
+.canonical-situation.health-blocked { border-color: #f4c9c4; background: #fff7f5; }
+.canonical-situation.health-degraded,
+.canonical-situation.health-unknown { border-color: #f1d8af; background: #fffbf3; }
+.canonical-situation-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.canonical-situation-head span { display: block; color: var(--ink-faint); font-size: 0.8rem; }
+.canonical-situation-head strong { display: block; margin-top: 4px; }
+.canonical-situation p { margin: 10px 0 0; color: var(--ink-soft); }
+.canonical-situation dl { display: flex; gap: 24px; margin: 14px 0 0; }
+.canonical-situation dl div { display: grid; gap: 3px; }
+.canonical-situation dt { color: var(--ink-faint); font-size: 0.78rem; }
+.canonical-situation dd { margin: 0; text-transform: capitalize; }
+.canonical-id { white-space: nowrap; }
+.canonical-warnings { font-size: 0.82rem; }
 
 .progress-track {
   width: 88px;

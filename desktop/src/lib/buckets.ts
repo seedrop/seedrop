@@ -1,4 +1,4 @@
-import type { BucketId, ObserverProject, ObserverTask } from "./types";
+import type { AdapterSituationProjection, BucketId, ObserverProject, ObserverTask } from "./types";
 
 export const BUCKET_LABELS: Record<BucketId, string> = {
   ongoing: "Ongoing",
@@ -8,12 +8,44 @@ export const BUCKET_LABELS: Record<BucketId, string> = {
 };
 
 export function projectBucket(project: ObserverProject): BucketId {
+  const shared = canonicalSituation(project);
+  if (shared) return shared.bucket;
   if (project.status === "active" || (project.counts?.activeRuns ?? 0) > 0) return "ongoing";
   if (project.status === "broken") return "needs_attention";
   const blocked = project.situation?.tasks?.blocked ?? 0;
   if (blocked > 0) return "needs_attention";
   if (project.status === "attention" || (project.counts?.openTasks ?? 0) > 0) return "up_next";
   return "quiet";
+}
+
+export function canonicalSituation(project: ObserverProject): AdapterSituationProjection | null {
+  const selection = project.adapter_situation;
+  return selection?.mode === "v2" && selection.served.kind === "v2_situation"
+    ? selection.served.payload
+    : null;
+}
+
+export function canonicalIntent(project: ObserverProject): string | null {
+  const shared = canonicalSituation(project);
+  return shared ? displayField(shared.orientation.intent, ["title", "goal", "state", "intent_id"]) : null;
+}
+
+export function canonicalDecision(project: ObserverProject): {
+  disposition: string;
+  action: string;
+  detail: string | null;
+} | null {
+  const shared = canonicalSituation(project);
+  if (!shared) return null;
+  const decision = record(shared.orientation.next_action);
+  const disposition = string(decision.disposition) ?? "unknown";
+  const action = displayField(decision, ["action", "smallest_repair", "reason", "disposition"]);
+  const detail = string(decision.reason) ?? string(decision.smallest_repair);
+  return { disposition, action, detail };
+}
+
+export function canonicalHealth(project: ObserverProject): AdapterSituationProjection["health"] | null {
+  return canonicalSituation(project)?.health ?? null;
 }
 
 export function filterByBucket(projects: ObserverProject[], bucket: BucketId): ObserverProject[] {
@@ -41,4 +73,22 @@ export function projectStatusLabel(project: ObserverProject): string {
 
 export function collectTasks(project: ObserverProject): ObserverTask[] {
   return project.inspectors?.tasks?.active ?? [];
+}
+
+function displayField(input: unknown, keys: readonly string[]): string {
+  if (typeof input === "string") return input;
+  const value = record(input);
+  for (const key of keys) {
+    const candidate = string(value[key]);
+    if (candidate) return candidate;
+  }
+  return "Not available";
+}
+
+function record(input: unknown): Record<string, unknown> {
+  return input && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : {};
+}
+
+function string(input: unknown): string | null {
+  return typeof input === "string" && input.length > 0 ? input : null;
 }

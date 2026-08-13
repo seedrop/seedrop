@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Home } from "../src/pages/Home";
+import { ProjectDetail } from "../src/pages/ProjectDetail";
+import { ProjectCard } from "../src/components/ProjectCard";
 import { RecoveryState } from "../src/components/RecoveryState";
 import { Wizard } from "../src/pages/Wizard";
 import { projectBucket, projectStatusLabel, projectTitle } from "../src/lib/buckets";
@@ -40,10 +42,69 @@ describe("Desktop truth labels", () => {
     }))).toBe("Needs attention");
   });
 
+  it("uses the canonical bucket even when legacy Desktop heuristics disagree", () => {
+    const shared = project({ status: "broken", adapter_situation: adapterSelection() });
+    expect(projectBucket(shared)).toBe("up_next");
+    expect(projectStatusLabel(shared)).toBe("Up Next");
+  });
+
+  it("renders canonical health and refusal without recomputing either", () => {
+    const shared = project({ adapter_situation: adapterSelection("refuse") });
+    const card = renderToStaticMarkup(<ProjectCard project={shared} onOpen={() => {}} />);
+    const detail = renderToStaticMarkup(<ProjectDetail project={shared} onClose={() => {}} />);
+    expect(card).toContain("Situation · degraded");
+    expect(card).toContain("Up Next");
+    expect(detail).toContain("Canonical Situation");
+    expect(detail).toContain("Refused");
+    expect(detail).toContain("repair_projection");
+    expect(detail).toContain("freshness:stale");
+  });
+
   it("describes activity as seen rather than added", () => {
     expect(relativeAge("2026-08-01T08:00:00.000Z", Date.parse("2026-08-01T10:00:00.000Z"))).toBe("Seen 2 hours ago");
   });
 });
+
+function adapterSelection(disposition = "recommend"): NonNullable<ObserverProject["adapter_situation"]> {
+  return {
+    mode: "v2",
+    reason: null,
+    warning: null,
+    served: {
+      kind: "v2_situation",
+      payload: {
+        adapter_version: "1.0.0",
+        situation_id: `sha256:${"a".repeat(64)}`,
+        decision_id: `sha256:${"b".repeat(64)}`,
+        semantic_digest: `sha256:${"c".repeat(64)}`,
+        bucket: "up_next",
+        health: {
+          state: "degraded",
+          substrate: "healthy",
+          freshness: "stale",
+          completeness: "complete",
+          degraded_source_ids: [],
+          quarantine_count: 0,
+          unresolved_disagreement_count: 0,
+        },
+        orientation: {
+          intent: { title: "Canonical Wave 6 intent", state: "active" },
+          risk: [],
+          delivery: null,
+          grave: null,
+          source_health: {},
+          next_action: disposition === "refuse"
+            ? { disposition, smallest_repair: "repair_projection", reason: "Projection is stale" }
+            : { disposition, action: "run_parity_gate" },
+        },
+        trust: {},
+        budget: {},
+        warnings: ["freshness:stale"],
+        mutation_capability: "read_only",
+      },
+    },
+  };
+}
 
 describe("first-project empty state", () => {
   it("always renders the Add a Project action when no projects exist", () => {

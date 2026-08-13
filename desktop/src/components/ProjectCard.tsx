@@ -1,5 +1,5 @@
 import type { ObserverProject } from "../lib/types";
-import { projectStatusLabel, projectTitle, taskProgress } from "../lib/buckets";
+import { canonicalHealth, canonicalIntent, projectBucket, projectStatusLabel, projectTitle, taskProgress } from "../lib/buckets";
 import { relativeAge } from "../lib/format";
 
 export function ProjectCard(props: {
@@ -8,6 +8,9 @@ export function ProjectCard(props: {
 }) {
   const { project } = props;
   const { total } = taskProgress(project);
+  const health = canonicalHealth(project);
+  const intent = canonicalIntent(project);
+  const bucket = projectBucket(project);
   const label =
     total === 0
       ? project.status === "quiet"
@@ -18,11 +21,12 @@ export function ProjectCard(props: {
   return (
     <button type="button" className="project-card" onClick={props.onOpen}>
       <h2>{projectTitle(project)}</h2>
-      {project.currentFocus?.trim() ? <p className="card-focus">{project.currentFocus}</p> : null}
+      {(intent ?? project.currentFocus)?.trim() ? <p className="card-focus">{intent ?? project.currentFocus}</p> : null}
+      {health ? <div className={`canonical-health health-${health.state}`}>Situation · {health.state}</div> : null}
       <div className="meta">{relativeAge(project.lastSeenAt)}</div>
       <div className="card-footer">
         <span className="progress-label">{label}</span>
-        <span className={`status-pill status-${project.status}`}>{projectStatusLabel(project)}</span>
+        <span className={`status-pill status-${bucket}`}>{projectStatusLabel(project)}</span>
       </div>
     </button>
   );

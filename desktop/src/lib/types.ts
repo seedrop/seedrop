@@ -1,5 +1,38 @@
 export type BucketId = "ongoing" | "needs_attention" | "up_next" | "quiet";
 
+export interface AdapterSituationProjection {
+  adapter_version: "1.0.0";
+  situation_id: string;
+  decision_id: string;
+  semantic_digest: string;
+  bucket: BucketId;
+  health: {
+    state: "healthy" | "degraded" | "blocked" | "unknown";
+    substrate: string;
+    freshness: string;
+    completeness: string;
+    degraded_source_ids: readonly string[];
+    quarantine_count: number;
+    unresolved_disagreement_count: number;
+  };
+  orientation: {
+    intent: unknown;
+    risk: unknown;
+    delivery: unknown;
+    grave: unknown;
+    source_health: unknown;
+    next_action: unknown;
+  };
+  trust: Record<string, unknown>;
+  budget: Record<string, unknown>;
+  warnings: readonly string[];
+  mutation_capability: "read_only";
+}
+
+export type AdapterSituationSelection =
+  | { mode: "v2"; reason: null; warning: null; served: { kind: "v2_situation"; payload: AdapterSituationProjection } }
+  | { mode: "v1_fallback"; reason: string; warning: string; served: { kind: "v1"; payload: unknown } };
+
 export interface RuntimeComponent {
   id: string;
   ok: boolean;
@@ -123,6 +156,7 @@ export interface ObserverProject {
       next?: ObserverTask;
     };
   };
+  adapter_situation?: AdapterSituationSelection;
 }
 
 export interface ObserverState {
@@ -138,6 +172,12 @@ export interface ObserverState {
   };
   daemon?: { reachable: boolean; url?: string; error?: string };
   projects: ObserverProject[];
+  adapter_contract?: {
+    version: "1.0.0";
+    enabled: boolean;
+    v2_projects: number;
+    fallback_projects: number;
+  };
 }
 
 export interface DoctorReport {

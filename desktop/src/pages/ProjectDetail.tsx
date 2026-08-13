@@ -1,5 +1,15 @@
 import type { ObserverProject } from "../lib/types";
-import { collectTasks, projectStatusLabel, projectTitle, taskProgress } from "../lib/buckets";
+import {
+  canonicalDecision,
+  canonicalHealth,
+  canonicalIntent,
+  canonicalSituation,
+  collectTasks,
+  projectBucket,
+  projectStatusLabel,
+  projectTitle,
+  taskProgress,
+} from "../lib/buckets";
 import { relativeAge } from "../lib/format";
 import { api } from "../lib/api";
 
@@ -10,6 +20,11 @@ export function ProjectDetail(props: {
   const { project } = props;
   const tasks = collectTasks(project);
   const { total } = taskProgress(project);
+  const shared = canonicalSituation(project);
+  const health = canonicalHealth(project);
+  const decision = canonicalDecision(project);
+  const intent = canonicalIntent(project);
+  const bucket = projectBucket(project);
   const runs = [
     ...(project.inspectors?.runs?.active ?? []),
     ...(project.inspectors?.runs?.current ? [project.inspectors.runs.current] : []),
@@ -21,7 +36,7 @@ export function ProjectDetail(props: {
       <div className="detail-header">
         <div>
           <h1>{projectTitle(project)}</h1>
-          {project.currentFocus?.trim() ? <p className="detail-focus">{project.currentFocus}</p> : null}
+          {(intent ?? project.currentFocus)?.trim() ? <p className="detail-focus">{intent ?? project.currentFocus}</p> : null}
           <div className="meta">{relativeAge(project.lastSeenAt)}</div>
           <div className="meta" style={{ marginTop: 4 }}>
             <button
@@ -38,6 +53,25 @@ export function ProjectDetail(props: {
           ×
         </button>
       </div>
+
+      {shared && health && decision ? (
+        <section className={`canonical-situation health-${health.state}`} aria-label="Canonical Situation">
+          <div className="canonical-situation-head">
+            <div>
+              <span>Canonical Situation</span>
+              <strong>{decision.disposition === "refuse" ? "Refused" : "Next action"}: {decision.action}</strong>
+            </div>
+            <span className="canonical-id" title={shared.decision_id}>{shared.decision_id.slice(0, 15)}</span>
+          </div>
+          {decision.detail && decision.detail !== decision.action ? <p>{decision.detail}</p> : null}
+          <dl>
+            <div><dt>Bucket</dt><dd>{shared.bucket}</dd></div>
+            <div><dt>Health</dt><dd>{health.state}</dd></div>
+            <div><dt>Freshness</dt><dd>{health.freshness}</dd></div>
+          </dl>
+          {shared.warnings.length > 0 ? <p className="canonical-warnings">{shared.warnings.join(" · ")}</p> : null}
+        </section>
+      ) : null}
 
       <div className="task-list">
         {tasks.length === 0 ? (
@@ -81,7 +115,7 @@ export function ProjectDetail(props: {
         <span className="progress-label">
           {total === 0 ? "All clear" : `${total} open task${total === 1 ? "" : "s"}`}
         </span>
-        <span className={`status-pill status-${project.status}`}>{projectStatusLabel(project)}</span>
+        <span className={`status-pill status-${bucket}`}>{projectStatusLabel(project)}</span>
       </div>
     </article>
   );
