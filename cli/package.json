@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@seedrop/id": "^0.2.0-alpha.5",
+    "@seedrop/situation": "^0.1.0-alpha.1",
     "@seedrop/space": "^0.2.0-alpha.5",
     "tsx": "^4.22.0"
   },

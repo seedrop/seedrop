@@ -55,13 +55,31 @@ export function compileAdapterSituation(input: BoundedSituationProjection): Adap
 
 export function adapterSituationBytes(input: AdapterSituationProjection): Uint8Array { return canonicalJsonBytes(input); }
 
+export function assertAdapterSituation(input: unknown): asserts input is AdapterSituationProjection {
+  if (!input || typeof input !== "object" || Array.isArray(input)) invalid("object_required");
+  const value = input as Record<string, unknown>;
+  const required = ["adapter_version", "situation_id", "decision_id", "semantic_digest", "bucket", "health", "orientation", "trust", "budget", "warnings", "mutation_capability"];
+  if (Object.keys(value).sort().join("\u0000") !== [...required].sort().join("\u0000")) invalid("exact_fields_required");
+  if (value.adapter_version !== ADAPTER_SITUATION_VERSION || value.mutation_capability !== "read_only") invalid("version_or_capability");
+  if (![value.situation_id, value.decision_id, value.semantic_digest].every(isDigest)) invalid("digest_required");
+  if (!(ADAPTER_BUCKETS as readonly unknown[]).includes(value.bucket)) invalid("bucket_unknown");
+  const health = value.health as Record<string, unknown>;
+  if (!health || !(ADAPTER_HEALTH_STATES as readonly unknown[]).includes(health.state)) invalid("health_invalid");
+  if (!Array.isArray(value.warnings) || value.warnings.some((item) => typeof item !== "string")) invalid("warnings_invalid");
+  canonicalJsonBytes(input);
+  const { semantic_digest: _digest, ...body } = value;
+  if (canonicalJsonDigest(body) !== value.semantic_digest) invalid("semantic_digest_mismatch");
+}
+
 export function selectAdapterSituation(input: {
   feature_enabled: boolean;
   shared: AdapterSituationProjection | null;
   legacy: JsonValue;
   expected?: { situation_id?: ProjectTransactionDigest; decision_id?: ProjectTransactionDigest; semantic_digest?: ProjectTransactionDigest };
+  projection_invalid?: boolean;
 }): AdapterSituationSelection {
   if (!input.feature_enabled) return fallback("feature_disabled", input.legacy);
+  if (input.projection_invalid) return fallback("projection_mismatch", input.legacy);
   if (!input.shared) return fallback("projection_missing", input.legacy);
   const expected = input.expected;
   if (expected && ((expected.situation_id && expected.situation_id !== input.shared.situation_id)
@@ -120,6 +138,8 @@ function fallback(reason: AdapterFallbackReason, legacy: JsonValue): AdapterSitu
     warning: reason === "projection_mismatch" ? "projection_mismatch: v1 remains served" : `${reason}: v1 remains served`,
     served: { kind: "v1", payload: legacy } });
 }
+function isDigest(value: unknown): boolean { return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value); }
+function invalid(reason: string): never { throw new Error(`Invalid adapter Situation: ${reason}.`); }
 function object(value: JsonValue | undefined): Record<string, JsonValue> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, JsonValue> : {}; }
 function string(value: JsonValue | undefined): string | null { return typeof value === "string" ? value : null; }
 function integer(value: JsonValue | undefined): number { return Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : 0; }

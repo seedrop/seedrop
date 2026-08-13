@@ -52,6 +52,7 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@seedrop/situation": "^0.1.0-alpha.1",
     "@types/node": "^20.0.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.6"

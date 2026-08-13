@@ -156,6 +156,11 @@ export const tools: ToolDef[] = [
         peek: { type: "boolean", description: "Return a deliberately non-acknowledgeable continuity page.", default: false },
         since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
         budget: { type: "number", description: "Compact-JSON byte budget for the JSON report. Omit for the full pretty-printed report." },
+        v2_situation: { type: "boolean", description: "Enable the Wave 6 shared Situation binding. Falls back to v1 on missing or mismatched projection.", default: false },
+        situation_file: { type: "string", description: "Path to a generated adapter Situation projection." },
+        expect_situation: { type: "string", description: "Expected Situation digest; mismatch serves v1." },
+        expect_decision: { type: "string", description: "Expected decision digest; mismatch serves v1." },
+        expect_semantic: { type: "string", description: "Expected adapter semantic digest; mismatch serves v1." },
       },
       additionalProperties: false,
     },
@@ -165,6 +170,11 @@ export const tools: ToolDef[] = [
       if (args.json !== false) cmd.push("--json");
       if (typeof args.budget === "number") cmd.push("--budget", String(args.budget));
       if (typeof args.messages === "number") cmd.push("--messages", String(args.messages));
+      if (args.v2_situation === true) cmd.push("--v2-situation");
+      pushStringFlag(cmd, args, "situation_file", "--situation-file");
+      pushStringFlag(cmd, args, "expect_situation", "--expect-situation");
+      pushStringFlag(cmd, args, "expect_decision", "--expect-decision");
+      pushStringFlag(cmd, args, "expect_semantic", "--expect-semantic");
       pushStringFlag(cmd, args, "passport", "--passport");
       pushStringFlag(cmd, args, "url", "--url");
       if (args.peek === true) cmd.push("--peek");

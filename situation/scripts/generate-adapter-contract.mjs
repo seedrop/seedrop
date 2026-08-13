@@ -10,6 +10,10 @@ const outputs = new Map([
     health_states: ["healthy", "degraded", "blocked", "unknown"],
     fallback_reasons: ["feature_disabled", "projection_missing", "projection_mismatch"],
     mutation_capability: "read_only",
+    bindings: {
+      cli_flags: ["--v2-situation", "--situation-file", "--expect-situation", "--expect-decision", "--expect-semantic"],
+      mcp_fields: ["v2_situation", "situation_file", "expect_situation", "expect_decision", "expect_semantic"],
+    },
   }],
   ["generated/adapter-situation.schema.json", {
     $schema: "https://json-schema.org/draft/2020-12/schema",

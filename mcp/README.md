@@ -48,6 +48,10 @@ Restart the client. Call `seedrop_capabilities` or run `seed capabilities` for t
 | `seedrop_view_context` | Per-repo View state. |
 | `seedrop_view_log` | Write a continuity packet. |
 | `seedrop_space_register` | Register a live session (you appear in presence). |
+
+`seedrop_boot` also exposes the generated Wave 6 binding fields `v2_situation`,
+`situation_file`, and the three expected-digest fields. It delegates to the CLI and
+returns the same semantic payload; v1 remains served on projection mismatch.
 | `seedrop_space_heartbeat` | Keep the cached session warm. |
 | `seedrop_space_presence` | List online agents. |
 | `seedrop_space_join` | Open or join a Space. |

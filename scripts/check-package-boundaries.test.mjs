@@ -28,6 +28,9 @@ test("Wave 5 authority and ownership boundaries remain explicit", async () => {
     "utf8",
   ));
   assert.deepEqual(contract.shadow_only_packages, ["@seedrop/kernel", "@seedrop/project", "@seedrop/migration", "@seedrop/outcomes", "@seedrop/situation"]);
+  assert.deepEqual(contract.shadow_projection_consumers, {
+    "@seedrop/situation": ["@seedrop/cli", "@seedrop/mcp", "@seedrop/observer"],
+  });
   assert.deepEqual(contract.rules, {
     adapters_own_domain_semantics: false,
     v1_writers_remain_authoritative: true,

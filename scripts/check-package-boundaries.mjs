@@ -52,13 +52,14 @@ export async function inspectPackageBoundaries(root = scriptRoot) {
   }
 
   for (const shadowPackage of contract.shadow_only_packages) {
+    const projectionConsumers = new Set(contract.shadow_projection_consumers?.[shadowPackage] ?? []);
     for (const [consumer, dependencies] of graph) {
-      if (!contract.shadow_only_packages.includes(consumer) && dependencies.includes(shadowPackage)) {
+      if (!contract.shadow_only_packages.includes(consumer) && dependencies.includes(shadowPackage) && !projectionConsumers.has(consumer)) {
         errors.push(`${consumer} connects to shadow-only ${shadowPackage}; v1 must remain authoritative.`);
       }
     }
     for (const [consumer, entry] of manifests) {
-      if (contract.shadow_only_packages.includes(consumer)) continue;
+      if (contract.shadow_only_packages.includes(consumer) || projectionConsumers.has(consumer)) continue;
       const sourceRoot = join(root, entry.workspace, "src");
       for (const path of await sourceFiles(sourceRoot)) {
         const source = await readFile(path, "utf8");

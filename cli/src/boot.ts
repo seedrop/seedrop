@@ -9,6 +9,7 @@ import {
   type ContinuityReport,
 } from "./continuity.js";
 import type { RunCliIO } from "./router.js";
+import { bindCliSituation, jsonValue, renderCliSituationBinding } from "./situation-binding.js";
 
 export type BootRisk = "low" | "medium" | "high";
 export type BootNextActionKind = "setup" | "inbox" | "handoff" | "run" | "verify" | "safety" | "sync" | "focus";
@@ -796,6 +797,21 @@ export async function runBoot(
     since: readFlag(argv, "since"),
     peek: argv.includes("--peek"),
   });
+  const v2Feature = argv.includes("--v2-situation") ? true : process.env.SEEDROP_V2_SITUATION;
+  if (v2Feature) {
+    const binding = await bindCliSituation({ feature: v2Feature,
+      projection_file: readFlag(argv, "situation-file") ?? process.env.SEEDROP_V2_SITUATION_FILE,
+      legacy: jsonValue(report), continuity_page: report.continuity_page ? jsonValue(report.continuity_page) : null,
+      expected: {
+        situation_id: readFlag(argv, "expect-situation") as `sha256:${string}` | undefined,
+        decision_id: readFlag(argv, "expect-decision") as `sha256:${string}` | undefined,
+        semantic_digest: readFlag(argv, "expect-semantic") as `sha256:${string}` | undefined,
+      } });
+    if (argv.includes("--json")) io.stdout.write(`${JSON.stringify(binding, null, 2)}\n`);
+    else if (binding.selection.mode === "v2") io.stdout.write(renderCliSituationBinding(binding));
+    else { io.stderr.write(renderCliSituationBinding(binding)); io.stdout.write(renderBoot(report)); }
+    return 0;
+  }
   if (argv.includes("--json")) {
     const budgetFlag = readFlag(argv, "budget");
     const budgetBytes = budgetFlag === undefined ? undefined : Number(budgetFlag);

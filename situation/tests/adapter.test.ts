@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { JsonValue, ProjectTransactionDigest } from "@seedrop/protocol";
 import { AdapterMutationRejectedError, adapterFeatureEnabled, adapterSituationBytes,
   assertAdapterReadOnlyOperation, compileAdapterSituation, selectAdapterSituation } from "../src/index.js";
+import { assertAdapterSituation } from "../src/index.js";
 import type { BoundedSituationProjection } from "../src/index.js";
 
 const digest = (letter: string) => `sha256:${letter.repeat(64)}` as ProjectTransactionDigest;
@@ -13,6 +14,12 @@ describe("canonical adapter Situation", () => {
     expect(first).toMatchObject({ bucket: "ongoing", health: { state: "healthy" }, warnings: [], mutation_capability: "read_only" });
     expect(adapterSituationBytes(second)).toEqual(adapterSituationBytes(first));
     expect(first.semantic_digest).toMatch(/^sha256:/);
+    expect(() => assertAdapterSituation(JSON.parse(new TextDecoder().decode(adapterSituationBytes(first))))).not.toThrow();
+  });
+
+  it("rejects a serialized projection whose semantics were changed", () => {
+    const changed = { ...compileAdapterSituation(fixture()), bucket: "quiet" };
+    expect(() => assertAdapterSituation(changed)).toThrow(/semantic_digest_mismatch/);
   });
 
   it("centralizes refusal, degraded health, and explicit budget warnings", () => {

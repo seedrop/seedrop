@@ -99,6 +99,13 @@
     "@seedrop/outcomes",
     "@seedrop/situation"
   ],
+  "shadow_projection_consumers": {
+    "@seedrop/situation": [
+      "@seedrop/cli",
+      "@seedrop/mcp",
+      "@seedrop/observer"
+    ]
+  },
   "rules": {
     "adapters_own_domain_semantics": false,
     "v1_writers_remain_authoritative": true,

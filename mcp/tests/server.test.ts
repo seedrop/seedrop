@@ -69,6 +69,10 @@ describe("tools registry", () => {
     const boot = tools.find((t) => t.name === "seedrop_boot");
     expect(boot?.description).toContain("Situation packet");
     expect(boot?.inputSchema.properties).toMatchObject({ json: { default: true } });
+    expect(boot?.inputSchema.properties).toMatchObject({
+      v2_situation: { default: false }, situation_file: { type: "string" },
+      expect_situation: { type: "string" }, expect_decision: { type: "string" }, expect_semantic: { type: "string" },
+    });
   });
 
   it("seedrop_index groups the exposed MCP tools by intent", async () => {
