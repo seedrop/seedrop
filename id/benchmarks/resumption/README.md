@@ -1,5 +1,40 @@
 # Resumption Benchmark
 
+## Wave 7 / PR-15 status
+
+The original two-arm harness below is retained as historical regression coverage;
+it is **not** sufficient evidence for the v2 product claim. Wave 7 freezes four
+arms in `pr15-contract.json`:
+
+| Arm | Evidence available |
+|---|---|
+| `repo_only` | repository frozen at the replay commit |
+| `current_v1` | frozen repository plus the current v1 orientation output |
+| `packet_only` | byte-bounded v2 Situation without the repository evidence body; replacement-economics arm |
+| `v2_situation` | frozen repository plus the byte-bounded v2 Situation |
+
+Before any model calls, run the corpus gate:
+
+```bash
+npm run bench:resumption:readiness -w @seedrop/id -- --corpus --allow-not-ready
+```
+
+Omit `--allow-not-ready` in automation. A not-ready corpus exits with status 2.
+The gate requires at least 100 independent ground truths, five eligible repos,
+no repo contributing more than 40%, all six PR-15 probe classes, frozen replay
+and sanitation bindings, explicit success/refusal coverage, and task linkage for
+every safest-next-action probe. These distribution floors prevent a large count
+from one fact, repo, or successful-only projection from masquerading as product
+proof. They do not make each subgroup independently powered; every important
+subgroup regression still blocks the product decision.
+
+The live baseline on 2026-08-13 is intentionally rejected: 14 legacy fixtures,
+18 observed independent probes (12 standing decisions and 6 dead ends), zero
+fixtures with the frozen Wave 7 replay binding, and no scored refusal coverage.
+Do not spend benchmark model calls on that corpus.
+
+## Historical two-arm harness
+
 Measures whether an agent that receives a Seedrop **Situation packet** at boot
 resumes work better than a cold agent given only raw repository evidence — and
 what the packet costs in prompt tokens. This is the proof loop for Seedrop's
@@ -13,9 +48,9 @@ more than the record costs.*
 
 6 hand-authored tasks × ~2 probes × 2 arms × N seeds (default 5) ≈ 120 probe-runs.
 
-## The fair-fight contract
+## The historical fair-fight contract
 
-The benchmark is worthless if it is rigged, so every task obeys one rule:
+The historical synthetic benchmark is worthless if it is rigged, so every task obeys one rule:
 **everything the boot packet asserts must be derivable from the repo evidence
 given to both arms.** The packet may *synthesize* (resolve contradictions,
 rank stale against fresh, surface the graveyard); it may never *know more*.
@@ -72,7 +107,7 @@ The claim being tested: `delta_pp` is positive with non-overlapping CIs, at a
 both numbers together — accuracy without price is marketing, price without
 accuracy is pessimism.
 
-## Limitations (honest list)
+## Historical limitations (honest list)
 
 - **Packet position bias:** the booted arm sees the packet before the raw
   evidence, mirroring real boot order. Prompt-position effects are not

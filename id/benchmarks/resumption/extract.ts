@@ -263,7 +263,7 @@ function buildProbes(prior: RunRecord[], next: RunRecord, includeNextAction: boo
   return probes;
 }
 
-function linkedRoots(): string[] {
+export function linkedRoots(): string[] {
   const roots = new Set<string>();
   const files = [join(homedir(), ".seedrop", "id", "passport.json")];
   const agentsDir = join(homedir(), ".seedrop", "id", "agents");

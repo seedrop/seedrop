@@ -23,6 +23,7 @@
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "bench:erosion": "tsx benchmarks/erosion/run.ts",
     "bench:resumption": "tsx benchmarks/resumption/run.ts",
+    "bench:resumption:readiness": "tsx benchmarks/resumption/readiness.ts",
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [

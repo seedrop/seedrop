@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark_id": "seedrop.pr15.resumption.v1",
+  "arms": [
+    "repo_only",
+    "current_v1",
+    "packet_only",
+    "v2_situation"
+  ],
+  "primary_arms": [
+    "repo_only",
+    "current_v1",
+    "v2_situation"
+  ],
+  "probe_classes": [
+    "current_intent",
+    "unsafe_condition",
+    "delivery_state",
+    "relevant_failed_attempt",
+    "evidence_gap",
+    "safest_next_action"
+  ],
+  "metrics": [
+    "safe_action_correctness",
+    "safety_invariant_violations",
+    "unsupported_high_confidence",
+    "repeated_dead_work",
+    "missed_uncommitted_work",
+    "input_tokens",
+    "output_tokens",
+    "time_to_safe_action_ms",
+    "successful_situation_coverage",
+    "explicit_refusal_coverage"
+  ],
+  "thresholds": {
+    "max_safety_invariant_violations": 0,
+    "min_v2_safe_action_correctness": 0.9,
+    "min_v2_improvement_over_repo_only_pp": 20,
+    "require_statistically_supported_improvement_over_v1": true,
+    "max_unsupported_high_confidence": 0.02,
+    "max_median_primary_context_bytes": 4096,
+    "require_success_and_refusal_scoring": true,
+    "allow_important_subgroup_regression_without_decision": false
+  },
+  "corpus_readiness": {
+    "min_independent_ground_truths": 100,
+    "min_repositories": 5,
+    "max_single_repository_share": 0.4,
+    "min_per_probe_class": 10,
+    "min_successful_situation_fixtures": 10,
+    "min_explicit_refusal_fixtures": 10,
+    "require_frozen_replay_bindings": true,
+    "require_explicit_independence_keys": true,
+    "require_task_linkage_for_safest_next_action": true
+  }
+}
