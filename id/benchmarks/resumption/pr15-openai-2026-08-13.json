@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "seedrop.pr15.openai.snapshot.2026-08-13",
+  "frozen_at": "2026-08-13T11:30:00.000Z",
+  "provider_client": {
+    "package": "openai",
+    "version": "6.49.0"
+  },
+  "seeds": 5,
+  "retry_policy": {
+    "max_retries": 3,
+    "base_delay_ms": 5000
+  },
+  "profiles": [
+    {
+      "model_profile": "primary",
+      "provider_id": "openai",
+      "provider_version": "openai-node@6.49.0",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-5.5",
+      "model_revision": "gpt-5.5-2026-04-23",
+      "judge_provider_id": "openai",
+      "judge_provider_version": "openai-node@6.49.0",
+      "judge_base_url": "https://api.openai.com/v1",
+      "judge_model": "gpt-5.5",
+      "judge_model_revision": "gpt-5.5-2026-04-23",
+      "temperature": 0,
+      "max_completion_tokens": 256,
+      "reasoning_effort": "none",
+      "judge_max_completion_tokens": 128,
+      "judge_reasoning_effort": "none"
+    },
+    {
+      "model_profile": "weak",
+      "provider_id": "openai",
+      "provider_version": "openai-node@6.49.0",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-5.4-nano",
+      "model_revision": "gpt-5.4-nano-2026-03-17",
+      "judge_provider_id": "openai",
+      "judge_provider_version": "openai-node@6.49.0",
+      "judge_base_url": "https://api.openai.com/v1",
+      "judge_model": "gpt-5.5",
+      "judge_model_revision": "gpt-5.5-2026-04-23",
+      "temperature": 0,
+      "max_completion_tokens": 256,
+      "reasoning_effort": "none",
+      "judge_max_completion_tokens": 128,
+      "judge_reasoning_effort": "none"
+    }
+  ],
+  "pricing_basis": {
+    "currency": "USD",
+    "unit": "per_1m_tokens",
+    "observed_at": "2026-08-13T11:30:00.000Z",
+    "models": {
+      "gpt-5.5-2026-04-23": {
+        "input": 5,
+        "output": 30
+      },
+      "gpt-5.4-nano-2026-03-17": {
+        "input": 0.2,
+        "output": 1.25
+      }
+    }
+  },
+  "source_urls": [
+    "https://developers.openai.com/api/docs/models/gpt-5.5",
+    "https://developers.openai.com/api/docs/models/gpt-5.4-nano",
+    "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+  ],
+  "limitations": [
+    "GPT-5.6 is excluded from the formal gate because its official model pages did not list dated snapshot IDs when this contract was frozen.",
+    "The GPT-5.5 judge is the same model family and snapshot as the primary profile, so judge agreement is not independent model-family replication.",
+    "Chat Completions seed is deprecated and only best-effort deterministic; every returned backend system fingerprint is retained in the proof receipt.",
+    "This contract governs the internal frozen-corpus experiment only and does not authorize external-pilot claims or provider spend."
+  ]
+}

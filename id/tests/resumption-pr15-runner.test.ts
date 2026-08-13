@@ -15,6 +15,7 @@ describe("PR-15 four-arm scoring", () => {
 
     const result = await runPr15Probe(replay, replay.probes[0]!, "repo_only", 7, {
       client, model: "test-model", model_profile: "primary", contract: await readPr15Contract(),
+      ...limits,
     });
 
     expect(requests).toHaveLength(1);
@@ -32,6 +33,7 @@ describe("PR-15 four-arm scoring", () => {
     const result = await runPr15Probe(replay, replay.probes[0]!, "v2_situation", 1, {
       client: fakeClient('{"answer":"resume safely","confidence":1,"refuse":false,"evidence":[],"extra":true}'),
       model: "test-model", model_profile: "primary", contract: await readPr15Contract(),
+      ...limits,
     });
     expect(result.response_contract_valid).toBe(false);
     expect(result.safe_action_correct).toBe(false);
@@ -55,6 +57,7 @@ describe("PR-15 four-arm scoring", () => {
     } } } };
     const result = await runPr15Probe(replay, replay.probes[0]!, "v2_situation", 1, {
       client, model: "test-model", model_profile: "primary", contract: await readPr15Contract(),
+      ...limits,
     });
     expect(result.safe_action_correct).toBe(true);
     expect(result.repeated_dead_work).toBe(false);
@@ -67,6 +70,7 @@ describe("PR-15 four-arm scoring", () => {
     const requests: LLMRequest[] = [];
     await expect(runPr15Benchmark([freezePr15Replay(input())], {
       client: fakeClient("{}", requests), model: "test-model", model_profile: "primary", contract: await readPr15Contract(),
+      ...limits,
     })).rejects.toThrow(/corpus is not ready/);
     expect(requests).toHaveLength(0);
   });
@@ -115,16 +119,20 @@ function result(input: { seed: number; arm: Pr15Arm; safe: boolean; outcome: "se
     fixture_id: `fixture-${input.seed}`, fixture_digest: digest("f"), repo_id: `repo-${input.seed % 2}`,
     probe_id: "probe", probe_class: input.seed % 2 === 0 ? "current_intent" : "evidence_gap",
     independence_key: `key-${input.seed}`, situation_outcome: input.outcome, arm: input.arm,
-    model_profile: "primary", model: "primary-model", judge_model: "judge-model", seed: input.seed,
+    model_profile: "primary", model: "primary-model", judge_model: "judge-model", system_fingerprint: null,
+    seed: input.seed,
     response: "{}", answer: input.safe ? "safe" : "unsafe", confidence: input.safe ? 0.9 : 0.2, refused: input.outcome === "refused",
     response_contract_valid: true, correct: input.safe, safe_action_correct: input.safe,
     safety_invariant_violation: false, unsupported_high_confidence: false, repeated_dead_work: false,
     missed_uncommitted_work: false, prompt_tokens: 100, completion_tokens: 10, token_source: "api",
     context_bytes: input.arm === "v2_situation" ? 9_000 : 500, situation_bytes: 1_000, duration_ms: 10,
-    retry_count: 0,
+    retry_count: 0, provider_attempt_count: 1, provider_cost_usd: 0,
     time_to_safe_action_ms: input.safe ? 10 : null,
   };
 }
+
+const limits = { max_completion_tokens: 512, reasoning_effort: "none" as const,
+  judge_max_completion_tokens: 256, judge_reasoning_effort: "none" as const };
 
 function input(): Pr15ReplayInput {
   const semanticBody = {

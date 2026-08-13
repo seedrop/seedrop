@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
-import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { access, appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { LLMClient } from "../../src/classifier.js";
 import {
@@ -17,8 +17,10 @@ import {
 import { evaluateCorpusReadiness, readPr15Contract, type Pr15Contract } from "./readiness.js";
 import { loadFrozenPr15Replays, type FrozenPr15Replay } from "./replay.js";
 
-export const PR15_RECEIPT_VERSION = "1.0.0" as const;
+export const PR15_RECEIPT_VERSION = "1.1.0" as const;
 export const PR15_SAMPLING_CONTRACT_VERSION = "1.0.0" as const;
+export const PR15_EXECUTION_CONTRACT_VERSION = "1.0.0" as const;
+export const PR15_JOURNAL_VERSION = "1.0.0" as const;
 
 export interface Pr15RetryPolicy {
   max_retries: number;
@@ -29,6 +31,35 @@ export interface Pr15CallPlan {
   model_calls: number;
   max_judge_calls: number;
   max_total_logical_calls: number;
+  max_provider_attempts: number;
+}
+
+export interface Pr15SpendApproval {
+  max_logical_calls: number;
+  max_provider_attempts: number;
+  max_usd: number;
+}
+
+export interface Pr15CostTelemetry { actual_usd: number; reserved_usd: number }
+export type Pr15BudgetEvent = { type: "reservation"; reservation_id: string; usd: number }
+  | { type: "settlement"; reservation_id: string; usd: number };
+
+export interface Pr15ExecutionContract {
+  schema_version: typeof PR15_EXECUTION_CONTRACT_VERSION;
+  contract_id: string;
+  frozen_at: string;
+  provider_client: { package: "openai"; version: string };
+  seeds: number;
+  retry_policy: Pr15RetryPolicy;
+  profiles: [Pr15ExecutionProfile, Pr15ExecutionProfile];
+  pricing_basis: {
+    currency: "USD";
+    unit: "per_1m_tokens";
+    observed_at: string;
+    models: Record<string, { input: number; output: number }>;
+  };
+  source_urls: string[];
+  limitations: string[];
 }
 
 export interface Pr15RetryTelemetry {
@@ -49,6 +80,10 @@ export interface Pr15ExecutionProfile {
   judge_model: string;
   judge_model_revision: string;
   temperature: number;
+  max_completion_tokens: number;
+  reasoning_effort: NonNullable<import("../../src/classifier.js").LLMRequest["reasoning_effort"]>;
+  judge_max_completion_tokens: number;
+  judge_reasoning_effort: NonNullable<import("../../src/classifier.js").LLMRequest["reasoning_effort"]>;
 }
 
 export interface Pr15ExecutableProfile {
@@ -69,6 +104,7 @@ export interface Pr15FixtureIdentity {
 export interface Pr15PersistedProfile extends Pr15ExecutionProfile {
   total_retries: number;
   total_provider_attempts: number;
+  actual_usd: number;
 }
 
 export interface Pr15ReceiptBody {
@@ -82,10 +118,14 @@ export interface Pr15ReceiptBody {
   completed_at: string;
   elapsed_ms: number;
   contract_digest: string;
+  execution_contract_digest: string;
   corpus_digest: string;
   fixtures: Pr15FixtureIdentity[];
   seeds: number;
   retry_policy: Pr15RetryPolicy;
+  spend_approval: Pr15SpendApproval;
+  spend_actual_usd: number;
+  spend_unsettled_reservations_usd: number;
   call_plan: Pr15CallPlan;
   profiles: Pr15PersistedProfile[];
   accepted_subgroup_regressions: AcceptedSubgroupRegression[];
@@ -103,6 +143,13 @@ export interface ExecutePr15Options {
   profiles: readonly Pr15ExecutableProfile[];
   seeds?: number;
   retry_policy?: Pr15RetryPolicy;
+  spend_approval: Pr15SpendApproval;
+  pricing_basis: Pr15ExecutionContract["pricing_basis"];
+  budget_state?: Pr15CostTelemetry;
+  on_budget_event?: (event: Pr15BudgetEvent) => void | Promise<void>;
+  execution_contract_digest: string;
+  resume_results?: readonly Pr15ProbeResult[];
+  on_result?: (result: Pr15ProbeResult) => void | Promise<void>;
   accepted_subgroup_regressions?: readonly AcceptedSubgroupRegression[];
   now?: () => Date;
   sleep?: (milliseconds: number) => Promise<void>;
@@ -118,31 +165,58 @@ export async function executePr15Proof(options: ExecutePr15Options): Promise<Pr1
   if (!Number.isSafeInteger(seeds) || seeds < 1) throw new Error("PR-15 seeds must be a positive safe integer.");
   const retryPolicy = options.retry_policy ?? { max_retries: 3, base_delay_ms: 5_000 };
   assertRetryPolicy(retryPolicy);
+  const callPlan = estimatePr15Calls(options.replays, options.contract, seeds, profiles.length, retryPolicy.max_retries);
+  assertSpendApproval(options.spend_approval, callPlan);
   const clock = options.now ?? (() => new Date());
   const sleeper = options.sleep ?? ((milliseconds) => new Promise((done) => setTimeout(done, milliseconds)));
   const started = clock();
   const results: Pr15ProbeResult[] = [];
   const persistedProfiles: Pr15PersistedProfile[] = [];
+  const resumeResults = validateResumeResults(options.resume_results ?? [], options.replays, profiles, seeds,
+    options.contract);
+  const costTelemetry: Pr15CostTelemetry = options.budget_state
+    ? { ...options.budget_state } : { actual_usd: 0, reserved_usd: 0 };
+  if (![costTelemetry.actual_usd, costTelemetry.reserved_usd].every((value) => Number.isFinite(value) && value >= 0)) {
+    throw new Error("Invalid PR-15 resume budget state; no model calls made.");
+  }
 
   for (const profile of profiles) {
-    const telemetry: Pr15RetryTelemetry = { total_retries: 0, total_provider_attempts: 0 };
-    const client = withRetries(profile.client, retryPolicy, telemetry, sleeper);
-    const judgeClient = profile.judge_client === profile.client
-      ? client : withRetries(profile.judge_client, retryPolicy, telemetry, sleeper);
+    const prior = resumeResults.filter((item) => item.model_profile === profile.definition.model_profile);
+    const priorProfileCost = sumUsd(prior.map((item) => item.provider_cost_usd));
+    const telemetry: Pr15RetryTelemetry = {
+      total_retries: prior.reduce((sum, item) => sum + item.retry_count, 0),
+      total_provider_attempts: prior.reduce((sum, item) => sum + item.provider_attempt_count, 0),
+    };
+    const profileCostBefore = costTelemetry.actual_usd;
+    const budgetedClient = withBudget(profile.client, options.pricing_basis.models,
+      options.spend_approval.max_usd, costTelemetry, options.on_budget_event);
+    const client = withRetries(budgetedClient, retryPolicy, telemetry, sleeper);
+    const judgeClient = profile.judge_client === profile.client ? client
+      : withRetries(withBudget(profile.judge_client, options.pricing_basis.models,
+        options.spend_approval.max_usd, costTelemetry, options.on_budget_event), retryPolicy, telemetry, sleeper);
     const run = await runPr15Benchmark(options.replays, {
       client,
-      model: profile.definition.model,
+      model: profile.definition.model_revision,
       model_profile: profile.definition.model_profile,
       judgeClient,
-      judgeModel: profile.definition.judge_model,
+      judgeModel: profile.definition.judge_model_revision,
       seeds,
       temperature: profile.definition.temperature,
+      max_completion_tokens: profile.definition.max_completion_tokens,
+      reasoning_effort: profile.definition.reasoning_effort,
+      judge_max_completion_tokens: profile.definition.judge_max_completion_tokens,
+      judge_reasoning_effort: profile.definition.judge_reasoning_effort,
       retryCount: () => telemetry.total_retries,
+      providerAttemptCount: () => telemetry.total_provider_attempts,
+      providerCostUsd: () => costTelemetry.actual_usd,
+      existing_results: prior,
+      onResult: options.on_result,
       contract: options.contract,
     });
     results.push(...run.results);
     persistedProfiles.push({ ...profile.definition, total_retries: telemetry.total_retries,
-      total_provider_attempts: telemetry.total_provider_attempts });
+      total_provider_attempts: telemetry.total_provider_attempts,
+      actual_usd: roundUsd(priorProfileCost + costTelemetry.actual_usd - profileCostBefore) });
   }
 
   const completed = clock();
@@ -158,17 +232,83 @@ export async function executePr15Proof(options: ExecutePr15Options): Promise<Pr1
     completed_at: completed.toISOString(),
     elapsed_ms: Math.max(0, completed.getTime() - started.getTime()),
     contract_digest: digest(canonicalJson(options.contract)),
+    execution_contract_digest: assertDigest(options.execution_contract_digest),
     corpus_digest: corpusDigest(options.replays),
     fixtures: fixtureIdentities(options.replays),
     seeds,
     retry_policy: { ...retryPolicy },
-    call_plan: estimatePr15Calls(options.replays, options.contract, seeds, profiles.length),
+    spend_approval: { ...options.spend_approval },
+    spend_actual_usd: roundUsd(costTelemetry.actual_usd),
+    spend_unsettled_reservations_usd: roundUsd(costTelemetry.reserved_usd),
+    call_plan: callPlan,
     profiles: persistedProfiles,
     accepted_subgroup_regressions: accepted,
     summary: summarizePr15(results, options.contract, accepted),
     results,
   };
   return { ...body, receipt_digest: digest(canonicalJson(body)) };
+}
+
+function validateResumeResults(
+  input: readonly Pr15ProbeResult[],
+  replays: readonly FrozenPr15Replay[],
+  profiles: readonly Pr15ExecutableProfile[],
+  seeds: number,
+  contract: Pr15Contract,
+): Pr15ProbeResult[] {
+  const fixtures = new Map(replays.map((replay) => [replay.id, replay]));
+  const definitions = new Map(profiles.map((profile) => [profile.definition.model_profile, profile.definition]));
+  const seen = new Set<string>();
+  for (const item of input) {
+    const replay = fixtures.get(item.fixture_id);
+    const definition = definitions.get(item.model_profile);
+    const probe = replay?.probes.find((candidate) => candidate.id === item.probe_id);
+    const key = `${item.model_profile}\0${item.fixture_id}\0${item.probe_id}\0${item.arm}\0${item.seed}`;
+    if (!replay || !probe || !definition || !contract.arms.includes(item.arm)
+      || item.fixture_digest !== replay.fixture_digest || item.model !== definition.model_revision
+      || item.judge_model !== definition.judge_model_revision || !Number.isSafeInteger(item.seed)
+      || item.seed < 1 || item.seed > seeds || seen.has(key)
+      || !Number.isSafeInteger(item.retry_count) || item.retry_count < 0
+      || !Number.isSafeInteger(item.provider_attempt_count) || item.provider_attempt_count < 1
+      || !Number.isFinite(item.provider_cost_usd) || item.provider_cost_usd < 0) {
+      throw new Error("Invalid PR-15 resume journal; no model calls made.");
+    }
+    seen.add(key);
+  }
+  return [...input];
+}
+
+export async function readPr15ExecutionContract(path: string): Promise<Pr15ExecutionContract> {
+  const parsed = JSON.parse(await readFile(resolve(path), "utf8")) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid PR-15 execution contract: object_required.");
+  const value = parsed as Pr15ExecutionContract;
+  if (value.schema_version !== PR15_EXECUTION_CONTRACT_VERSION || !value.contract_id?.trim()
+    || !Number.isFinite(Date.parse(value.frozen_at)) || value.provider_client?.package !== "openai"
+    || !/^\d+\.\d+\.\d+$/.test(value.provider_client.version)
+    || !Number.isSafeInteger(value.seeds) || value.seeds < 1
+    || !Array.isArray(value.profiles) || value.profiles.length !== 2
+    || value.pricing_basis?.currency !== "USD" || value.pricing_basis?.unit !== "per_1m_tokens"
+    || !Number.isFinite(Date.parse(value.pricing_basis.observed_at))
+    || !value.pricing_basis.models || Object.values(value.pricing_basis.models).some((price) =>
+      !Number.isFinite(price.input) || price.input < 0 || !Number.isFinite(price.output) || price.output < 0)
+    || !Array.isArray(value.source_urls) || value.source_urls.some((item) => typeof item !== "string" || !item.startsWith("https://"))
+    || !Array.isArray(value.limitations) || value.limitations.some((item) => typeof item !== "string" || !item.trim())) {
+    throw new Error("Invalid PR-15 execution contract: shape_or_version.");
+  }
+  assertRetryPolicy(value.retry_policy);
+  assertProfileDefinitions(value.profiles);
+  for (const profile of value.profiles) {
+    if (profile.provider_id !== "openai" || profile.judge_provider_id !== "openai"
+      || profile.provider_version !== `openai-node@${value.provider_client.version}`
+      || profile.judge_provider_version !== `openai-node@${value.provider_client.version}`
+      || !/-\d{4}-\d{2}-\d{2}$/.test(profile.model_revision)
+      || !/-\d{4}-\d{2}-\d{2}$/.test(profile.judge_model_revision)
+      || !value.pricing_basis.models[profile.model_revision]
+      || !value.pricing_basis.models[profile.judge_model_revision]) {
+      throw new Error("Invalid PR-15 execution contract: unpinned_openai_profile.");
+    }
+  }
+  return value;
 }
 
 export function assertPr15ProofReceipt(input: unknown): asserts input is Pr15ProofReceipt {
@@ -219,11 +359,56 @@ export function withRetries(
   } } } };
 }
 
+export function withBudget(
+  client: LLMClient,
+  prices: Record<string, { input: number; output: number }>,
+  maxUsd: number,
+  telemetry: Pr15CostTelemetry,
+  onBudgetEvent?: (event: Pr15BudgetEvent) => void | Promise<void>,
+): LLMClient {
+  if (!Number.isFinite(maxUsd) || maxUsd <= 0 || !Number.isFinite(telemetry.actual_usd) || telemetry.actual_usd < 0
+    || !Number.isFinite(telemetry.reserved_usd) || telemetry.reserved_usd < 0) {
+    throw new Error("Invalid PR-15 USD budget.");
+  }
+  return { chat: { completions: { create: async (request) => {
+    const price = prices[request.model];
+    if (!price || !Number.isFinite(price.input) || price.input < 0 || !Number.isFinite(price.output) || price.output < 0) {
+      throw new Error(`Missing PR-15 token pricing for ${request.model}.`);
+    }
+    const maxCompletionTokens = request.max_completion_tokens;
+    if (!Number.isSafeInteger(maxCompletionTokens) || maxCompletionTokens === undefined || maxCompletionTokens < 1) {
+      throw new Error("PR-15 refuses an uncapped model request.");
+    }
+    const conservativeInputTokens = request.messages.reduce((sum, message) =>
+      sum + Buffer.byteLength(message.role) + Buffer.byteLength(message.content) + 16, 16);
+    const reservation = roundUsd((conservativeInputTokens * price.input
+      + maxCompletionTokens * price.output) / 1_000_000);
+    if (telemetry.actual_usd + telemetry.reserved_usd + reservation > maxUsd + Number.EPSILON) {
+      throw new Error(`PR-15 hard USD ceiling reached before provider call: `
+        + `$${telemetry.actual_usd.toFixed(6)} actual + $${telemetry.reserved_usd.toFixed(6)} unsettled`
+        + ` + $${reservation.toFixed(6)} new > $${maxUsd.toFixed(2)} approved.`);
+    }
+    const reservationId = randomUUID();
+    await onBudgetEvent?.({ type: "reservation", reservation_id: reservationId, usd: reservation });
+    telemetry.reserved_usd = roundUsd(telemetry.reserved_usd + reservation);
+    const reply = await client.chat.completions.create(request);
+    const promptTokens = reply.usage?.prompt_tokens;
+    const completionTokens = reply.usage?.completion_tokens;
+    const actual = promptTokens === undefined || completionTokens === undefined
+      ? reservation : roundUsd((promptTokens * price.input + completionTokens * price.output) / 1_000_000);
+    await onBudgetEvent?.({ type: "settlement", reservation_id: reservationId, usd: actual });
+    telemetry.reserved_usd = roundUsd(telemetry.reserved_usd - reservation);
+    telemetry.actual_usd = roundUsd(telemetry.actual_usd + actual);
+    return reply;
+  } } } };
+}
+
 export function estimatePr15Calls(
   replays: readonly FrozenPr15Replay[],
   contract: Pr15Contract,
   seeds: number,
   profileCount = 2,
+  maxRetries = 0,
 ): Pr15CallPlan {
   if (!Number.isSafeInteger(seeds) || seeds < 1 || !Number.isSafeInteger(profileCount) || profileCount < 1) {
     throw new Error("PR-15 call-plan seeds and profile count must be positive safe integers.");
@@ -240,30 +425,50 @@ export function estimatePr15Calls(
       || wave7.missed_uncommitted_work_check?.kind === "llm";
   }).length;
   const maxJudgeCalls = judgedProbes * multiplier;
+  if (!Number.isSafeInteger(maxRetries) || maxRetries < 0 || maxRetries > 10) {
+    throw new Error("PR-15 call-plan retries must be a safe integer from 0 to 10.");
+  }
+  const maxTotalLogicalCalls = modelCalls + maxJudgeCalls;
   return { model_calls: modelCalls, max_judge_calls: maxJudgeCalls,
-    max_total_logical_calls: modelCalls + maxJudgeCalls };
+    max_total_logical_calls: maxTotalLogicalCalls,
+    max_provider_attempts: maxTotalLogicalCalls * (maxRetries + 1) };
 }
 
 function assertProfiles(input: readonly Pr15ExecutableProfile[]): Pr15ExecutableProfile[] {
   const profiles = [...input];
-  if (profiles.length !== 2 || profiles[0]?.definition.model_profile !== "primary"
-    || profiles[1]?.definition.model_profile !== "weak") {
+  assertProfileDefinitions(profiles.map((profile) => profile.definition));
+  return profiles;
+}
+
+function assertProfileDefinitions(input: readonly Pr15ExecutionProfile[]): void {
+  if (input.length !== 2 || input[0]?.model_profile !== "primary" || input[1]?.model_profile !== "weak") {
     throw new Error("PR-15 execution requires exactly [primary, weak] model profiles in that order.");
   }
-  for (const profile of profiles) {
-    const value = profile.definition;
+  for (const value of input) {
     if (![value.provider_id, value.provider_version, value.base_url, value.model, value.model_revision,
       value.judge_provider_id, value.judge_provider_version, value.judge_base_url, value.judge_model, value.judge_model_revision]
       .every((item) => typeof item === "string" && item.trim().length > 0)
-      || !Number.isFinite(value.temperature) || value.temperature < 0 || value.temperature > 2) {
+      || !Number.isFinite(value.temperature) || value.temperature < 0 || value.temperature > 2
+      || !Number.isSafeInteger(value.max_completion_tokens) || value.max_completion_tokens < 1
+      || !Number.isSafeInteger(value.judge_max_completion_tokens) || value.judge_max_completion_tokens < 1
+      || !["none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value.reasoning_effort)
+      || !["none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value.judge_reasoning_effort)) {
       throw new Error(`Invalid PR-15 ${value.model_profile} execution profile.`);
     }
   }
-  if (profiles[0]!.definition.model === profiles[1]!.definition.model
-    && profiles[0]!.definition.provider_id === profiles[1]!.definition.provider_id) {
+  if (input[0]!.model_revision === input[1]!.model_revision
+    && input[0]!.provider_id === input[1]!.provider_id) {
     throw new Error("PR-15 weak-model ablation must differ from the primary model/provider identity.");
   }
-  return profiles;
+}
+
+function assertSpendApproval(approval: Pr15SpendApproval, plan: Pr15CallPlan): void {
+  if (!approval || approval.max_logical_calls !== plan.max_total_logical_calls
+    || approval.max_provider_attempts !== plan.max_provider_attempts
+    || !Number.isFinite(approval.max_usd) || approval.max_usd <= 0) {
+    throw new Error(`PR-15 spend is not approved; no model calls made. Exact approval required: `
+      + `${plan.max_total_logical_calls} logical calls, ${plan.max_provider_attempts} provider attempts, and a positive USD ceiling.`);
+  }
 }
 
 function assertRetryPolicy(policy: Pr15RetryPolicy): void {
@@ -306,6 +511,86 @@ function canonicalJson(value: unknown): string {
   throw new Error("Cannot hash an unsupported PR-15 receipt value.");
 }
 function invalidReceipt(reason: string): never { throw new Error(`Invalid PR-15 proof receipt: ${reason}.`); }
+function assertDigest(value: string): string { if (!/^sha256:[0-9a-f]{64}$/.test(value)) throw new Error("Invalid PR-15 execution-contract digest."); return value; }
+function roundUsd(value: number): number { return Math.round(value * 1_000_000_000_000) / 1_000_000_000_000; }
+function sumUsd(values: readonly number[]): number { return values.reduce((sum, value) => roundUsd(sum + value), 0); }
+
+interface Pr15JournalBinding {
+  schema_version: typeof PR15_JOURNAL_VERSION;
+  benchmark_id: string;
+  contract_digest: string;
+  corpus_digest: string;
+  execution_contract_digest: string;
+  seeds: number;
+  retry_policy: Pr15RetryPolicy;
+  call_plan: Pr15CallPlan;
+  spend_approval: Pr15SpendApproval;
+  profiles: Pr15ExecutionProfile[];
+}
+
+async function readOrCreateJournal(path: string, binding: Pr15JournalBinding): Promise<{
+  results: Pr15ProbeResult[]; budget: Pr15CostTelemetry;
+}> {
+  const output = resolve(path);
+  await mkdir(dirname(output), { recursive: true });
+  const header = { type: "header", binding, binding_digest: digest(canonicalJson(binding)) };
+  try {
+    await writeFile(output, `${JSON.stringify(header)}\n`, { flag: "wx" });
+    return { results: [], budget: { actual_usd: 0, reserved_usd: 0 } };
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === "EEXIST")) throw error;
+  }
+  const lines = (await readFile(output, "utf8")).split("\n").filter((line) => line.trim().length > 0);
+  if (lines.length === 0) throw new Error("Invalid PR-15 resume journal: missing header.");
+  const storedHeader = JSON.parse(lines[0]!) as typeof header;
+  if (storedHeader.type !== "header" || storedHeader.binding_digest !== digest(canonicalJson(storedHeader.binding))
+    || canonicalJson(storedHeader.binding) !== canonicalJson(binding)) {
+    throw new Error("Invalid PR-15 resume journal: binding mismatch.");
+  }
+  const results: Pr15ProbeResult[] = [];
+  const reservations = new Map<string, number>();
+  let actualUsd = 0;
+  for (const line of lines.slice(1)) {
+    const record = JSON.parse(line) as Record<string, unknown>;
+    const { record_digest: recordDigest, ...body } = record;
+    if (recordDigest !== digest(canonicalJson(body))) throw new Error("Invalid PR-15 resume journal: record digest mismatch.");
+    if (record.type === "result" && record.result) results.push(record.result as Pr15ProbeResult);
+    else if (record.type === "reservation" && typeof record.reservation_id === "string"
+      && typeof record.usd === "number" && Number.isFinite(record.usd) && record.usd >= 0
+      && !reservations.has(record.reservation_id)) reservations.set(record.reservation_id, record.usd);
+    else if (record.type === "settlement" && typeof record.reservation_id === "string"
+      && typeof record.usd === "number" && Number.isFinite(record.usd) && record.usd >= 0
+      && reservations.has(record.reservation_id)) {
+      reservations.delete(record.reservation_id);
+      actualUsd = roundUsd(actualUsd + record.usd);
+    } else throw new Error("Invalid PR-15 resume journal: invalid record sequence.");
+  }
+  return { results, budget: { actual_usd: actualUsd,
+    reserved_usd: sumUsd([...reservations.values()]) } };
+}
+
+async function appendJournalResult(path: string, result: Pr15ProbeResult): Promise<void> {
+  await appendJournalRecord(path, { type: "result", result });
+}
+
+async function appendJournalBudgetEvent(path: string, event: Pr15BudgetEvent): Promise<void> {
+  await appendJournalRecord(path, event);
+}
+
+async function appendJournalRecord(path: string, body: Record<string, unknown>): Promise<void> {
+  await appendFile(resolve(path), `${JSON.stringify({ ...body, record_digest: digest(canonicalJson(body)) })}\n`,
+    { encoding: "utf8" });
+}
+
+async function assertOutputAbsent(path: string): Promise<void> {
+  try {
+    await access(resolve(path));
+    throw new Error(`PR-15 proof receipt already exists; no model calls made: ${resolve(path)}`);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return;
+    throw error;
+  }
+}
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
@@ -315,7 +600,8 @@ async function main(): Promise<void> {
   };
   const fixturesPath = flag("fixtures");
   const outputPath = flag("out");
-  if (!fixturesPath || !outputPath) throw new Error("Usage: pr15-execute.ts --fixtures <frozen-directory> --out <receipt.json> [--contract <json>]");
+  const executionPath = flag("execution");
+  if (!fixturesPath || !outputPath || !executionPath) throw new Error("Usage: pr15-execute.ts --fixtures <frozen-directory> --execution <execution-contract.json> --out <receipt.json> [--contract <json>]");
   const contract = await readPr15Contract(flag("contract") ? resolve(flag("contract")!) : undefined);
   const replays = await loadFrozenPr15Replays(resolve(fixturesPath));
   const readiness = evaluateCorpusReadiness(replays, contract);
@@ -325,11 +611,36 @@ async function main(): Promise<void> {
     return;
   }
 
-  const primary = envProfile("PRIMARY", "primary");
-  const weak = envProfile("WEAK", "weak");
+  const execution = await readPr15ExecutionContract(executionPath);
+  const [primary, weak] = execution.profiles;
+  const retryPolicy = execution.retry_policy;
+  const callPlan = estimatePr15Calls(replays, contract, execution.seeds, 2, retryPolicy.max_retries);
+  const spendApproval = { max_logical_calls: envInteger("SEEDROP_PR15_APPROVED_LOGICAL_CALLS", -1),
+    max_provider_attempts: envInteger("SEEDROP_PR15_APPROVED_PROVIDER_ATTEMPTS", -1),
+    max_usd: envPositiveNumber("SEEDROP_PR15_APPROVED_MAX_USD") };
+  assertSpendApproval(spendApproval, callPlan);
+  await assertOutputAbsent(outputPath);
+  const executionContractDigest = digest(canonicalJson(execution));
+  const journalPath = flag("journal") ?? `${outputPath}.journal.jsonl`;
+  const journal = await readOrCreateJournal(journalPath, {
+    schema_version: PR15_JOURNAL_VERSION,
+    benchmark_id: contract.benchmark_id,
+    contract_digest: digest(canonicalJson(contract)),
+    corpus_digest: corpusDigest(replays),
+    execution_contract_digest: executionContractDigest,
+    seeds: execution.seeds,
+    retry_policy: retryPolicy,
+    call_plan: callPlan,
+    spend_approval: spendApproval,
+    profiles: execution.profiles,
+  });
   const { default: OpenAI } = (await import("openai" as string).catch(() => {
-    throw new Error("Install `openai` to execute PR-15: npm install --no-save openai");
+    throw new Error(`Install the frozen PR-15 client: npm install --no-save openai@${execution.provider_client.version}`);
   })) as { default: new (config: { apiKey: string; baseURL: string }) => LLMClient };
+  const installedVersion = ((await import("openai/version" as string)) as { VERSION?: string }).VERSION;
+  if (installedVersion !== execution.provider_client.version) {
+    throw new Error(`PR-15 provider client mismatch: expected openai@${execution.provider_client.version}, found ${installedVersion ?? "unknown"}.`);
+  }
   const makeExecutable = (definition: Pr15ExecutionProfile, prefix: "PRIMARY" | "WEAK"): Pr15ExecutableProfile => {
     const apiKey = requireEnv(`SEEDROP_PR15_${prefix}_API_KEY`);
     const judgeApiKey = process.env[`SEEDROP_PR15_${prefix}_JUDGE_API_KEY`] ?? apiKey;
@@ -338,34 +649,22 @@ async function main(): Promise<void> {
       ? client : new OpenAI({ apiKey: judgeApiKey, baseURL: definition.judge_base_url });
     return { definition, client, judge_client: judgeClient };
   };
-  const seeds = envInteger("SEEDROP_PR15_SEEDS", 5);
-  const retryPolicy = { max_retries: envInteger("SEEDROP_PR15_MAX_RETRIES", 3),
-    base_delay_ms: envInteger("SEEDROP_PR15_RETRY_BASE_MS", 5_000) };
-  const callPlan = estimatePr15Calls(replays, contract, seeds, 2);
-  process.stdout.write(`PR-15 readiness passed. Call ceiling: ${callPlan.model_calls} model + ${callPlan.max_judge_calls} batched judge = ${callPlan.max_total_logical_calls}.\n`);
+  process.stdout.write(`PR-15 readiness and spend approval passed. Call ceiling: ${callPlan.model_calls} model + ${callPlan.max_judge_calls} batched judge = ${callPlan.max_total_logical_calls} logical; ${callPlan.max_provider_attempts} provider attempts including retries.\n`);
   const receipt = await executePr15Proof({ replays, contract,
-    profiles: [makeExecutable(primary, "PRIMARY"), makeExecutable(weak, "WEAK")], seeds, retry_policy: retryPolicy });
+    profiles: [makeExecutable(primary!, "PRIMARY"), makeExecutable(weak!, "WEAK")], seeds: execution.seeds,
+    retry_policy: retryPolicy, spend_approval: spendApproval,
+    pricing_basis: execution.pricing_basis, execution_contract_digest: executionContractDigest,
+    resume_results: journal.results, budget_state: journal.budget,
+    on_budget_event: async (event) => appendJournalBudgetEvent(journalPath, event),
+    on_result: async (result) => appendJournalResult(journalPath, result) });
   await writePr15ProofReceipt(outputPath, receipt);
   process.stdout.write(`${JSON.stringify({ receipt: resolve(outputPath), receipt_digest: receipt.receipt_digest,
     gate_passed: receipt.summary.gate_passed, results: receipt.results.length }, null, 2)}\n`);
 }
 
-function envProfile(prefix: "PRIMARY" | "WEAK", modelProfile: Pr15ModelProfile): Pr15ExecutionProfile {
-  const baseUrl = requireEnv(`SEEDROP_PR15_${prefix}_BASE_URL`);
-  return { model_profile: modelProfile, provider_id: requireEnv(`SEEDROP_PR15_${prefix}_PROVIDER`),
-    provider_version: requireEnv(`SEEDROP_PR15_${prefix}_PROVIDER_VERSION`), base_url: baseUrl,
-    model: requireEnv(`SEEDROP_PR15_${prefix}_MODEL`), model_revision: requireEnv(`SEEDROP_PR15_${prefix}_MODEL_REVISION`),
-    judge_provider_id: process.env[`SEEDROP_PR15_${prefix}_JUDGE_PROVIDER`] ?? requireEnv(`SEEDROP_PR15_${prefix}_PROVIDER`),
-    judge_provider_version: process.env[`SEEDROP_PR15_${prefix}_JUDGE_PROVIDER_VERSION`]
-      ?? requireEnv(`SEEDROP_PR15_${prefix}_PROVIDER_VERSION`),
-    judge_base_url: process.env[`SEEDROP_PR15_${prefix}_JUDGE_BASE_URL`] ?? baseUrl,
-    judge_model: process.env[`SEEDROP_PR15_${prefix}_JUDGE_MODEL`] ?? requireEnv(`SEEDROP_PR15_${prefix}_MODEL`),
-    judge_model_revision: process.env[`SEEDROP_PR15_${prefix}_JUDGE_MODEL_REVISION`]
-      ?? requireEnv(`SEEDROP_PR15_${prefix}_MODEL_REVISION`),
-    temperature: Number(process.env[`SEEDROP_PR15_${prefix}_TEMPERATURE`] ?? "0") };
-}
 function requireEnv(name: string): string { const value = process.env[name]; if (!value) throw new Error(`Missing required env var: ${name}`); return value; }
 function envInteger(name: string, fallback: number): number { const value = Number(process.env[name] ?? String(fallback)); if (!Number.isSafeInteger(value)) throw new Error(`${name} must be an integer.`); return value; }
+function envPositiveNumber(name: string): number { const value = Number(process.env[name] ?? "NaN"); if (!Number.isFinite(value) || value <= 0) return NaN; return value; }
 
 if (process.argv[1] && process.argv[1].endsWith("pr15-execute.ts")) {
   void main().catch((error: unknown) => {

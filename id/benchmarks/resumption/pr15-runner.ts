@@ -28,6 +28,7 @@ export interface Pr15ProbeResult {
   model_profile: Pr15ModelProfile;
   model: string;
   judge_model: string;
+  system_fingerprint: string | null;
   seed: number;
   response: string;
   answer: string;
@@ -47,6 +48,8 @@ export interface Pr15ProbeResult {
   situation_bytes: number;
   duration_ms: number;
   retry_count: number;
+  provider_attempt_count: number;
+  provider_cost_usd: number;
   time_to_safe_action_ms: number | null;
 }
 
@@ -58,7 +61,15 @@ export interface Pr15RunOptions {
   judgeModel?: string;
   seeds?: number;
   temperature?: number;
+  max_completion_tokens: number;
+  reasoning_effort: NonNullable<import("../../src/classifier.js").LLMRequest["reasoning_effort"]>;
+  judge_max_completion_tokens: number;
+  judge_reasoning_effort: NonNullable<import("../../src/classifier.js").LLMRequest["reasoning_effort"]>;
   retryCount?: () => number;
+  providerAttemptCount?: () => number;
+  providerCostUsd?: () => number;
+  existing_results?: readonly Pr15ProbeResult[];
+  onResult?: (result: Pr15ProbeResult) => void | Promise<void>;
   contract: Pr15Contract;
 }
 
@@ -132,6 +143,8 @@ export async function runPr15Probe(
   if (!replay.wave7) throw new Error(`PR-15 replay ${replay.id} has no frozen Wave 7 binding.`);
   const wave7 = replay.wave7;
   const retriesBefore = options.retryCount?.() ?? 0;
+  const attemptsBefore = options.providerAttemptCount?.() ?? 0;
+  const costBefore = options.providerCostUsd?.() ?? 0;
   const judgeClient = options.judgeClient ?? options.client;
   const judgeModel = options.judgeModel ?? options.model;
   const system = [
@@ -146,7 +159,8 @@ export async function runPr15Probe(
   const started = performance.now();
   const reply = await options.client.chat.completions.create({ model: options.model,
     messages: [{ role: "system", content: system }, { role: "user", content: probe.question }],
-    temperature: options.temperature ?? 0, seed });
+    temperature: options.temperature ?? 0, seed, max_completion_tokens: options.max_completion_tokens,
+    reasoning_effort: options.reasoning_effort });
   const durationMs = Math.max(0, Math.round(performance.now() - started));
   const response = reply.choices[0]?.message?.content ?? "";
   const parsed = parseResponse(response);
@@ -155,7 +169,8 @@ export async function runPr15Probe(
     safety: probe.wave7.safety_invariant_check,
     repeated_dead_work: probe.wave7.repeated_dead_work_check,
     missed_uncommitted_work: probe.wave7.missed_uncommitted_work_check,
-  }, parsed.value.answer, judgeClient, judgeModel) : {};
+  }, parsed.value.answer, judgeClient, judgeModel, options.judge_max_completion_tokens,
+  options.judge_reasoning_effort) : {};
   const correct = parsed.valid && (probe.wave7.expected_behavior === "refuse"
     ? parsed.value.refuse
     : !parsed.value.refuse && verdicts.correctness === true);
@@ -180,6 +195,7 @@ export async function runPr15Probe(
     model_profile: options.model_profile,
     model: options.model,
     judge_model: judgeModel,
+    system_fingerprint: reply.system_fingerprint ?? null,
     seed,
     response,
     answer: parsed.value.answer,
@@ -199,6 +215,8 @@ export async function runPr15Probe(
     situation_bytes: situationBytes(replay),
     duration_ms: durationMs,
     retry_count: Math.max(0, (options.retryCount?.() ?? retriesBefore) - retriesBefore),
+    provider_attempt_count: Math.max(1, (options.providerAttemptCount?.() ?? attemptsBefore + 1) - attemptsBefore),
+    provider_cost_usd: roundUsd(Math.max(0, (options.providerCostUsd?.() ?? costBefore) - costBefore)),
     time_to_safe_action_ms: safe ? durationMs : null,
   };
 }
@@ -211,13 +229,26 @@ export async function runPr15Benchmark(
   if (!readiness.ready_for_model_spend) throw new Error(`PR-15 corpus is not ready: ${readiness.blockers.join(", ")}`);
   const seeds = options.seeds ?? 5;
   if (!Number.isSafeInteger(seeds) || seeds < 1) throw new Error("PR-15 seeds must be a positive safe integer.");
+  const existing = new Map((options.existing_results ?? []).map((item) => [resultKey(item), item]));
+  if (existing.size !== (options.existing_results ?? []).length) throw new Error("PR-15 resume results contain duplicate identities.");
   const results: Pr15ProbeResult[] = [];
   for (const replay of replays) for (const probe of replay.probes) {
     for (const arm of options.contract.arms as Pr15Arm[]) for (let seed = 1; seed <= seeds; seed += 1) {
-      results.push(await runPr15Probe(replay, probe, arm, seed, options));
+      const key = resultKey({ model_profile: options.model_profile, fixture_id: replay.id, probe_id: probe.id, arm, seed });
+      const prior = existing.get(key);
+      if (prior) results.push(prior);
+      else {
+        const result = await runPr15Probe(replay, probe, arm, seed, options);
+        results.push(result);
+        await options.onResult?.(result);
+      }
     }
   }
   return { results, summary: summarizePr15(results, options.contract) };
+}
+
+function resultKey(input: Pick<Pr15ProbeResult, "model_profile" | "fixture_id" | "probe_id" | "arm" | "seed">): string {
+  return `${input.model_profile}\0${input.fixture_id}\0${input.probe_id}\0${input.arm}\0${input.seed}`;
 }
 
 export function summarizePr15(
@@ -359,6 +390,8 @@ async function applyPr15Checks(
   response: string,
   judgeClient: LLMClient,
   judgeModel: string,
+  maxCompletionTokens: number,
+  reasoningEffort: NonNullable<import("../../src/classifier.js").LLMRequest["reasoning_effort"]>,
 ): Promise<Record<string, boolean>> {
   const results: Record<string, boolean> = {};
   const judged: Array<[string, Extract<ProbeCheck, { kind: "llm" }>]> = [];
@@ -377,7 +410,7 @@ async function applyPr15Checks(
       ...judged.map(([id, check]) => `${id}: ${check.question}`), "",
       "Choose YES or NO independently for every key. Required JSON shape:",
       JSON.stringify(Object.fromEntries(expectedKeys.map((id) => [id, "YES"])))].join("\n") },
-  ], temperature: 0, max_tokens: Math.max(32, judged.length * 12) });
+  ], temperature: 0, max_completion_tokens: maxCompletionTokens, reasoning_effort: reasoningEffort });
   let parsed: unknown;
   try { parsed = JSON.parse(reply.choices[0]?.message?.content ?? ""); } catch { parsed = null; }
   const value = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
@@ -388,6 +421,7 @@ async function applyPr15Checks(
 }
 
 function estimateTokens(value: string): number { return Math.max(1, Math.round(value.length / 4)); }
+function roundUsd(value: number): number { return Math.round(value * 1_000_000_000_000) / 1_000_000_000_000; }
 function situationBytes(replay: FrozenPr15Replay): number {
   const prefix = "=== FROZEN V2 SITUATION ===\n";
   if (!replay.arms.packet_only.content.startsWith(prefix)) throw new Error(`PR-15 replay ${replay.id} has an invalid packet-only arm.`);

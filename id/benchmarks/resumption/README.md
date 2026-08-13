@@ -55,45 +55,55 @@ before importing a provider client or reading API credentials, and exits 2 with
 the readiness report when the corpus is underpowered. A passing corpus is run
 in the fixed order `primary`, then `weak`, across every frozen arm and seed.
 
-Execution configuration is deliberately explicit. Provider versions and model
-revisions are required in addition to model aliases; use immutable revisions
-published by the provider, not labels such as `latest`.
+Execution configuration is deliberately explicit and checked in as a frozen
+contract. `pr15-openai-2026-08-13.json` pins the provider client, dated model
+snapshots, generation/reasoning limits, pricing basis, retries, seeds, sources,
+and known limitations. The runner sends the immutable `model_revision` to the
+provider; the adjacent human-readable alias is receipt metadata only.
 
 ```bash
-export SEEDROP_PR15_PRIMARY_PROVIDER="provider-id"
-export SEEDROP_PR15_PRIMARY_PROVIDER_VERSION="provider-api-version"
-export SEEDROP_PR15_PRIMARY_BASE_URL="https://provider.example/v1"
 export SEEDROP_PR15_PRIMARY_API_KEY="..."
-export SEEDROP_PR15_PRIMARY_MODEL="primary-model-id"
-export SEEDROP_PR15_PRIMARY_MODEL_REVISION="immutable-primary-revision"
-
-export SEEDROP_PR15_WEAK_PROVIDER="provider-id"
-export SEEDROP_PR15_WEAK_PROVIDER_VERSION="provider-api-version"
-export SEEDROP_PR15_WEAK_BASE_URL="https://provider.example/v1"
-export SEEDROP_PR15_WEAK_API_KEY="..."
-export SEEDROP_PR15_WEAK_MODEL="weak-model-id"
-export SEEDROP_PR15_WEAK_MODEL_REVISION="immutable-weak-revision"
+export SEEDROP_PR15_WEAK_API_KEY="$SEEDROP_PR15_PRIMARY_API_KEY"
+export SEEDROP_PR15_APPROVED_LOGICAL_CALLS="8080"
+export SEEDROP_PR15_APPROVED_PROVIDER_ATTEMPTS="32320"
+export SEEDROP_PR15_APPROVED_MAX_USD="<explicit operator ceiling>"
 
 npm run bench:resumption:pr15 -w @seedrop/id -- \
   --fixtures /absolute/path/to/frozen-fixtures \
+  --execution benchmarks/resumption/pr15-openai-2026-08-13.json \
   --out /absolute/path/to/new-proof-receipt.json
 ```
 
-Optional `SEEDROP_PR15_<PRIMARY|WEAK>_JUDGE_*` variables pin a separate judge;
-otherwise each profile's provider/model revision is reused. Sampling defaults
-to temperature 0 and five seeds. Retry count and deterministic backoff policy,
-raw responses, usage provenance, timing, fixture identities, contract/corpus
-digests, paired statistics, subgroups, and every gate decision are sealed into
-the receipt. The output file is created exclusively and is never overwritten.
-The receipt may record a failed product gate; execution success is not evidence
-that the product thresholds passed.
+Only credentials and the three exact spend approvals come from the environment;
+model or sampling environment variables cannot mutate the run. A separate
+project-scoped credential is recommended. Project budget alerts are operational
+warnings, not a reliable hard cap; the harness enforces its USD ceiling before
+each request using conservative one-token-per-byte input reservation, then
+reconciles against provider token usage.
+
+Before every provider request, a conservative cost reservation is appended and
+digested in `<out>.journal.jsonl`; successful usage is settled afterward, and
+every completed probe is appended separately. Interrupted reservations remain
+charged against the local ceiling on restart because the provider may have
+processed the request. A restart verifies the journal's benchmark, corpus,
+execution, profile, retry, spend, and call-plan bindings, then skips only exact
+completed identities.
+Pass `--journal <path>` to choose another machine-local location. The final
+receipt is created exclusively and never overwritten; if it already exists,
+execution stops before provider import or credential access. Raw responses,
+backend fingerprints, token/cost usage, retry/provider-attempt telemetry,
+timing, fixture identities, all governing digests, paired statistics,
+subgroups, and every gate decision are sealed into the receipt. The receipt may
+record a failed product gate; execution success is not evidence that the
+product thresholds passed.
 
 The CLI prints its exact logical call ceiling before execution. For the frozen
 101-fixture corpus, four arms, five seeds, and two model profiles, the ceiling is
-4,040 model calls plus 4,040 batched judge calls. Retry attempts are additional
-provider requests and are counted separately in the receipt. Do not begin the
-run without an explicit provider/model/revision selection and an accepted spend
-budget for that matrix.
+4,040 model calls plus 4,040 batched judge calls. With three permitted retries,
+the absolute provider-attempt ceiling is 32,320. The current snapshot/pricing
+contract has an approximately $85.63 standard-request estimate for the frozen
+corpus under its output caps; this is planning guidance, not authorization or a
+guaranteed bill. Do not begin without an operator-approved USD ceiling.
 
 ## Historical two-arm harness
 

@@ -15,11 +15,15 @@ export interface LLMRequest {
   messages: Array<{ role: string; content: string }>;
   temperature?: number;
   max_tokens?: number;
+  max_completion_tokens?: number;
+  reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   seed?: number;
 }
 
 export interface LLMResponse {
   choices: Array<{ message: { content: string | null } }>;
+  system_fingerprint?: string | null;
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
 export interface LLMConfig {

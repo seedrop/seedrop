@@ -1,13 +1,15 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { LLMClient, LLMRequest } from "../src/classifier.js";
 import {
   assertPr15ProofReceipt,
   estimatePr15Calls,
   executePr15Proof,
+  readPr15ExecutionContract,
+  withBudget,
   withRetries,
   writePr15ProofReceipt,
   type Pr15ExecutableProfile,
@@ -20,11 +22,35 @@ const classes: Pr15ProbeClass[] = [
 ];
 
 describe("PR-15 controlled proof execution", () => {
+  it("loads the checked-in dated-snapshot execution contract", async () => {
+    const contract = await readPr15ExecutionContract(resolve("benchmarks/resumption/pr15-openai-2026-08-13.json"));
+    expect(contract.profiles.map((item) => item.model_revision)).toEqual([
+      "gpt-5.5-2026-04-23", "gpt-5.4-nano-2026-03-17",
+    ]);
+    expect(contract.profiles.every((item) => item.model_revision !== item.model)).toBe(true);
+    expect(contract.limitations).toHaveLength(4);
+  });
+
   it("makes zero model calls when the corpus readiness gate fails", async () => {
     let calls = 0;
     const client = responseClient(() => { calls += 1; return validResponse(false); });
     await expect(executePr15Proof({ replays: [freezePr15Replay(fixture(0))], contract: await readPr15Contract(),
-      profiles: profiles(client, client) })).rejects.toThrow(/no model calls made/);
+      profiles: profiles(client, client), spend_approval: { max_logical_calls: 0, max_provider_attempts: 0, max_usd: 1 },
+      pricing_basis: testPricing, execution_contract_digest: testExecutionDigest }))
+      .rejects.toThrow(/no model calls made/);
+    expect(calls).toBe(0);
+  });
+
+  it("makes zero model calls without an exact spend approval", async () => {
+    const contract = relaxedContract(await readPr15Contract());
+    const replays = classes.map((_, index) => freezePr15Replay(fixture(index)));
+    let calls = 0;
+    const client = responseClient(() => { calls += 1; return validResponse(false); });
+    await expect(executePr15Proof({ replays, contract, profiles: profiles(client, client), seeds: 1,
+      retry_policy: { max_retries: 1, base_delay_ms: 0 },
+      spend_approval: { max_logical_calls: 48, max_provider_attempts: 95, max_usd: 1 },
+      pricing_basis: testPricing, execution_contract_digest: testExecutionDigest }))
+      .rejects.toThrow(/48 logical calls, 96 provider attempts/);
     expect(calls).toBe(0);
   });
 
@@ -33,8 +59,10 @@ describe("PR-15 controlled proof execution", () => {
     const replays = classes.map((_, index) => freezePr15Replay(fixture(index)));
     let calls = 0;
     let failedOnce = false;
+    const requests: LLMRequest[] = [];
     const client = responseClient((request) => {
       calls += 1;
+      requests.push(request);
       if (!failedOnce) {
         failedOnce = true;
         throw Object.assign(new Error("transient provider failure"), { status: 503 });
@@ -43,7 +71,10 @@ describe("PR-15 controlled proof execution", () => {
     });
     const times = [new Date("2026-08-13T00:00:00.000Z"), new Date("2026-08-13T00:00:01.000Z")];
     const receipt = await executePr15Proof({ replays, contract, profiles: profiles(client, client), seeds: 1,
-      retry_policy: { max_retries: 1, base_delay_ms: 0 }, now: () => times.shift()!, sleep: async () => undefined });
+      retry_policy: { max_retries: 1, base_delay_ms: 0 },
+      spend_approval: { max_logical_calls: 48, max_provider_attempts: 96, max_usd: 1 },
+      pricing_basis: testPricing, execution_contract_digest: testExecutionDigest,
+      now: () => times.shift()!, sleep: async () => undefined });
 
     expect(calls).toBe(49);
     expect(receipt.results).toHaveLength(48);
@@ -53,6 +84,11 @@ describe("PR-15 controlled proof execution", () => {
     expect(receipt.profiles.map((item) => item.total_provider_attempts)).toEqual([25, 24]);
     expect(receipt.results.filter((item) => item.retry_count === 1)).toHaveLength(1);
     expect(receipt.elapsed_ms).toBe(1_000);
+    expect(receipt.spend_approval).toEqual({ max_logical_calls: 48, max_provider_attempts: 96, max_usd: 1 });
+    expect(receipt.spend_actual_usd).toBeGreaterThan(0);
+    expect(receipt.call_plan.max_provider_attempts).toBe(96);
+    expect(new Set(requests.map((item) => item.model))).toEqual(new Set(["primary-rev-1", "weak-rev-1"]));
+    expect(requests.every((item) => item.max_completion_tokens === 512 && item.reasoning_effort === "none")).toBe(true);
     expect(receipt.receipt_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(() => assertPr15ProofReceipt(receipt)).not.toThrow();
 
@@ -64,6 +100,19 @@ describe("PR-15 controlled proof execution", () => {
     const changed = JSON.parse(JSON.stringify(receipt)) as typeof receipt;
     changed.results[0]!.answer = "tampered";
     expect(() => assertPr15ProofReceipt(changed)).toThrow(/digest_mismatch/);
+
+    const callsBeforeResume = calls;
+    const resumed = await executePr15Proof({ replays, contract, profiles: profiles(client, client), seeds: 1,
+      retry_policy: { max_retries: 1, base_delay_ms: 0 },
+      spend_approval: { max_logical_calls: 48, max_provider_attempts: 96, max_usd: 1 },
+      pricing_basis: testPricing, execution_contract_digest: testExecutionDigest, resume_results: receipt.results,
+      budget_state: { actual_usd: receipt.spend_actual_usd,
+        reserved_usd: receipt.spend_unsettled_reservations_usd },
+      now: () => new Date("2026-08-13T00:00:02.000Z") });
+    expect(calls).toBe(callsBeforeResume);
+    expect(resumed.results).toEqual(receipt.results);
+    expect(resumed.profiles.map((item) => item.total_provider_attempts)).toEqual([25, 24]);
+    expect(resumed.profiles.map((item) => item.actual_usd)).toEqual(receipt.profiles.map((item) => item.actual_usd));
   });
 
   it("persists deterministic transient retry counts", async () => {
@@ -84,13 +133,50 @@ describe("PR-15 controlled proof execution", () => {
     expect(delays).toEqual([10]);
   });
 
+  it("enforces the approved USD ceiling before a provider call", async () => {
+    let calls = 0;
+    const client = responseClient(() => { calls += 1; return validResponse(false); });
+    const budgeted = withBudget(client, { model: { input: 1_000, output: 1_000 } }, 0.01,
+      { actual_usd: 0, reserved_usd: 0 });
+    await expect(budgeted.chat.completions.create({ model: "model", messages: [{ role: "user", content: "large" }],
+      max_completion_tokens: 100, reasoning_effort: "none" })).rejects.toThrow(/hard USD ceiling reached/);
+    expect(calls).toBe(0);
+  });
+
+  it("writes a conservative reservation before the provider call and settles usage afterward", async () => {
+    const events: Array<{ type: string; usd: number }> = [];
+    const telemetry = { actual_usd: 0, reserved_usd: 0 };
+    const client = withBudget(responseClient(() => validResponse(false)), { model: { input: 1, output: 2 } },
+      1, telemetry, async (event) => { events.push(event); });
+    await client.chat.completions.create({ model: "model", messages: [{ role: "user", content: "hello" }],
+      max_completion_tokens: 10, reasoning_effort: "none" });
+    expect(events.map((item) => item.type)).toEqual(["reservation", "settlement"]);
+    expect(events[0]!.usd).toBeGreaterThan(events[1]!.usd);
+    expect(telemetry.reserved_usd).toBe(0);
+    expect(telemetry.actual_usd).toBe(events[1]!.usd);
+  });
+
+  it("retains an unsettled reservation when the provider outcome is unknown", async () => {
+    const events: Array<{ type: string; usd: number }> = [];
+    const telemetry = { actual_usd: 0, reserved_usd: 0 };
+    const failing: LLMClient = { chat: { completions: { create: async () => { throw new Error("connection lost"); } } } };
+    const client = withBudget(failing, { model: { input: 1, output: 2 } }, 1, telemetry,
+      async (event) => { events.push(event); });
+    await expect(client.chat.completions.create({ model: "model", messages: [{ role: "user", content: "hello" }],
+      max_completion_tokens: 10, reasoning_effort: "none" })).rejects.toThrow(/connection lost/);
+    expect(events.map((item) => item.type)).toEqual(["reservation"]);
+    expect(telemetry.reserved_usd).toBe(events[0]!.usd);
+    expect(telemetry.actual_usd).toBe(0);
+  });
+
   it("preflights the maximum logical call matrix", async () => {
     const contract = relaxedContract(await readPr15Contract());
     const candidate = fixture(0);
     candidate.probes[0]!.wave7!.safety_invariant_check = { kind: "llm", question: "Is it safe?", correct_answer: "YES" };
     const replay = freezePr15Replay(candidate);
     const plan = estimatePr15Calls([replay], contract, 5, 2);
-    expect(plan).toEqual({ model_calls: 40, max_judge_calls: 40, max_total_logical_calls: 80 });
+    expect(plan).toEqual({ model_calls: 40, max_judge_calls: 40, max_total_logical_calls: 80,
+      max_provider_attempts: 80 });
   });
 });
 
@@ -99,12 +185,16 @@ function profiles(primaryClient: LLMClient, weakClient: LLMClient): Pr15Executab
     { definition: { model_profile: "primary", provider_id: "provider-a", provider_version: "2026-08-01",
       base_url: "https://a.invalid/v1", model: "primary-model", model_revision: "primary-rev-1",
       judge_provider_id: "provider-a", judge_provider_version: "2026-08-01", judge_base_url: "https://a.invalid/v1",
-      judge_model: "judge-model", judge_model_revision: "judge-rev-1", temperature: 0 },
+      judge_model: "judge-model", judge_model_revision: "judge-rev-1", temperature: 0,
+      max_completion_tokens: 512, reasoning_effort: "none", judge_max_completion_tokens: 256,
+      judge_reasoning_effort: "none" },
       client: primaryClient, judge_client: primaryClient },
     { definition: { model_profile: "weak", provider_id: "provider-a", provider_version: "2026-08-01",
       base_url: "https://a.invalid/v1", model: "weak-model", model_revision: "weak-rev-1",
       judge_provider_id: "provider-a", judge_provider_version: "2026-08-01", judge_base_url: "https://a.invalid/v1",
-      judge_model: "judge-model", judge_model_revision: "judge-rev-1", temperature: 0 },
+      judge_model: "judge-model", judge_model_revision: "judge-rev-1", temperature: 0,
+      max_completion_tokens: 512, reasoning_effort: "none", judge_max_completion_tokens: 256,
+      judge_reasoning_effort: "none" },
       client: weakClient, judge_client: weakClient },
   ];
 }
@@ -164,3 +254,9 @@ function canonicalJson(value: unknown): string {
   return `{${Object.entries(value as Record<string, unknown>).filter(([, item]) => item !== undefined)
     .sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(",")}}`;
 }
+
+const testExecutionDigest = `sha256:${"a".repeat(64)}`;
+const testPricing = { currency: "USD" as const, unit: "per_1m_tokens" as const,
+  observed_at: "2026-08-13T00:00:00.000Z",
+  models: { "primary-rev-1": { input: 1, output: 1 }, "weak-rev-1": { input: 1, output: 1 },
+    "judge-rev-1": { input: 1, output: 1 } } };
