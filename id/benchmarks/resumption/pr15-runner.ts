@@ -44,6 +44,7 @@ export interface Pr15ProbeResult {
   completion_tokens: number;
   token_source: "api" | "estimated";
   context_bytes: number;
+  situation_bytes: number;
   duration_ms: number;
   retry_count: number;
   time_to_safe_action_ms: number | null;
@@ -75,6 +76,7 @@ export interface Pr15ArmSummary {
   missed_uncommitted_work: number;
   refusals: number;
   median_context_bytes: number;
+  median_situation_bytes: number;
   median_prompt_tokens: number;
   median_completion_tokens: number;
   median_time_to_safe_action_ms: number | null;
@@ -189,6 +191,7 @@ export async function runPr15Probe(
     completion_tokens: completionTokens,
     token_source: usage?.prompt_tokens === undefined || usage.completion_tokens === undefined ? "estimated" : "api",
     context_bytes: replay.arms[arm].bytes,
+    situation_bytes: situationBytes(replay),
     duration_ms: durationMs,
     retry_count: Math.max(0, (options.retryCount?.() ?? retriesBefore) - retriesBefore),
     time_to_safe_action_ms: safe ? durationMs : null,
@@ -242,8 +245,8 @@ export function summarizePr15(
     threshold("statistically_supported_improvement_over_v1", supported, true, supported),
     threshold("unsupported_high_confidence", v2.unsupported_high_confidence_rate,
       numberThreshold(thresholds, "max_unsupported_high_confidence"), v2.unsupported_high_confidence_rate <= numberThreshold(thresholds, "max_unsupported_high_confidence")),
-    threshold("median_primary_context_bytes", v2.median_context_bytes,
-      numberThreshold(thresholds, "max_median_primary_context_bytes"), v2.median_context_bytes <= numberThreshold(thresholds, "max_median_primary_context_bytes")),
+    threshold("median_primary_context_bytes", v2.median_situation_bytes,
+      numberThreshold(thresholds, "max_median_primary_context_bytes"), v2.median_situation_bytes <= numberThreshold(thresholds, "max_median_primary_context_bytes")),
     threshold("success_and_refusal_scored", primaryV2.some((item) => item.situation_outcome === "served")
       && primaryV2.some((item) => item.situation_outcome === "refused"), true,
       primaryV2.some((item) => item.situation_outcome === "served") && primaryV2.some((item) => item.situation_outcome === "refused")),
@@ -280,6 +283,7 @@ function summarizeArm(results: readonly Pr15ProbeResult[]): Pr15ArmSummary {
     repeated_dead_work: results.filter((item) => item.repeated_dead_work).length,
     missed_uncommitted_work: results.filter((item) => item.missed_uncommitted_work).length,
     refusals: results.filter((item) => item.refused).length, median_context_bytes: median(results.map((item) => item.context_bytes)),
+    median_situation_bytes: median(results.map((item) => item.situation_bytes)),
     median_prompt_tokens: median(results.map((item) => item.prompt_tokens)), median_completion_tokens: median(results.map((item) => item.completion_tokens)),
     median_time_to_safe_action_ms: safeTimes.length === 0 ? null : median(safeTimes) };
 }
@@ -359,6 +363,11 @@ async function applyPr15Check(check: ProbeCheck, response: string, judgeClient: 
 }
 
 function estimateTokens(value: string): number { return Math.max(1, Math.round(value.length / 4)); }
+function situationBytes(replay: FrozenPr15Replay): number {
+  const prefix = "=== FROZEN V2 SITUATION ===\n";
+  if (!replay.arms.packet_only.content.startsWith(prefix)) throw new Error(`PR-15 replay ${replay.id} has an invalid packet-only arm.`);
+  return Buffer.byteLength(replay.arms.packet_only.content.slice(prefix.length));
+}
 function median(values: readonly number[]): number { if (values.length === 0) return 0; const sorted = [...values].sort((a, b) => a - b), middle = Math.floor(sorted.length / 2); return sorted.length % 2 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2; }
 function threshold(id: string, observed: number | boolean | string[], required: number | boolean | string, passed: boolean): Pr15ThresholdDecision { return { id, observed, required, passed }; }
 function numberThreshold(thresholds: Record<string, unknown>, name: string): number { const value = thresholds[name]; if (typeof value !== "number") throw new Error(`PR-15 threshold ${name} must be numeric.`); return value; }

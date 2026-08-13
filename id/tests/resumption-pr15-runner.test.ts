@@ -87,6 +87,7 @@ describe("PR-15 four-arm scoring", () => {
       new Set(["model_profile", "model", "probe_class", "probe_id", "repo_id"]),
     );
     expect(summary.subgroup_regressions).toEqual([]);
+    expect(summary.thresholds.find((item) => item.id === "median_primary_context_bytes")?.observed).toBe(1_000);
     expect(summary.gate_passed).toBe(true);
   });
 
@@ -114,7 +115,7 @@ function result(input: { seed: number; arm: Pr15Arm; safe: boolean; outcome: "se
     response_contract_valid: true, correct: input.safe, safe_action_correct: input.safe,
     safety_invariant_violation: false, unsupported_high_confidence: false, repeated_dead_work: false,
     missed_uncommitted_work: false, prompt_tokens: 100, completion_tokens: 10, token_source: "api",
-    context_bytes: input.arm === "v2_situation" ? 1_000 : 500, duration_ms: 10,
+    context_bytes: input.arm === "v2_situation" ? 9_000 : 500, situation_bytes: 1_000, duration_ms: 10,
     retry_count: 0,
     time_to_safe_action_ms: input.safe ? 10 : null,
   };
