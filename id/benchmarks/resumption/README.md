@@ -48,6 +48,46 @@ read-only capability, materializes the complete content of all four arms, hashes
 every arm, and hashes the complete fixture. Benchmark execution reads only these
 frozen contents; it does not reopen a working tree, View, or live daemon.
 
+### Controlled proof execution
+
+`bench:resumption:pr15` is the only Wave 7 execution path. It reruns readiness
+before importing a provider client or reading API credentials, and exits 2 with
+the readiness report when the corpus is underpowered. A passing corpus is run
+in the fixed order `primary`, then `weak`, across every frozen arm and seed.
+
+Execution configuration is deliberately explicit. Provider versions and model
+revisions are required in addition to model aliases; use immutable revisions
+published by the provider, not labels such as `latest`.
+
+```bash
+export SEEDROP_PR15_PRIMARY_PROVIDER="provider-id"
+export SEEDROP_PR15_PRIMARY_PROVIDER_VERSION="provider-api-version"
+export SEEDROP_PR15_PRIMARY_BASE_URL="https://provider.example/v1"
+export SEEDROP_PR15_PRIMARY_API_KEY="..."
+export SEEDROP_PR15_PRIMARY_MODEL="primary-model-id"
+export SEEDROP_PR15_PRIMARY_MODEL_REVISION="immutable-primary-revision"
+
+export SEEDROP_PR15_WEAK_PROVIDER="provider-id"
+export SEEDROP_PR15_WEAK_PROVIDER_VERSION="provider-api-version"
+export SEEDROP_PR15_WEAK_BASE_URL="https://provider.example/v1"
+export SEEDROP_PR15_WEAK_API_KEY="..."
+export SEEDROP_PR15_WEAK_MODEL="weak-model-id"
+export SEEDROP_PR15_WEAK_MODEL_REVISION="immutable-weak-revision"
+
+npm run bench:resumption:pr15 -w @seedrop/id -- \
+  --fixtures /absolute/path/to/frozen-fixtures \
+  --out /absolute/path/to/new-proof-receipt.json
+```
+
+Optional `SEEDROP_PR15_<PRIMARY|WEAK>_JUDGE_*` variables pin a separate judge;
+otherwise each profile's provider/model revision is reused. Sampling defaults
+to temperature 0 and five seeds. Retry count and deterministic backoff policy,
+raw responses, usage provenance, timing, fixture identities, contract/corpus
+digests, paired statistics, subgroups, and every gate decision are sealed into
+the receipt. The output file is created exclusively and is never overwritten.
+The receipt may record a failed product gate; execution success is not evidence
+that the product thresholds passed.
+
 ## Historical two-arm harness
 
 Measures whether an agent that receives a Seedrop **Situation packet** at boot

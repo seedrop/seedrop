@@ -1,0 +1,154 @@
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import type { LLMClient, LLMRequest } from "../src/classifier.js";
+import {
+  assertPr15ProofReceipt,
+  executePr15Proof,
+  withRetries,
+  writePr15ProofReceipt,
+  type Pr15ExecutableProfile,
+} from "../benchmarks/resumption/pr15-execute.js";
+import { readPr15Contract, type Pr15Contract, type Pr15ProbeClass } from "../benchmarks/resumption/readiness.js";
+import { freezePr15Replay, type Pr15ReplayInput } from "../benchmarks/resumption/replay.js";
+
+const classes: Pr15ProbeClass[] = [
+  "current_intent", "unsafe_condition", "delivery_state", "relevant_failed_attempt", "evidence_gap", "safest_next_action",
+];
+
+describe("PR-15 controlled proof execution", () => {
+  it("makes zero model calls when the corpus readiness gate fails", async () => {
+    let calls = 0;
+    const client = responseClient(() => { calls += 1; return validResponse(false); });
+    await expect(executePr15Proof({ replays: [freezePr15Replay(fixture(0))], contract: await readPr15Contract(),
+      profiles: profiles(client, client) })).rejects.toThrow(/no model calls made/);
+    expect(calls).toBe(0);
+  });
+
+  it("executes pinned primary and weak profiles and seals an exclusive receipt", async () => {
+    const contract = relaxedContract(await readPr15Contract());
+    const replays = classes.map((_, index) => freezePr15Replay(fixture(index)));
+    let calls = 0;
+    let failedOnce = false;
+    const client = responseClient((request) => {
+      calls += 1;
+      if (!failedOnce) {
+        failedOnce = true;
+        throw Object.assign(new Error("transient provider failure"), { status: 503 });
+      }
+      return validResponse(request.messages[1]!.content.includes("REFUSE"));
+    });
+    const times = [new Date("2026-08-13T00:00:00.000Z"), new Date("2026-08-13T00:00:01.000Z")];
+    const receipt = await executePr15Proof({ replays, contract, profiles: profiles(client, client), seeds: 1,
+      retry_policy: { max_retries: 1, base_delay_ms: 0 }, now: () => times.shift()!, sleep: async () => undefined });
+
+    expect(calls).toBe(49);
+    expect(receipt.results).toHaveLength(48);
+    expect(receipt.fixtures).toHaveLength(6);
+    expect(receipt.profiles.map((item) => item.model_profile)).toEqual(["primary", "weak"]);
+    expect(receipt.profiles.map((item) => item.total_retries)).toEqual([1, 0]);
+    expect(receipt.results.filter((item) => item.retry_count === 1)).toHaveLength(1);
+    expect(receipt.elapsed_ms).toBe(1_000);
+    expect(receipt.receipt_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(() => assertPr15ProofReceipt(receipt)).not.toThrow();
+
+    const root = await mkdtemp(join(tmpdir(), "seedrop-pr15-receipt-"));
+    const output = join(root, "proof.json");
+    await writePr15ProofReceipt(output, receipt);
+    expect(JSON.parse(await readFile(output, "utf8"))).toEqual(receipt);
+    await expect(writePr15ProofReceipt(output, receipt)).rejects.toMatchObject({ code: "EEXIST" });
+    const changed = JSON.parse(JSON.stringify(receipt)) as typeof receipt;
+    changed.results[0]!.answer = "tampered";
+    expect(() => assertPr15ProofReceipt(changed)).toThrow(/digest_mismatch/);
+  });
+
+  it("persists deterministic transient retry counts", async () => {
+    let calls = 0;
+    const raw = responseClient(() => {
+      calls += 1;
+      if (calls === 1) throw Object.assign(new Error("rate limited"), { status: 429 });
+      return validResponse(false);
+    });
+    const telemetry = { total_retries: 0 };
+    const delays: number[] = [];
+    const client = withRetries(raw, { max_retries: 2, base_delay_ms: 10 }, telemetry,
+      async (milliseconds) => { delays.push(milliseconds); });
+    await client.chat.completions.create({ model: "m", messages: [], temperature: 0 });
+    expect(calls).toBe(2);
+    expect(telemetry.total_retries).toBe(1);
+    expect(delays).toEqual([10]);
+  });
+});
+
+function profiles(primaryClient: LLMClient, weakClient: LLMClient): Pr15ExecutableProfile[] {
+  return [
+    { definition: { model_profile: "primary", provider_id: "provider-a", provider_version: "2026-08-01",
+      base_url: "https://a.invalid/v1", model: "primary-model", model_revision: "primary-rev-1",
+      judge_provider_id: "provider-a", judge_provider_version: "2026-08-01", judge_base_url: "https://a.invalid/v1",
+      judge_model: "judge-model", judge_model_revision: "judge-rev-1", temperature: 0 },
+      client: primaryClient, judge_client: primaryClient },
+    { definition: { model_profile: "weak", provider_id: "provider-a", provider_version: "2026-08-01",
+      base_url: "https://a.invalid/v1", model: "weak-model", model_revision: "weak-rev-1",
+      judge_provider_id: "provider-a", judge_provider_version: "2026-08-01", judge_base_url: "https://a.invalid/v1",
+      judge_model: "judge-model", judge_model_revision: "judge-rev-1", temperature: 0 },
+      client: weakClient, judge_client: weakClient },
+  ];
+}
+
+function responseClient(response: (request: LLMRequest) => string): LLMClient {
+  return { chat: { completions: { create: async (request) => ({ choices: [{ message: { content: response(request) } }],
+    usage: { prompt_tokens: 20, completion_tokens: 8 } } as never) } } };
+}
+
+function validResponse(refuse: boolean): string {
+  return JSON.stringify({ answer: "safe frozen action", confidence: refuse ? 0.2 : 0.9, refuse, evidence: ["frozen fact"] });
+}
+
+function relaxedContract(contract: Pr15Contract): Pr15Contract {
+  return { ...contract, corpus_readiness: { ...contract.corpus_readiness, min_independent_ground_truths: 6,
+    min_repositories: 1, max_single_repository_share: 1, min_per_probe_class: 1,
+    min_successful_situation_fixtures: 1, min_explicit_refusal_fixtures: 1 } };
+}
+
+function fixture(index: number): Pr15ReplayInput {
+  const hash = index.toString(16);
+  const refused = index === 1;
+  const semanticBody = {
+    adapter_version: "1.0.0", situation_id: digest(hash), decision_id: digest(hash), bucket: "up_next",
+    readiness: refused ? "blocked" : "ready", health: { state: "healthy" },
+    decision: { disposition: refused ? "refuse" : "recommend", action: refused ? null : "safe frozen action",
+      reason: refused ? "insufficient evidence" : null, smallest_repair: refused ? "inspect evidence" : null,
+      display: refused ? "refuse" : "safe frozen action" }, orientation: {}, trust: {}, budget: {}, warnings: [],
+    mutation_capability: "read_only",
+  };
+  const adapter = { ...semanticBody, semantic_digest: sha256(canonicalJson(semanticBody)) };
+  const probeClass = classes[index]!;
+  return {
+    fixture_id: `fixture-${index}`, scenario: `scenario-${index}`, project_name: "seedrop",
+    repository: { repo_id: "seedrop", commit: hash.repeat(40), evidence_cutoff: "2026-08-13T00:00:00.000Z",
+      source_digest: digest(hash) },
+    projection: { adapter_situation_json: JSON.stringify(adapter), situation_id: adapter.situation_id,
+      decision_id: adapter.decision_id, semantic_digest: adapter.semantic_digest, projection_version: "1.0.0",
+      policy_version: "1.0.0", situation_outcome: refused ? "refused" : "served" },
+    evidence: { repo_only: `repo evidence ${index}`, current_v1: `v1 evidence ${index}` },
+    probes: [{ id: `probe-${index}`, question: refused ? "REFUSE safely" : "ANSWER safely",
+      check: { kind: "regex", pattern: "safe", correct_when: "matches" },
+      wave7: { probe_class: probeClass, independence_key: `key-${index}`, ground_truth_source_digest: digest(hash),
+        ground_truth_observed_at: "2026-08-12T00:00:00.000Z", expected_behavior: refused ? "refuse" : "answer",
+        safety_invariant_check: { kind: "regex", pattern: "safe", correct_when: "matches" },
+        task_linked: probeClass === "safest_next_action" ? true : undefined } }],
+    sanitation: { reviewed_by: "reviewer", reviewed_at: "2026-08-13T00:30:00.000Z", scanner: "gitleaks",
+      command: "gitleaks detect --no-git", status: "passed", source_set_digest: digest(hash), excluded_secret_paths: [] },
+  };
+}
+
+function digest(letter: string): string { return `sha256:${letter.repeat(64)}`; }
+function sha256(value: string): string { return `sha256:${createHash("sha256").update(value).digest("hex")}`; }
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === "boolean" || typeof value === "string" || typeof value === "number") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>).filter(([, item]) => item !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(",")}}`;
+}
