@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertFrozenPr15Replay,
   freezePr15Replay,
+  freezePr15ReplayFile,
   loadFrozenPr15Replays,
   type Pr15ReplayInput,
 } from "../benchmarks/resumption/replay.js";
@@ -62,6 +63,17 @@ describe("PR-15 frozen replays", () => {
     expect(await loadFrozenPr15Replays(root)).toEqual([replay]);
     await writeFile(join(root, "changed.json"), JSON.stringify({ ...replay, fixture_digest: digest("f") }));
     await expect(loadFrozenPr15Replays(root)).rejects.toThrow(/fixture_digest_mismatch/);
+  });
+
+  it("freezes a reviewed candidate file without overwriting an existing receipt", async () => {
+    const root = await mkdtemp(join(tmpdir(), "seedrop-pr15-freeze-"));
+    const fixtures = join(root, "fixtures");
+    await mkdir(fixtures);
+    const candidate = join(root, "candidate.json"), output = join(fixtures, "frozen.json");
+    await writeFile(candidate, JSON.stringify(input()));
+    const frozen = await freezePr15ReplayFile(candidate, output);
+    expect(await loadFrozenPr15Replays(fixtures)).toEqual([frozen]);
+    await expect(freezePr15ReplayFile(candidate, output)).rejects.toMatchObject({ code: "EEXIST" });
   });
 });
 

@@ -136,6 +136,13 @@ export async function loadFrozenPr15Replays(directory: string): Promise<FrozenPr
   }));
 }
 
+export async function freezePr15ReplayFile(inputPath: string, outputPath: string): Promise<FrozenPr15Replay> {
+  const candidate = JSON.parse(await readFile(resolve(inputPath), "utf8")) as Pr15ReplayInput;
+  const frozen = freezePr15Replay(candidate);
+  await writeFile(resolve(outputPath), `${JSON.stringify(frozen, null, 2)}\n`, { flag: "wx" });
+  return frozen;
+}
+
 function assertInput(input: Pr15ReplayInput): void {
   if (!input.fixture_id || !input.scenario || !input.project_name || !input.repository.repo_id) invalid("identity_required");
   if (!/^[0-9a-f]{40,64}$/.test(input.repository.commit)) invalid("repo_commit_required");
@@ -189,9 +196,7 @@ async function main(): Promise<void> {
   };
   const inputPath = flag("input"), outputPath = flag("out");
   if (!inputPath || !outputPath) throw new Error("Usage: replay.ts --input <candidate.json> --out <frozen.json>");
-  const candidate = JSON.parse(await readFile(resolve(inputPath), "utf8")) as Pr15ReplayInput;
-  const frozen = freezePr15Replay(candidate);
-  await writeFile(resolve(outputPath), `${JSON.stringify(frozen, null, 2)}\n`, { flag: "wx" });
+  const frozen = await freezePr15ReplayFile(inputPath, outputPath);
   process.stdout.write(`${JSON.stringify({ ok: true, fixture_id: frozen.id, fixture_digest: frozen.fixture_digest,
     output: resolve(outputPath) })}\n`);
 }
