@@ -14,6 +14,7 @@ import type {
   BenchTaskSummary,
   BenchValidationSummary,
 } from "./state.js";
+import { benchSharedSituationView } from "./situation.js";
 
 export interface BenchShellOptions {
   selectedProjectId?: string;
@@ -116,14 +117,16 @@ function renderProjectRow(project: BenchProject, selected: boolean): string {
 }
 
 function renderSituation(project: BenchProject): string {
+  const shared = benchSharedSituationView(project);
   return `<section class="situation-head">
     <div>
-      <div class="eyebrow">${STATUS_LABELS[project.status]}</div>
+      <div class="eyebrow">${shared ? `Situation · ${escapeHtml(shared.bucket)}` : STATUS_LABELS[project.status]}</div>
       <h2>${escapeHtml(project.label)}</h2>
       <p class="path">${escapeHtml(project.root)}</p>
     </div>
     <div class="state-pill state-${project.situation.resumption.readiness}">${escapeHtml(project.situation.resumption.label)}</div>
   </section>
+  ${renderSharedSituation(project)}
   ${renderResumptionScorecard(project.situation.resumption)}
   <section class="repo-strip" aria-label="Repo state">
     ${project.situation.repo.map(renderRepoMetric).join("")}
@@ -260,6 +263,13 @@ function agentLabel(agent: BenchProjectContributor): string {
 }
 
 function renderNext(project: BenchProject): string {
+  const shared = benchSharedSituationView(project);
+  if (shared) {
+    return `<div class="next-item" data-situation-next>
+      <span>${escapeHtml(shared.nextAction)}</span>
+      <code title="${escapeAttr(shared.decisionId)}">${escapeHtml(shortId(shared.decisionId))}</code>
+    </div>`;
+  }
   const nextTask = project.situation.tasks.next;
   if (nextTask) {
     return `<div class="next-item">
@@ -276,6 +286,23 @@ function renderNext(project: BenchProject): string {
     </div>`;
   }
   return `<p class="muted">No next task.</p>`;
+}
+
+function renderSharedSituation(project: BenchProject): string {
+  const shared = benchSharedSituationView(project);
+  if (!shared) return "";
+  return `<section class="shared-situation shared-health-${escapeAttr(shared.health)}" aria-label="Canonical Situation" data-situation-id="${escapeAttr(shared.situationId)}">
+    <div>
+      <span>Canonical Situation</span>
+      <strong>${escapeHtml(shared.intent)}</strong>
+    </div>
+    <dl>
+      <div><dt>Bucket</dt><dd>${escapeHtml(shared.bucket)}</dd></div>
+      <div><dt>Health</dt><dd>${escapeHtml(shared.health)}</dd></div>
+      <div><dt>Decision</dt><dd title="${escapeAttr(shared.decisionId)}">${escapeHtml(shortId(shared.decisionId))}</dd></div>
+    </dl>
+    ${shared.warnings.length > 0 ? `<p>${shared.warnings.map(escapeHtml).join(" · ")}</p>` : ""}
+  </section>`;
 }
 
 function renderBlockers(blockers: BenchProjectBlocker[]): string {
@@ -653,6 +680,24 @@ h3 {
 .state-review { color: var(--amber); }
 .state-ready { color: var(--green); }
 .state-unknown { color: var(--muted); }
+.shared-situation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 24px;
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(112,167,255,.42);
+  border-radius: 7px;
+  background: rgba(112,167,255,.06);
+}
+.shared-situation span, .shared-situation dt, .shared-situation p { color: var(--muted); }
+.shared-situation strong { display: block; margin-top: 4px; }
+.shared-situation dl { display: flex; gap: 18px; margin: 0; }
+.shared-situation dl div { display: grid; gap: 3px; }
+.shared-situation dd { margin: 0; }
+.shared-situation p { grid-column: 1 / -1; margin: 0; font-size: 12px; }
+.shared-health-blocked { border-color: rgba(235,106,95,.42); background: rgba(235,106,95,.06); }
+.shared-health-degraded, .shared-health-unknown { border-color: rgba(224,168,77,.42); background: rgba(224,168,77,.06); }
 .resumption-card {
   display: grid;
   gap: 12px;

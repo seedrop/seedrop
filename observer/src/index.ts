@@ -39,3 +39,5 @@ export type {
 } from "./state.js";
 export { observeRepositorySources, planIncrementalObservation } from "./content-observer.js";
 export type { RepositoryFileStamp, RepositoryObservation, RepositoryObservationIndex, RepositorySourceKind, RepositorySourceObservation, RepositorySourceSpec } from "./content-observer.js";
+export { bindObserverSituation, readObserverSituationFile } from "./situation-binding.js";
+export type { AdapterSituationProjection, AdapterSituationSelection } from "@seedrop/situation";

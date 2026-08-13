@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { PassportSchema, type ActiveProject, type Passport } from "@seedrop/id";
+import type { AdapterBucket, AdapterSituationProjection, AdapterSituationSelection, ProjectTransactionDigest } from "@seedrop/situation";
 import {
   WorkspaceView,
   type NextAction,
@@ -10,6 +11,7 @@ import {
   type Task,
   type WorkspaceContext,
 } from "@seedrop/space";
+import { bindObserverSituation } from "./situation-binding.js";
 
 export type BenchProjectStatus = "broken" | "attention" | "active" | "quiet";
 
@@ -230,6 +232,7 @@ export interface BenchProject {
   inspectors: BenchProjectInspectors;
   agents: BenchProjectAgent[];
   situation: BenchProjectSituation;
+  adapter_situation?: AdapterSituationSelection;
 }
 
 export interface BenchDaemonState {
@@ -283,6 +286,12 @@ export interface BenchState {
   inbox: BenchInboxState;
   groups: BenchProjectGroup[];
   projects: BenchProject[];
+  adapter_contract?: {
+    version: "1.0.0";
+    enabled: boolean;
+    v2_projects: number;
+    fallback_projects: number;
+  };
   selection?: {
     preferred_project_id?: string;
     preferred_root?: string;
@@ -304,6 +313,13 @@ export interface BenchStateOptions {
   spaceUrl?: string | null;
   now?: () => Date;
   fetch?: typeof fetch;
+  sharedSituation?: {
+    feature: string | boolean | undefined;
+    projectRoot: string;
+    projection: AdapterSituationProjection | null;
+    projectionInvalid?: boolean;
+    expected?: { situation_id?: ProjectTransactionDigest; decision_id?: ProjectTransactionDigest; semantic_digest?: ProjectTransactionDigest };
+  };
 }
 
 interface BenchProjectCandidate {
@@ -365,7 +381,10 @@ export async function collectBenchState(options: BenchStateOptions): Promise<Ben
     daemon,
   });
   const rawProjects = await Promise.all(projectCandidates.map((project) => collectProject(project, knownAgents)));
-  const projects = rankBenchProjects(rawProjects.map((project) => applyDaemonAttention(project, daemon)));
+  const legacyProjects = rawProjects.map((project) => applyDaemonAttention(project, daemon));
+  const projects = rankBenchProjects(options.sharedSituation
+    ? legacyProjects.map((project) => attachSharedSituation(project, options.sharedSituation!))
+    : legacyProjects);
   const selection = preferredSelection(projects, options.preferredRoot);
 
   return {
@@ -387,12 +406,17 @@ export async function collectBenchState(options: BenchStateOptions): Promise<Ben
     inbox,
     groups: groupBenchProjects(projects),
     projects,
+    ...(options.sharedSituation ? { adapter_contract: { version: "1.0.0" as const, enabled: true,
+      v2_projects: projects.filter((project) => project.adapter_situation?.mode === "v2").length,
+      fallback_projects: projects.filter((project) => project.adapter_situation?.mode === "v1_fallback").length } } : {}),
     ...(selection ? { selection } : {}),
   };
 }
 
 export function rankBenchProjects(projects: BenchProject[]): BenchProject[] {
   return [...projects].sort((a, b) => {
+    const canonical = adapterBucketWeight(a) - adapterBucketWeight(b);
+    if (canonical !== 0) return canonical;
     const byStatus = STATUS_WEIGHT[a.status] - STATUS_WEIGHT[b.status];
     if (byStatus !== 0) return byStatus;
     const byScore = b.attention.score - a.attention.score;
@@ -403,6 +427,27 @@ export function rankBenchProjects(projects: BenchProject[]): BenchProject[] {
     if (byActivity !== 0) return byActivity;
     return a.label.localeCompare(b.label);
   });
+}
+
+const ADAPTER_BUCKET_WEIGHT: Record<AdapterBucket, number> = { needs_attention: 0, ongoing: 1, up_next: 2, quiet: 3 };
+function adapterBucketWeight(project: BenchProject): number {
+  return project.adapter_situation?.mode === "v2"
+    ? ADAPTER_BUCKET_WEIGHT[project.adapter_situation.served.payload.bucket]
+    : STATUS_WEIGHT[project.status];
+}
+
+function attachSharedSituation(project: BenchProject, shared: NonNullable<BenchStateOptions["sharedSituation"]>): BenchProject {
+  if (path.resolve(project.root) !== path.resolve(shared.projectRoot)) return project;
+  return {
+    ...project,
+    adapter_situation: bindObserverSituation({
+      feature: shared.feature,
+      projection: shared.projection,
+      projectionInvalid: shared.projectionInvalid,
+      expected: shared.expected,
+      legacy: JSON.parse(JSON.stringify(project)),
+    }),
+  };
 }
 
 export function groupBenchProjects(projects: BenchProject[]): BenchProjectGroup[] {

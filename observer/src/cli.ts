@@ -3,7 +3,9 @@ import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ProjectTransactionDigest } from "@seedrop/situation";
 import { collectBenchState, defaultSpaceUrl } from "./state.js";
+import { readObserverSituationFile } from "./situation-binding.js";
 
 function flagValue(argv: readonly string[], name: string): string | undefined {
   const long = `--${name}`;
@@ -22,6 +24,7 @@ function defaultPassportPath(): string {
 export async function runObserveCli(argv: readonly string[] = process.argv.slice(2)): Promise<number> {
   if (argv.includes("--help") || argv.includes("-h")) {
     process.stdout.write(`Usage: seedrop-observe [--passport <path>] [--space-url <url>] [--json]
+       [--v2-situation --situation-file <path> --situation-root <project-root>]
 
 Collect read-only Seedrop machine/project state as JSON.
 `);
@@ -37,7 +40,28 @@ Collect read-only Seedrop machine/project state as JSON.
       : spaceUrlFlag;
 
   try {
-    const state = await collectBenchState({ passportPath, spaceUrl });
+    const feature = argv.includes("--v2-situation") ? true : process.env.SEEDROP_V2_SITUATION;
+    const situationPath = flagValue(argv, "situation-file") ?? process.env.SEEDROP_V2_SITUATION_FILE;
+    const situationRoot = path.resolve(flagValue(argv, "situation-root") ?? process.env.SEEDROP_V2_SITUATION_ROOT ?? process.cwd());
+    const loaded = await readObserverSituationFile(situationPath);
+    const state = await collectBenchState({
+      passportPath,
+      spaceUrl,
+      preferredRoot: situationRoot,
+      ...(feature ? {
+        sharedSituation: {
+          feature,
+          projectRoot: situationRoot,
+          projection: loaded.projection,
+          projectionInvalid: loaded.invalid,
+          expected: {
+            situation_id: flagValue(argv, "expect-situation") as ProjectTransactionDigest | undefined,
+            decision_id: flagValue(argv, "expect-decision") as ProjectTransactionDigest | undefined,
+            semantic_digest: flagValue(argv, "expect-semantic") as ProjectTransactionDigest | undefined,
+          },
+        },
+      } : {}),
+    });
     process.stdout.write(`${JSON.stringify(state, null, 2)}\n`);
     return 0;
   } catch (error) {

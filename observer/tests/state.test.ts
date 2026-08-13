@@ -4,6 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkspaceView } from "@seedrop/space";
+import {
+  compileAdapterSituation,
+  type BoundedSituationProjection,
+  type ProjectTransactionDigest,
+} from "@seedrop/situation";
 import { collectBenchState } from "../src/index.js";
 import type { Passport } from "@seedrop/id";
 
@@ -32,6 +37,38 @@ describe("collectBenchState", () => {
     expect(state.summary).toEqual({ total: 0, broken: 0, attention: 0, active: 0, quiet: 0 });
     expect(state.groups.map((group) => group.projectIds)).toEqual([[], [], [], []]);
     expect(state.daemon).toMatchObject({ reachable: false, error: "daemon check skipped" });
+  });
+
+  it("attaches one canonical adapter projection to its matching project", async () => {
+    const projectRoot = await createHealthyProject("shared-situation");
+    const passportPath = await writePassport({
+      active_projects: [{ id: "shared-situation", root: projectRoot, view: ".seedrop/view" }],
+    });
+    const shared = compileAdapterSituation(adapterFixture());
+
+    const state = await collectBenchState({
+      passportPath,
+      spaceUrl: null,
+      sharedSituation: {
+        feature: true,
+        projectRoot,
+        projection: shared,
+        expected: { semantic_digest: shared.semantic_digest },
+      },
+    });
+
+    expect(state.adapter_contract).toEqual({
+      version: "1.0.0",
+      enabled: true,
+      v2_projects: 1,
+      fallback_projects: 0,
+    });
+    expect(project(state, "shared-situation").adapter_situation).toEqual({
+      mode: "v2",
+      reason: null,
+      warning: null,
+      served: { kind: "v2_situation", payload: shared },
+    });
   });
 
   it("builds machine inventory from local Seedrop passports and dedupes shared projects", async () => {
@@ -497,4 +534,40 @@ function project(state: Awaited<ReturnType<typeof collectBenchState>>, id: strin
   const found = state.projects.find((candidate) => candidate.id === id);
   expect(found).toBeTruthy();
   return found!;
+}
+
+function adapterFixture(): BoundedSituationProjection {
+  const digest = (letter: string) => `sha256:${letter.repeat(64)}` as ProjectTransactionDigest;
+  return {
+    schema_version: "1.0.0",
+    situation_id: digest("a"),
+    decision_id: digest("b"),
+    budget: {
+      requested_bytes: 4096,
+      actual_bytes: 1200,
+      complete: true,
+      candidate_count: 10,
+      indexed_count: 10,
+      scanned_count: 0,
+      event_count: 10,
+      file_count: 20,
+      omitted_categories: [],
+    },
+    orientation: {
+      intent: { intent_id: "sd_int_fixture", state: "active" },
+      risk: [],
+      delivery: null,
+      grave: null,
+      source_health: {
+        substrate: "healthy",
+        degraded_source_ids: [],
+        quarantine_count: 0,
+        unresolved_disagreement_count: 0,
+      },
+      next_action: { disposition: "recommend", action: "resume_intent" },
+    },
+    trust: Object.fromEntries(["intent", "risk", "delivery", "grave", "source_health", "next_action"].map((name) =>
+      [name, { freshness: "current", completeness: "complete", source_ids: ["project"], missing: [] }],
+    )),
+  };
 }
