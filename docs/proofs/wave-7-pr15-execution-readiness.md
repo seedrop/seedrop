@@ -3,13 +3,22 @@
 **Frozen:** 2026-08-13<br>
 **Corpus:** `wave7-2026-08-13-b` (101 independent ground truths)<br>
 **Execution contract:** `id/benchmarks/resumption/pr15-openai-2026-08-13.json`<br>
-**Canonical contract SHA-256:** `aca5d31cc220f4299b6e31d3a6210c9eb67d843d4f9e74236f8978d68633c71b`
+**Canonical contract SHA-256:** `514ee796d300070f6c285b92f4ff65b17af2a1bc1afcd8ef94baf2abc926576e`<br>
+**OpenCode screen SHA-256:** `569f5d1192a0ee111ae2660e3ee827d83e3c9d356950bc321501811ed30e7f9d`
 
 ## Result
 
 The internal PR-15 proof path is mechanically ready for an explicitly approved
 provider spend. No model call has been made and no product threshold has yet
 passed.
+
+An economical full-matrix screening contract is also frozen at
+`id/benchmarks/resumption/pr15-opencode-go-2026-08-13.json`. It uses the same
+8,080 logical-call matrix through the OpenCode Go subscription already proven
+by Outer Agent: DeepSeek V4 Pro primary, DeepSeek V4 Flash weak ablation, and
+Flash judge. This screen is now the first execution cohort; the OpenAI contract
+remains the reproducible confirmation cohort if the screen clears the product
+gate.
 
 The formal matrix uses dated provider snapshots:
 
@@ -55,6 +64,16 @@ later as supplementary evidence, never as a replacement for this formal run.
 - The latest OpenAI Node SDK (`7.4.0`) requires Node 22 and is incompatible with
   Seedrop's Node 20 floor. The execution contract therefore pins the newest
   verified Node-20-compatible client, `openai@6.49.0`.
+- OpenCode Go publishes mutable model aliases, not dated model revisions. The
+  screening contract therefore binds the observed public model catalog and
+  retains response fingerprints, but it cannot make a formal reproducibility
+  claim.
+- OpenCode's official limits are dollar-metered. The exact frozen matrix dry
+  simulation is approximately $4.20 without cache when every output consumes
+  its cap (and $14.56 under the harness's intentionally extreme one-token-per-
+  byte reservation accounting), so it fits below the current $12 rolling
+  five-hour provider allowance by the tokenized estimate. The hard local USD
+  ceiling remains mandatory and fail-closed.
 
 ## Preflight evidence
 

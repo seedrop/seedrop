@@ -49,6 +49,13 @@ export interface Pr15ExecutionContract {
   contract_id: string;
   frozen_at: string;
   provider_client: { package: "openai"; version: string };
+  cohort_class: "formal_reproducible" | "contemporary_screen";
+  model_identity_policy: "dated_snapshot" | "provider_alias_observed";
+  provider_catalog?: {
+    url: string;
+    observed_at: string;
+    digest: string;
+  };
   seeds: number;
   retry_policy: Pr15RetryPolicy;
   profiles: [Pr15ExecutionProfile, Pr15ExecutionProfile];
@@ -84,6 +91,14 @@ export interface Pr15ExecutionProfile {
   reasoning_effort: NonNullable<import("../../src/classifier.js").LLMRequest["reasoning_effort"]>;
   judge_max_completion_tokens: number;
   judge_reasoning_effort: NonNullable<import("../../src/classifier.js").LLMRequest["reasoning_effort"]>;
+  request_compatibility?: Pr15RequestCompatibility;
+  judge_request_compatibility?: Pr15RequestCompatibility;
+}
+
+export interface Pr15RequestCompatibility {
+  token_limit_parameter: "max_completion_tokens" | "max_tokens";
+  send_reasoning_effort: boolean;
+  send_seed: boolean;
 }
 
 export interface Pr15ExecutableProfile {
@@ -188,11 +203,15 @@ export async function executePr15Proof(options: ExecutePr15Options): Promise<Pr1
       total_provider_attempts: prior.reduce((sum, item) => sum + item.provider_attempt_count, 0),
     };
     const profileCostBefore = costTelemetry.actual_usd;
-    const budgetedClient = withBudget(profile.client, options.pricing_basis.models,
+    const budgetedClient = withBudget(withRequestCompatibility(profile.client,
+      profile.definition.request_compatibility), options.pricing_basis.models,
       options.spend_approval.max_usd, costTelemetry, options.on_budget_event);
     const client = withRetries(budgetedClient, retryPolicy, telemetry, sleeper);
-    const judgeClient = profile.judge_client === profile.client ? client
-      : withRetries(withBudget(profile.judge_client, options.pricing_basis.models,
+    const judgeClient = profile.judge_client === profile.client
+      && canonicalJson(profile.definition.request_compatibility ?? defaultRequestCompatibility())
+        === canonicalJson(profile.definition.judge_request_compatibility ?? defaultRequestCompatibility())
+      ? client : withRetries(withBudget(withRequestCompatibility(profile.judge_client,
+        profile.definition.judge_request_compatibility), options.pricing_basis.models,
         options.spend_approval.max_usd, costTelemetry, options.on_budget_event), retryPolicy, telemetry, sleeper);
     const run = await runPr15Benchmark(options.replays, {
       client,
@@ -285,6 +304,8 @@ export async function readPr15ExecutionContract(path: string): Promise<Pr15Execu
   if (value.schema_version !== PR15_EXECUTION_CONTRACT_VERSION || !value.contract_id?.trim()
     || !Number.isFinite(Date.parse(value.frozen_at)) || value.provider_client?.package !== "openai"
     || !/^\d+\.\d+\.\d+$/.test(value.provider_client.version)
+    || !["formal_reproducible", "contemporary_screen"].includes(value.cohort_class)
+    || !["dated_snapshot", "provider_alias_observed"].includes(value.model_identity_policy)
     || !Number.isSafeInteger(value.seeds) || value.seeds < 1
     || !Array.isArray(value.profiles) || value.profiles.length !== 2
     || value.pricing_basis?.currency !== "USD" || value.pricing_basis?.unit !== "per_1m_tokens"
@@ -297,18 +318,60 @@ export async function readPr15ExecutionContract(path: string): Promise<Pr15Execu
   }
   assertRetryPolicy(value.retry_policy);
   assertProfileDefinitions(value.profiles);
+  if (value.model_identity_policy === "provider_alias_observed") {
+    if (value.cohort_class !== "contemporary_screen" || !value.provider_catalog
+      || !value.provider_catalog.url.startsWith("https://")
+      || !Number.isFinite(Date.parse(value.provider_catalog.observed_at))
+      || !/^sha256:[0-9a-f]{64}$/.test(value.provider_catalog.digest)) {
+      throw new Error("Invalid PR-15 execution contract: unbound_provider_alias.");
+    }
+  } else if (value.cohort_class !== "formal_reproducible") {
+    throw new Error("Invalid PR-15 execution contract: snapshot_cohort_class.");
+  }
   for (const profile of value.profiles) {
-    if (profile.provider_id !== "openai" || profile.judge_provider_id !== "openai"
-      || profile.provider_version !== `openai-node@${value.provider_client.version}`
-      || profile.judge_provider_version !== `openai-node@${value.provider_client.version}`
-      || !/-\d{4}-\d{2}-\d{2}$/.test(profile.model_revision)
-      || !/-\d{4}-\d{2}-\d{2}$/.test(profile.judge_model_revision)
+    const identityValid = value.model_identity_policy === "dated_snapshot"
+      ? /-\d{4}-\d{2}-\d{2}$/.test(profile.model_revision)
+        && /-\d{4}-\d{2}-\d{2}$/.test(profile.judge_model_revision)
+        && profile.model_revision !== profile.model && profile.judge_model_revision !== profile.judge_model
+      : profile.model_revision === profile.model && profile.judge_model_revision === profile.judge_model;
+    if (!identityValid
       || !value.pricing_basis.models[profile.model_revision]
       || !value.pricing_basis.models[profile.judge_model_revision]) {
-      throw new Error("Invalid PR-15 execution contract: unpinned_openai_profile.");
+      throw new Error("Invalid PR-15 execution contract: unbound_model_profile.");
     }
   }
   return value;
+}
+
+export async function verifyPr15ProviderCatalog(
+  contract: Pr15ExecutionContract,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  if (!contract.provider_catalog) return;
+  const response = await fetcher(contract.provider_catalog.url);
+  if (!response.ok) {
+    throw new Error(`PR-15 provider catalog unavailable; no model calls made: HTTP ${response.status}.`);
+  }
+  let payload: unknown;
+  try { payload = JSON.parse(await response.text()) as unknown; }
+  catch { throw new Error("PR-15 provider catalog is invalid JSON; no model calls made."); }
+  const records = Array.isArray(payload) ? payload : payload && typeof payload === "object"
+    && Array.isArray((payload as { data?: unknown }).data) ? (payload as { data: unknown[] }).data : [];
+  const expectedIds = [...new Set(contract.profiles.flatMap((profile) =>
+    [profile.model_revision, profile.judge_model_revision]))].sort();
+  const projection = expectedIds.map((id) => {
+    const record = records.find((item) => item && typeof item === "object"
+      && (item as { id?: unknown }).id === id) as { id?: unknown; object?: unknown; owned_by?: unknown } | undefined;
+    if (!record || typeof record.object !== "string" || typeof record.owned_by !== "string") {
+      throw new Error(`PR-15 provider catalog is missing ${id}; no model calls made.`);
+    }
+    return { id, object: record.object, owned_by: record.owned_by };
+  });
+  const actual = digest(canonicalJson(projection));
+  if (actual !== contract.provider_catalog.digest) {
+    throw new Error(`PR-15 provider catalog changed; no model calls made: expected `
+      + `${contract.provider_catalog.digest}, found ${actual}. Freeze a new screening contract.`);
+  }
 }
 
 export function assertPr15ProofReceipt(input: unknown): asserts input is Pr15ProofReceipt {
@@ -359,6 +422,23 @@ export function withRetries(
   } } } };
 }
 
+export function withRequestCompatibility(
+  client: LLMClient,
+  compatibility: Pr15RequestCompatibility = defaultRequestCompatibility(),
+): LLMClient {
+  assertRequestCompatibility(compatibility);
+  return { chat: { completions: { create: async (request) => {
+    const adapted: import("../../src/classifier.js").LLMRequest = { ...request };
+    const tokenLimit = request.max_completion_tokens ?? request.max_tokens;
+    delete adapted.max_completion_tokens;
+    delete adapted.max_tokens;
+    if (tokenLimit !== undefined) adapted[compatibility.token_limit_parameter] = tokenLimit;
+    if (!compatibility.send_reasoning_effort) delete adapted.reasoning_effort;
+    if (!compatibility.send_seed) delete adapted.seed;
+    return client.chat.completions.create(adapted);
+  } } } };
+}
+
 export function withBudget(
   client: LLMClient,
   prices: Record<string, { input: number; output: number }>,
@@ -375,7 +455,7 @@ export function withBudget(
     if (!price || !Number.isFinite(price.input) || price.input < 0 || !Number.isFinite(price.output) || price.output < 0) {
       throw new Error(`Missing PR-15 token pricing for ${request.model}.`);
     }
-    const maxCompletionTokens = request.max_completion_tokens;
+    const maxCompletionTokens = request.max_completion_tokens ?? request.max_tokens;
     if (!Number.isSafeInteger(maxCompletionTokens) || maxCompletionTokens === undefined || maxCompletionTokens < 1) {
       throw new Error("PR-15 refuses an uncapped model request.");
     }
@@ -455,10 +535,23 @@ function assertProfileDefinitions(input: readonly Pr15ExecutionProfile[]): void 
       || !["none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value.judge_reasoning_effort)) {
       throw new Error(`Invalid PR-15 ${value.model_profile} execution profile.`);
     }
+    assertRequestCompatibility(value.request_compatibility ?? defaultRequestCompatibility());
+    assertRequestCompatibility(value.judge_request_compatibility ?? defaultRequestCompatibility());
   }
   if (input[0]!.model_revision === input[1]!.model_revision
     && input[0]!.provider_id === input[1]!.provider_id) {
     throw new Error("PR-15 weak-model ablation must differ from the primary model/provider identity.");
+  }
+}
+
+function defaultRequestCompatibility(): Pr15RequestCompatibility {
+  return { token_limit_parameter: "max_completion_tokens", send_reasoning_effort: true, send_seed: true };
+}
+
+function assertRequestCompatibility(value: Pr15RequestCompatibility): void {
+  if (!value || !["max_completion_tokens", "max_tokens"].includes(value.token_limit_parameter)
+    || typeof value.send_reasoning_effort !== "boolean" || typeof value.send_seed !== "boolean") {
+    throw new Error("Invalid PR-15 request compatibility profile.");
   }
 }
 
@@ -612,6 +705,7 @@ async function main(): Promise<void> {
   }
 
   const execution = await readPr15ExecutionContract(executionPath);
+  await verifyPr15ProviderCatalog(execution);
   const [primary, weak] = execution.profiles;
   const retryPolicy = execution.retry_policy;
   const callPlan = estimatePr15Calls(replays, contract, execution.seeds, 2, retryPolicy.max_retries);

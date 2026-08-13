@@ -61,6 +61,15 @@ snapshots, generation/reasoning limits, pricing basis, retries, seeds, sources,
 and known limitations. The runner sends the immutable `model_revision` to the
 provider; the adjacent human-readable alias is receipt metadata only.
 
+`pr15-opencode-go-2026-08-13.json` is the cheaper full-matrix screening cohort.
+It uses DeepSeek V4 Pro as primary, DeepSeek V4 Flash as weak ablation, and
+Flash as judge through OpenCode Go's OpenAI-compatible endpoint. It binds the
+public provider catalog by observation time and SHA-256, and adapts requests to
+the parameter shape already proven by Outer Agent (`max_tokens`, without
+`reasoning_effort` or provider seed). Because OpenCode exposes mutable aliases
+rather than dated revisions, a pass is contemporary evidence and does not
+replace the dated-snapshot confirmation cohort.
+
 ```bash
 export SEEDROP_PR15_PRIMARY_API_KEY="..."
 export SEEDROP_PR15_WEAK_API_KEY="$SEEDROP_PR15_PRIMARY_API_KEY"
@@ -72,6 +81,23 @@ npm run bench:resumption:pr15 -w @seedrop/id -- \
   --fixtures /absolute/path/to/frozen-fixtures \
   --execution benchmarks/resumption/pr15-openai-2026-08-13.json \
   --out /absolute/path/to/new-proof-receipt.json
+```
+
+To execute the OpenCode Go screen, use the same exact call/attempt approvals
+with the OpenCode credential for both profiles and select the screening
+contract:
+
+```bash
+export SEEDROP_PR15_PRIMARY_API_KEY="<OpenCode Go key>"
+export SEEDROP_PR15_WEAK_API_KEY="$SEEDROP_PR15_PRIMARY_API_KEY"
+export SEEDROP_PR15_APPROVED_LOGICAL_CALLS="8080"
+export SEEDROP_PR15_APPROVED_PROVIDER_ATTEMPTS="32320"
+export SEEDROP_PR15_APPROVED_MAX_USD="<explicit operator ceiling>"
+
+npm run bench:resumption:pr15 -w @seedrop/id -- \
+  --fixtures /absolute/path/to/frozen-fixtures \
+  --execution benchmarks/resumption/pr15-opencode-go-2026-08-13.json \
+  --out /absolute/path/to/new-opencode-screen-receipt.json
 ```
 
 Only credentials and the three exact spend approvals come from the environment;
@@ -104,6 +130,14 @@ the absolute provider-attempt ceiling is 32,320. The current snapshot/pricing
 contract has an approximately $85.63 standard-request estimate for the frozen
 corpus under its output caps; this is planning guidance, not authorization or a
 guaranteed bill. Do not begin without an operator-approved USD ceiling.
+
+For the OpenCode Go screen, a local dry simulation of the exact frozen request
+matrix produced a $14.56 one-token-per-byte conservative reservation sum and a
+$4.20 no-cache estimate when input bytes are tokenized at four bytes per token
+and every response consumes its full output cap. OpenCode Go's limits are
+provider-metered dollar ceilings, not guaranteed call counts; the runner still
+requires a positive local USD ceiling and stops before any request that would
+cross it.
 
 ## Historical two-arm harness
 

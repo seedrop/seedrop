@@ -6,6 +6,8 @@
     "package": "openai",
     "version": "6.49.0"
   },
+  "cohort_class": "formal_reproducible",
+  "model_identity_policy": "dated_snapshot",
   "seeds": 5,
   "retry_policy": {
     "max_retries": 3,

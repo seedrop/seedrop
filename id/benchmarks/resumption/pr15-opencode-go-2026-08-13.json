@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "seedrop.pr15.opencode-go.screen.2026-08-13",
+  "frozen_at": "2026-08-13T11:54:26.000Z",
+  "provider_client": {
+    "package": "openai",
+    "version": "6.49.0"
+  },
+  "cohort_class": "contemporary_screen",
+  "model_identity_policy": "provider_alias_observed",
+  "provider_catalog": {
+    "url": "https://opencode.ai/zen/go/v1/models",
+    "observed_at": "2026-08-13T11:54:26.000Z",
+    "digest": "sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821"
+  },
+  "seeds": 5,
+  "retry_policy": {
+    "max_retries": 3,
+    "base_delay_ms": 5000
+  },
+  "profiles": [
+    {
+      "model_profile": "primary",
+      "provider_id": "opencode-go",
+      "provider_version": "catalog-model-projection@sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821",
+      "base_url": "https://opencode.ai/zen/go/v1",
+      "model": "deepseek-v4-pro",
+      "model_revision": "deepseek-v4-pro",
+      "judge_provider_id": "opencode-go",
+      "judge_provider_version": "catalog-model-projection@sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821",
+      "judge_base_url": "https://opencode.ai/zen/go/v1",
+      "judge_model": "deepseek-v4-flash",
+      "judge_model_revision": "deepseek-v4-flash",
+      "temperature": 0,
+      "max_completion_tokens": 256,
+      "reasoning_effort": "none",
+      "judge_max_completion_tokens": 128,
+      "judge_reasoning_effort": "none",
+      "request_compatibility": {
+        "token_limit_parameter": "max_tokens",
+        "send_reasoning_effort": false,
+        "send_seed": false
+      },
+      "judge_request_compatibility": {
+        "token_limit_parameter": "max_tokens",
+        "send_reasoning_effort": false,
+        "send_seed": false
+      }
+    },
+    {
+      "model_profile": "weak",
+      "provider_id": "opencode-go",
+      "provider_version": "catalog-model-projection@sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821",
+      "base_url": "https://opencode.ai/zen/go/v1",
+      "model": "deepseek-v4-flash",
+      "model_revision": "deepseek-v4-flash",
+      "judge_provider_id": "opencode-go",
+      "judge_provider_version": "catalog-model-projection@sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821",
+      "judge_base_url": "https://opencode.ai/zen/go/v1",
+      "judge_model": "deepseek-v4-flash",
+      "judge_model_revision": "deepseek-v4-flash",
+      "temperature": 0,
+      "max_completion_tokens": 256,
+      "reasoning_effort": "none",
+      "judge_max_completion_tokens": 128,
+      "judge_reasoning_effort": "none",
+      "request_compatibility": {
+        "token_limit_parameter": "max_tokens",
+        "send_reasoning_effort": false,
+        "send_seed": false
+      },
+      "judge_request_compatibility": {
+        "token_limit_parameter": "max_tokens",
+        "send_reasoning_effort": false,
+        "send_seed": false
+      }
+    }
+  ],
+  "pricing_basis": {
+    "currency": "USD",
+    "unit": "per_1m_tokens",
+    "observed_at": "2026-08-13T11:54:26.000Z",
+    "models": {
+      "deepseek-v4-pro": {
+        "input": 0.435,
+        "output": 0.87
+      },
+      "deepseek-v4-flash": {
+        "input": 0.14,
+        "output": 0.28
+      }
+    }
+  },
+  "source_urls": [
+    "https://opencode.ai/docs/go/",
+    "https://opencode.ai/zen/go/v1/models",
+    "https://opencode.ai/docs/zen"
+  ],
+  "limitations": [
+    "OpenCode Go exposes provider aliases rather than immutable dated model revisions, so this cohort is a contemporary screening run and cannot replace the formal dated-snapshot confirmation cohort.",
+    "The five sampling indices are repeated samples rather than provider-seeded deterministic samples because the proven OpenCode-compatible request path does not send seed or reasoning_effort.",
+    "DeepSeek V4 Flash judges both profiles, so judge agreement is not independent model-family replication and may favor the weak profile.",
+    "OpenCode Go limits are denominated in rolling dollar usage rather than guaranteed request counts; availability, model inventory, limits, and upstream routing may change.",
+    "The provider catalog digest binds the selected aliases, object types, and owner returned by the public model endpoint at freeze time but does not identify the hidden upstream weights or serving revision.",
+    "This contract governs the internal frozen-corpus experiment only and does not authorize provider usage or external-pilot claims."
+  ]
+}

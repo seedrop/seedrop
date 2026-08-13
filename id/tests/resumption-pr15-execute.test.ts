@@ -9,7 +9,9 @@ import {
   estimatePr15Calls,
   executePr15Proof,
   readPr15ExecutionContract,
+  verifyPr15ProviderCatalog,
   withBudget,
+  withRequestCompatibility,
   withRetries,
   writePr15ProofReceipt,
   type Pr15ExecutableProfile,
@@ -28,7 +30,23 @@ describe("PR-15 controlled proof execution", () => {
       "gpt-5.5-2026-04-23", "gpt-5.4-nano-2026-03-17",
     ]);
     expect(contract.profiles.every((item) => item.model_revision !== item.model)).toBe(true);
+    expect(contract.cohort_class).toBe("formal_reproducible");
     expect(contract.limitations).toHaveLength(4);
+  });
+
+  it("loads the catalog-bound OpenCode Go screening contract", async () => {
+    const contract = await readPr15ExecutionContract(resolve("benchmarks/resumption/pr15-opencode-go-2026-08-13.json"));
+    expect(contract.cohort_class).toBe("contemporary_screen");
+    expect(contract.model_identity_policy).toBe("provider_alias_observed");
+    expect(contract.provider_catalog?.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(contract.profiles.map((item) => item.model_revision)).toEqual([
+      "deepseek-v4-pro", "deepseek-v4-flash",
+    ]);
+    await expect(verifyPr15ProviderCatalog(contract, async () => new Response(JSON.stringify({ data: [
+      { id: "deepseek-v4-pro", object: "model", owned_by: "changed" },
+      { id: "deepseek-v4-flash", object: "model", owned_by: "changed" },
+    ] }))))
+      .rejects.toThrow(/catalog changed; no model calls made/);
   });
 
   it("makes zero model calls when the corpus readiness gate fails", async () => {
@@ -131,6 +149,17 @@ describe("PR-15 controlled proof execution", () => {
     expect(telemetry.total_retries).toBe(1);
     expect(telemetry.total_provider_attempts).toBe(2);
     expect(delays).toEqual([10]);
+  });
+
+  it("adapts the frozen request to the proven OpenCode-compatible parameter shape", async () => {
+    const requests: LLMRequest[] = [];
+    const client = withRequestCompatibility(responseClient((request) => {
+      requests.push(request);
+      return validResponse(false);
+    }), { token_limit_parameter: "max_tokens", send_reasoning_effort: false, send_seed: false });
+    await client.chat.completions.create({ model: "deepseek-v4-flash", messages: [], temperature: 0,
+      max_completion_tokens: 256, reasoning_effort: "none", seed: 5 });
+    expect(requests).toEqual([{ model: "deepseek-v4-flash", messages: [], temperature: 0, max_tokens: 256 }]);
   });
 
   it("enforces the approved USD ceiling before a provider call", async () => {
