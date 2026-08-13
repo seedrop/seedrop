@@ -50,7 +50,8 @@ export function renderCliSituationBinding(binding: CliSituationBinding): string 
     `Decision: ${situation.decision_id}`,
     `Health: ${situation.health.state} (${situation.health.substrate})`,
     `Bucket: ${situation.bucket}`,
-    `Next: ${JSON.stringify(situation.orientation.next_action)}`,
+    `Readiness: ${situation.readiness}`,
+    `Next: ${situation.decision.display}`,
     ...(situation.warnings.length ? [`Warnings: ${situation.warnings.join(", ")}`] : []),
     "",
   ].join("\n");

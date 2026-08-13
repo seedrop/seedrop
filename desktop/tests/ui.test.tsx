@@ -78,6 +78,7 @@ function adapterSelection(disposition = "recommend"): NonNullable<ObserverProjec
         decision_id: `sha256:${"b".repeat(64)}`,
         semantic_digest: `sha256:${"c".repeat(64)}`,
         bucket: "up_next",
+        readiness: disposition === "refuse" ? "blocked" : "review",
         health: {
           state: "degraded",
           substrate: "healthy",
@@ -87,6 +88,9 @@ function adapterSelection(disposition = "recommend"): NonNullable<ObserverProjec
           quarantine_count: 0,
           unresolved_disagreement_count: 0,
         },
+        decision: disposition === "refuse"
+          ? { disposition, action: null, reason: "Projection is stale", smallest_repair: "repair_projection", display: "repair_projection" }
+          : { disposition: "recommend", action: "run_parity_gate", reason: null, smallest_repair: null, display: "run_parity_gate" },
         orientation: {
           intent: { title: "Canonical Wave 6 intent", state: "active" },
           risk: [],

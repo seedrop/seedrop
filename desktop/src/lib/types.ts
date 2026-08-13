@@ -6,6 +6,7 @@ export interface AdapterSituationProjection {
   decision_id: string;
   semantic_digest: string;
   bucket: BucketId;
+  readiness: "ready" | "active" | "review" | "blocked" | "unknown";
   health: {
     state: "healthy" | "degraded" | "blocked" | "unknown";
     substrate: string;
@@ -14,6 +15,13 @@ export interface AdapterSituationProjection {
     degraded_source_ids: readonly string[];
     quarantine_count: number;
     unresolved_disagreement_count: number;
+  };
+  decision: {
+    disposition: "recommend" | "refuse" | "unknown";
+    action: string | null;
+    reason: string | null;
+    smallest_repair: string | null;
+    display: string;
   };
   orientation: {
     intent: unknown;

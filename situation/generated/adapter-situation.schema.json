@@ -10,7 +10,9 @@
     "decision_id",
     "semantic_digest",
     "bucket",
+    "readiness",
     "health",
+    "decision",
     "orientation",
     "trust",
     "budget",
@@ -36,6 +38,15 @@
         "needs_attention",
         "up_next",
         "quiet"
+      ]
+    },
+    "readiness": {
+      "enum": [
+        "ready",
+        "active",
+        "review",
+        "blocked",
+        "unknown"
       ]
     },
     "health": {
@@ -82,6 +93,47 @@
         "unresolved_disagreement_count": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disposition",
+        "action",
+        "reason",
+        "smallest_repair",
+        "display"
+      ],
+      "properties": {
+        "disposition": {
+          "enum": [
+            "recommend",
+            "refuse",
+            "unknown"
+          ]
+        },
+        "action": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "smallest_repair": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "display": {
+          "type": "string"
         }
       }
     },

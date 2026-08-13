@@ -31,17 +31,16 @@ export function canonicalIntent(project: ObserverProject): string | null {
 }
 
 export function canonicalDecision(project: ObserverProject): {
-  disposition: string;
-  action: string;
-  detail: string | null;
+  disposition: "recommend" | "refuse" | "unknown";
+  display: string;
+  reason: string | null;
 } | null {
   const shared = canonicalSituation(project);
-  if (!shared) return null;
-  const decision = record(shared.orientation.next_action);
-  const disposition = string(decision.disposition) ?? "unknown";
-  const action = displayField(decision, ["action", "smallest_repair", "reason", "disposition"]);
-  const detail = string(decision.reason) ?? string(decision.smallest_repair);
-  return { disposition, action, detail };
+  return shared ? {
+    disposition: shared.decision.disposition,
+    display: shared.decision.display,
+    reason: shared.decision.reason,
+  } : null;
 }
 
 export function canonicalHealth(project: ObserverProject): AdapterSituationProjection["health"] | null {

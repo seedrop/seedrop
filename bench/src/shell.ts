@@ -298,6 +298,7 @@ function renderSharedSituation(project: BenchProject): string {
     </div>
     <dl>
       <div><dt>Bucket</dt><dd>${escapeHtml(shared.bucket)}</dd></div>
+      <div><dt>Readiness</dt><dd>${escapeHtml(shared.readiness)}</dd></div>
       <div><dt>Health</dt><dd>${escapeHtml(shared.health)}</dd></div>
       <div><dt>Decision</dt><dd title="${escapeAttr(shared.decisionId)}">${escapeHtml(shortId(shared.decisionId))}</dd></div>
     </dl>

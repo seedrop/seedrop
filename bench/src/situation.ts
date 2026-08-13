@@ -5,6 +5,7 @@ export interface BenchSharedSituationView {
   decisionId: string;
   semanticDigest: string;
   bucket: string;
+  readiness: string;
   health: string;
   intent: string;
   nextAction: string;
@@ -22,9 +23,10 @@ export function benchSharedSituationView(project: {
     decisionId: payload.decision_id,
     semanticDigest: payload.semantic_digest,
     bucket: payload.bucket,
+    readiness: payload.readiness,
     health: payload.health.state,
     intent: displayValue(payload.orientation.intent, ["title", "goal", "state", "intent_id"]),
-    nextAction: displayValue(payload.orientation.next_action, ["action", "reason", "smallest_repair", "disposition"]),
+    nextAction: payload.decision.display,
     warnings: payload.warnings,
   };
 }

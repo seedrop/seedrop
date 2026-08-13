@@ -12,6 +12,13 @@
     "blocked",
     "unknown"
   ],
+  "readiness_states": [
+    "ready",
+    "active",
+    "review",
+    "blocked",
+    "unknown"
+  ],
   "fallback_reasons": [
     "feature_disabled",
     "projection_missing",

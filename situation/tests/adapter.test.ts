@@ -11,7 +11,9 @@ describe("canonical adapter Situation", () => {
   it("centralizes healthy active semantics and produces a stable digest", () => {
     const first = compileAdapterSituation(fixture());
     const second = compileAdapterSituation(fixture());
-    expect(first).toMatchObject({ bucket: "ongoing", health: { state: "healthy" }, warnings: [], mutation_capability: "read_only" });
+    expect(first).toMatchObject({ bucket: "ongoing", readiness: "active", health: { state: "healthy" },
+      decision: { disposition: "recommend", action: "resume_intent", display: "resume_intent" },
+      warnings: [], mutation_capability: "read_only" });
     expect(adapterSituationBytes(second)).toEqual(adapterSituationBytes(first));
     expect(first.semantic_digest).toMatch(/^sha256:/);
     expect(() => assertAdapterSituation(JSON.parse(new TextDecoder().decode(adapterSituationBytes(first))))).not.toThrow();
@@ -29,7 +31,9 @@ describe("canonical adapter Situation", () => {
     input.trust!.source_health = { freshness: "stale", completeness: "partial", source_ids: ["project"], missing: ["git"] };
     input.budget = { ...input.budget, complete: false, omitted_categories: ["risk_text"] };
     const result = compileAdapterSituation(input);
-    expect(result).toMatchObject({ bucket: "needs_attention", health: { state: "degraded", freshness: "stale", completeness: "partial" } });
+    expect(result).toMatchObject({ bucket: "needs_attention", readiness: "blocked",
+      health: { state: "degraded", freshness: "stale", completeness: "partial" },
+      decision: { disposition: "refuse", smallest_repair: "repair", display: "repair" } });
     expect(result.warnings).toEqual(["budget_limited:risk_text", "completeness:partial", "freshness:stale", "quarantine:2"]);
   });
 

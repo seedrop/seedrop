@@ -59,13 +59,14 @@ export function ProjectDetail(props: {
           <div className="canonical-situation-head">
             <div>
               <span>Canonical Situation</span>
-              <strong>{decision.disposition === "refuse" ? "Refused" : "Next action"}: {decision.action}</strong>
+              <strong>{decision.disposition === "refuse" ? "Refused" : "Next action"}: {decision.display}</strong>
             </div>
             <span className="canonical-id" title={shared.decision_id}>{shared.decision_id.slice(0, 15)}</span>
           </div>
-          {decision.detail && decision.detail !== decision.action ? <p>{decision.detail}</p> : null}
+          {decision.reason && decision.reason !== decision.display ? <p>{decision.reason}</p> : null}
           <dl>
             <div><dt>Bucket</dt><dd>{shared.bucket}</dd></div>
+            <div><dt>Readiness</dt><dd>{shared.readiness}</dd></div>
             <div><dt>Health</dt><dd>{health.state}</dd></div>
             <div><dt>Freshness</dt><dd>{health.freshness}</dd></div>
           </dl>

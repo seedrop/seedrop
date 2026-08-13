@@ -16,6 +16,7 @@ describe("Bench shared Situation presenter", () => {
           decision_id: digest("b"),
           semantic_digest: digest("c"),
           bucket: "up_next",
+          readiness: "review",
           health: {
             state: "degraded",
             substrate: "healthy",
@@ -25,6 +26,7 @@ describe("Bench shared Situation presenter", () => {
             quarantine_count: 0,
             unresolved_disagreement_count: 0,
           },
+          decision: { disposition: "recommend", action: "run_parity_gate", reason: null, smallest_repair: null, display: "run_parity_gate" },
           orientation: {
             intent: { title: "Ship the adapter wave", state: "active" },
             risk: [],
@@ -56,6 +58,7 @@ describe("Bench shared Situation presenter", () => {
       decisionId: digest("b"),
       semanticDigest: digest("c"),
       bucket: "up_next",
+      readiness: "review",
       health: "degraded",
       intent: "Ship the adapter wave",
       nextAction: "run_parity_gate",

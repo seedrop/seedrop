@@ -5,8 +5,10 @@ import type { BoundedSituationBudget, BoundedSituationProjection } from "./budge
 export const ADAPTER_SITUATION_VERSION = "1.0.0" as const;
 export const ADAPTER_BUCKETS = ["ongoing", "needs_attention", "up_next", "quiet"] as const;
 export const ADAPTER_HEALTH_STATES = ["healthy", "degraded", "blocked", "unknown"] as const;
+export const ADAPTER_READINESS_STATES = ["ready", "active", "review", "blocked", "unknown"] as const;
 export type AdapterBucket = typeof ADAPTER_BUCKETS[number];
 export type AdapterHealthState = typeof ADAPTER_HEALTH_STATES[number];
+export type AdapterReadinessState = typeof ADAPTER_READINESS_STATES[number];
 
 export interface AdapterSituationHealth {
   state: AdapterHealthState;
@@ -18,13 +20,23 @@ export interface AdapterSituationHealth {
   unresolved_disagreement_count: number;
 }
 
+export interface AdapterSituationDecision {
+  disposition: "recommend" | "refuse" | "unknown";
+  action: string | null;
+  reason: string | null;
+  smallest_repair: string | null;
+  display: string;
+}
+
 export interface AdapterSituationProjection {
   adapter_version: typeof ADAPTER_SITUATION_VERSION;
   situation_id: ProjectTransactionDigest;
   decision_id: ProjectTransactionDigest;
   semantic_digest: ProjectTransactionDigest;
   bucket: AdapterBucket;
+  readiness: AdapterReadinessState;
   health: AdapterSituationHealth;
+  decision: AdapterSituationDecision;
   orientation: BoundedSituationProjection["orientation"];
   trust: Readonly<Record<string, JsonValue>>;
   budget: BoundedSituationBudget;
@@ -45,9 +57,11 @@ export class AdapterMutationRejectedError extends Error {
 
 export function compileAdapterSituation(input: BoundedSituationProjection): AdapterSituationProjection {
   const health = compileHealth(input);
+  const decision = compileDecision(input);
+  const bucket = compileBucket(input, health);
   const warnings = compileWarnings(input, health);
   const body = deepFreeze({ adapter_version: ADAPTER_SITUATION_VERSION, situation_id: input.situation_id,
-    decision_id: input.decision_id, bucket: compileBucket(input, health), health,
+    decision_id: input.decision_id, bucket, readiness: compileReadiness(health, bucket, decision), health, decision,
     orientation: input.orientation, trust: input.trust ?? {}, budget: input.budget,
     warnings, mutation_capability: "read_only" as const });
   return deepFreeze({ ...body, semantic_digest: canonicalJsonDigest(body) as ProjectTransactionDigest });
@@ -58,13 +72,17 @@ export function adapterSituationBytes(input: AdapterSituationProjection): Uint8A
 export function assertAdapterSituation(input: unknown): asserts input is AdapterSituationProjection {
   if (!input || typeof input !== "object" || Array.isArray(input)) invalid("object_required");
   const value = input as Record<string, unknown>;
-  const required = ["adapter_version", "situation_id", "decision_id", "semantic_digest", "bucket", "health", "orientation", "trust", "budget", "warnings", "mutation_capability"];
+  const required = ["adapter_version", "situation_id", "decision_id", "semantic_digest", "bucket", "readiness", "health", "decision", "orientation", "trust", "budget", "warnings", "mutation_capability"];
   if (Object.keys(value).sort().join("\u0000") !== [...required].sort().join("\u0000")) invalid("exact_fields_required");
   if (value.adapter_version !== ADAPTER_SITUATION_VERSION || value.mutation_capability !== "read_only") invalid("version_or_capability");
   if (![value.situation_id, value.decision_id, value.semantic_digest].every(isDigest)) invalid("digest_required");
   if (!(ADAPTER_BUCKETS as readonly unknown[]).includes(value.bucket)) invalid("bucket_unknown");
+  if (!(ADAPTER_READINESS_STATES as readonly unknown[]).includes(value.readiness)) invalid("readiness_unknown");
   const health = value.health as Record<string, unknown>;
   if (!health || !(ADAPTER_HEALTH_STATES as readonly unknown[]).includes(health.state)) invalid("health_invalid");
+  const decision = value.decision as Record<string, unknown>;
+  if (!decision || !["recommend", "refuse", "unknown"].includes(String(decision.disposition))
+    || typeof decision.display !== "string") invalid("decision_invalid");
   if (!Array.isArray(value.warnings) || value.warnings.some((item) => typeof item !== "string")) invalid("warnings_invalid");
   canonicalJsonBytes(input);
   const { semantic_digest: _digest, ...body } = value;
@@ -121,6 +139,31 @@ function compileBucket(input: BoundedSituationProjection, health: AdapterSituati
   if (state && ["active", "in_progress", "claimed"].includes(state)) return "ongoing";
   if (decision.disposition === "recommend" || intent.intent_id) return "up_next";
   return "quiet";
+}
+
+function compileDecision(input: BoundedSituationProjection): AdapterSituationDecision {
+  const value = object(input.orientation.next_action);
+  const rawDisposition = string(value.disposition);
+  const disposition = rawDisposition === "recommend" || rawDisposition === "refuse" ? rawDisposition : "unknown";
+  const action = string(value.action);
+  const reason = string(value.reason);
+  const smallestRepair = string(value.smallest_repair);
+  const display = disposition === "refuse"
+    ? smallestRepair ?? reason ?? "Refuse unsafe continuation"
+    : action ?? reason ?? (disposition === "recommend" ? "Continue" : "Decision unavailable");
+  return deepFreeze({ disposition, action, reason, smallest_repair: smallestRepair, display });
+}
+
+function compileReadiness(
+  health: AdapterSituationHealth,
+  bucket: AdapterBucket,
+  decision: AdapterSituationDecision,
+): AdapterReadinessState {
+  if (health.state === "blocked" || decision.disposition === "refuse") return "blocked";
+  if (health.state === "unknown") return "unknown";
+  if (health.state === "degraded") return "review";
+  if (bucket === "ongoing") return "active";
+  return "ready";
 }
 
 function compileWarnings(input: BoundedSituationProjection, health: AdapterSituationHealth): readonly string[] {
