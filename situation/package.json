@@ -9,11 +9,13 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc",
-    "test": "vitest run",
+    "generate": "node scripts/generate-adapter-contract.mjs",
+    "check:generated": "node scripts/generate-adapter-contract.mjs --check",
+    "test": "npm run check:generated && vitest run",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build && npm test"
   },
-  "files": ["src/", "dist/", "README.md"],
+  "files": ["src/", "dist/", "generated/", "README.md"],
   "author": "Mariusz Czaykowski",
   "license": "MIT",
   "engines": { "node": ">=20" },

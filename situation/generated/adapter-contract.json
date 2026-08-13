@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "buckets": [
+    "ongoing",
+    "needs_attention",
+    "up_next",
+    "quiet"
+  ],
+  "health_states": [
+    "healthy",
+    "degraded",
+    "blocked",
+    "unknown"
+  ],
+  "fallback_reasons": [
+    "feature_disabled",
+    "projection_missing",
+    "projection_mismatch"
+  ],
+  "mutation_capability": "read_only"
+}

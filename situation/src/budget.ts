@@ -1,5 +1,5 @@
 import { canonicalJsonBytes } from "@seedrop/protocol";
-import type { ProjectTransactionDigest } from "@seedrop/protocol";
+import type { JsonValue, ProjectTransactionDigest } from "@seedrop/protocol";
 import type { SituatedField, SituationProjection } from "./types.js";
 
 export const BOUNDED_SITUATION_VERSION = "1.0.0" as const;
@@ -25,14 +25,14 @@ export interface BoundedSituationProjection {
   decision_id: ProjectTransactionDigest;
   budget: BoundedSituationBudget;
   orientation: {
-    intent: unknown;
-    risk: unknown;
-    delivery: unknown;
-    grave: unknown;
-    source_health: unknown;
-    next_action: unknown;
+    intent: JsonValue;
+    risk: JsonValue;
+    delivery: JsonValue;
+    grave: JsonValue;
+    source_health: JsonValue;
+    next_action: JsonValue;
   };
-  trust?: Readonly<Record<string, unknown>>;
+  trust?: Readonly<Record<string, JsonValue>>;
 }
 
 export class SituationBudgetInsufficientError extends Error {
@@ -77,37 +77,37 @@ export function compileBoundedSituation(
 
 export function boundedSituationBytes(value: BoundedSituationProjection): Uint8Array { return canonicalJsonBytes(value); }
 
-function compactIntent(situation: SituationProjection, omitted: Set<string>): unknown {
+function compactIntent(situation: SituationProjection, omitted: Set<string>): JsonValue {
   const value = situation.intent.value;
   if (!value) return null;
   return { intent_id: value.intent_id, title: text(value.title, 120, "intent_text", omitted), state: value.state,
     episode_id: value.episode_id, goal: value.goal === null ? null : text(value.goal, 160, "intent_text", omitted) };
 }
-function compactRisks(situation: SituationProjection, omitted: Set<string>): unknown {
+function compactRisks(situation: SituationProjection, omitted: Set<string>): JsonValue {
   if (situation.risk.value.length > 4) omitted.add("additional_risks");
   return situation.risk.value.slice(0, 4).map((risk) => ({ code: risk.code, severity: risk.severity,
     summary: text(risk.summary, 120, "risk_text", omitted), source_ids: risk.source_ids.slice(0, 4) }));
 }
-function compactDelivery(situation: SituationProjection, omitted: Set<string>): unknown {
+function compactDelivery(situation: SituationProjection, omitted: Set<string>): JsonValue {
   const value = situation.delivery.value;
   if (!value) return null;
   if (value.contradictions.length > 3) omitted.add("additional_contradictions");
   return { subject_id: value.subject_id, reported_lifecycle: value.reported_lifecycle, evidence: value.evidence,
     delivery: value.delivery, contradictions: value.contradictions.slice(0, 3) };
 }
-function compactGrave(situation: SituationProjection, omitted: Set<string>): unknown {
+function compactGrave(situation: SituationProjection, omitted: Set<string>): JsonValue {
   const value = situation.grave.value;
   return value ? { subject_id: value.subject_id, kind: value.kind, cause: text(value.cause, 120, "grave_text", omitted),
     retry_status: value.retry_status, retry_condition: text(value.retry_condition, 120, "grave_text", omitted), completeness: value.completeness } : null;
 }
-function compactHealth(situation: SituationProjection, omitted: Set<string>): unknown {
+function compactHealth(situation: SituationProjection, omitted: Set<string>): JsonValue {
   const value = situation.source_health.value;
   if (!value) return null;
   if (value.degraded_source_ids.length > 8) omitted.add("additional_degraded_sources");
   return { substrate: value.substrate, degraded_source_ids: value.degraded_source_ids.slice(0, 8),
     quarantine_count: value.quarantine_count, unresolved_disagreement_count: value.unresolved_disagreement_count };
 }
-function compactDecision(situation: SituationProjection, omitted: Set<string>): unknown {
+function compactDecision(situation: SituationProjection, omitted: Set<string>): JsonValue {
   const value = situation.next_action.value;
   if (value.disposition === "recommend") return { disposition: value.disposition, action: value.action,
     reason: text(value.reason, 160, "decision_text", omitted), command: value.command,
@@ -128,7 +128,7 @@ function minimalOrientation(situation: SituationProjection): BoundedSituationPro
     next_action: decision.disposition === "recommend" ? { disposition: "recommend", action: decision.action } :
       { disposition: "refuse", smallest_repair: decision.smallest_repair } };
 }
-function compactTrust(field: SituatedField<unknown>): unknown { return { freshness: field.freshness, completeness: field.completeness,
+function compactTrust(field: SituatedField<unknown>): JsonValue { return { freshness: field.freshness, completeness: field.completeness,
   source_ids: field.provenance.map((item) => item.source_id), missing: field.missing.slice(0, 8) }; }
 function text(value: string, limit: number, category: string, omitted: Set<string>): string { if (value.length <= limit) return value; omitted.add(category); return `${value.slice(0, limit - 1)}…`; }
 function budget(options: { requested_bytes: number; metrics: BoundedSituationMetrics }, omitted: ReadonlySet<string>): BoundedSituationBudget { return { requested_bytes: options.requested_bytes, actual_bytes: 0,
