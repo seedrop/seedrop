@@ -33,6 +33,21 @@ The live baseline on 2026-08-13 is intentionally rejected: 14 legacy fixtures,
 fixtures with the frozen Wave 7 replay binding, and no scored refusal coverage.
 Do not spend benchmark model calls on that corpus.
 
+Candidate replays are reviewed and frozen one at a time. The freezer refuses to
+overwrite an existing output:
+
+```bash
+npm run bench:resumption:freeze -w @seedrop/id -- \
+  --input candidate.json --out fixtures/frozen-replay.json
+```
+
+The candidate must carry an exact adapter Situation JSON envelope, an explicit
+passed sanitation record bound to the source digest, and probe ground truth no
+newer than the replay cutoff. Freezing verifies the adapter semantic digest and
+read-only capability, materializes the complete content of all four arms, hashes
+every arm, and hashes the complete fixture. Benchmark execution reads only these
+frozen contents; it does not reopen a working tree, View, or live daemon.
+
 ## Historical two-arm harness
 
 Measures whether an agent that receives a Seedrop **Situation packet** at boot

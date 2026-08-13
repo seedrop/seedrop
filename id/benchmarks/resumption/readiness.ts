@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractRepo, linkedRoots } from "./extract.js";
@@ -39,6 +39,7 @@ export interface Wave7ProbeMetadata {
   probe_class: Pr15ProbeClass;
   independence_key: string;
   ground_truth_source_digest: string;
+  ground_truth_observed_at: string;
   task_linked?: boolean;
 }
 
@@ -88,6 +89,8 @@ export interface CorpusReadinessReport {
   situation_outcomes: { served: number; refused: number; unspecified: number };
   duplicate_independence_keys: number;
   legacy_or_unbound_fixtures: number;
+  invalid_probe_metadata: number;
+  future_ground_truths: number;
   checks: ReadinessCheck[];
   blockers: string[];
 }
@@ -110,6 +113,8 @@ export function evaluateCorpusReadiness(
   const outcomes = { served: 0, refused: 0, unspecified: 0 };
   let legacyOrUnbound = 0;
   let safestNextActionWithoutTaskLink = 0;
+  let invalidProbeMetadata = 0;
+  let futureGroundTruths = 0;
 
   for (const task of tasks) {
     const bindingValid = isReplayBinding(task.wave7);
@@ -125,8 +130,13 @@ export function evaluateCorpusReadiness(
       const observedKey = probe.wave7?.independence_key ?? legacyIndependenceKey(task, probe);
       observedKeys.add(observedKey);
       const metadataValid = isProbeMetadata(probe.wave7, contract.probe_classes);
+      if (!metadataValid) invalidProbeMetadata += 1;
       if (!bindingValid || !metadataValid) continue;
       const metadata = probe.wave7!;
+      if (Date.parse(metadata.ground_truth_observed_at) > Date.parse(task.wave7!.evidence_cutoff)) {
+        futureGroundTruths += 1;
+        continue;
+      }
       if (independenceKeys.has(metadata.independence_key)) {
         duplicateKeys.add(metadata.independence_key);
         continue;
@@ -150,6 +160,8 @@ export function evaluateCorpusReadiness(
       largestRepoShare <= ready.max_single_repository_share),
     check("frozen_replay_bindings", legacyOrUnbound === 0, true,
       !ready.require_frozen_replay_bindings || legacyOrUnbound === 0),
+    check("probe_metadata_complete", invalidProbeMetadata, 0, invalidProbeMetadata === 0),
+    check("no_future_ground_truth", futureGroundTruths, 0, futureGroundTruths === 0),
     check("unique_independence_keys", duplicateKeys.size, 0, duplicateKeys.size === 0),
     check("explicit_independence_keys", eligible, observedKeys.size,
       !ready.require_explicit_independence_keys || eligible === observedKeys.size),
@@ -177,6 +189,8 @@ export function evaluateCorpusReadiness(
     situation_outcomes: outcomes,
     duplicate_independence_keys: duplicateKeys.size,
     legacy_or_unbound_fixtures: legacyOrUnbound,
+    invalid_probe_metadata: invalidProbeMetadata,
+    future_ground_truths: futureGroundTruths,
     checks,
     blockers,
   };
@@ -189,8 +203,8 @@ export async function readPr15Contract(path = defaultContractPath()): Promise<Pr
 }
 
 export async function loadWave7Fixtures(directory: string): Promise<Wave7ResumptionTask[]> {
-  const names = (await readdir(directory)).filter((name) => name.endsWith(".json")).sort();
-  return Promise.all(names.map(async (name) => JSON.parse(await readFile(join(directory, name), "utf8")) as Wave7ResumptionTask));
+  const { loadFrozenPr15Replays } = await import("./replay.js");
+  return loadFrozenPr15Replays(directory);
 }
 
 async function main(): Promise<void> {
@@ -217,7 +231,7 @@ function defaultContractPath(): string {
   return join(dirname(fileURLToPath(import.meta.url)), "pr15-contract.json");
 }
 
-function isReplayBinding(input: Wave7ReplayBinding | undefined): input is Wave7ReplayBinding {
+export function isReplayBinding(input: Wave7ReplayBinding | undefined): input is Wave7ReplayBinding {
   return input?.fixture_version === "1.0.0"
     && input.benchmark_contract_version === "1.0.0"
     && typeof input.repo_id === "string" && input.repo_id.length > 0
@@ -230,9 +244,9 @@ function isReplayBinding(input: Wave7ReplayBinding | undefined): input is Wave7R
     && (input.situation_outcome === "served" || input.situation_outcome === "refused");
 }
 
-function isProbeMetadata(input: Wave7ProbeMetadata | undefined, classes: readonly Pr15ProbeClass[]): input is Wave7ProbeMetadata {
+export function isProbeMetadata(input: Wave7ProbeMetadata | undefined, classes: readonly Pr15ProbeClass[]): input is Wave7ProbeMetadata {
   return Boolean(input && classes.includes(input.probe_class) && input.independence_key.length > 0
-    && DIGEST.test(input.ground_truth_source_digest));
+    && DIGEST.test(input.ground_truth_source_digest) && Number.isFinite(Date.parse(input.ground_truth_observed_at)));
 }
 
 function legacyIndependenceKey(task: ResumptionTask, probe: ResumptionProbe): string {

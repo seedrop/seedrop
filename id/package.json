@@ -24,6 +24,7 @@
     "bench:erosion": "tsx benchmarks/erosion/run.ts",
     "bench:resumption": "tsx benchmarks/resumption/run.ts",
     "bench:resumption:readiness": "tsx benchmarks/resumption/readiness.ts",
+    "bench:resumption:freeze": "tsx benchmarks/resumption/replay.ts",
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [

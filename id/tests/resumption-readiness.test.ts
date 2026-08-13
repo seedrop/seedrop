@@ -36,6 +36,7 @@ describe("PR-15 corpus readiness", () => {
     expect(report.observed_independent_ground_truths).toBe(1);
     expect(report.eligible_independent_ground_truths).toBe(0);
     expect(report.blockers).toContain("frozen_replay_bindings");
+    expect(report.blockers).toContain("probe_metadata_complete");
     expect(report.blockers).toContain("independent_ground_truths");
   });
 
@@ -104,7 +105,8 @@ function fixture(index: number, independenceKey = `independent-${index}`, taskLi
       question: "What is safe?",
       check: { kind: "regex", pattern: "safe", correct_when: "matches" },
       wave7: { probe_class: probeClass, independence_key: independenceKey,
-        ground_truth_source_digest: digest(hash), task_linked: probeClass === "safest_next_action" ? taskLinked : undefined },
+        ground_truth_source_digest: digest(hash), ground_truth_observed_at: "2026-08-12T00:00:00.000Z",
+        task_linked: probeClass === "safest_next_action" ? taskLinked : undefined },
     }],
   };
 }
