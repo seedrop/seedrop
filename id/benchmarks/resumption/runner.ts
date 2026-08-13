@@ -41,7 +41,7 @@ function systemPrompt(task: ResumptionTask, arm: Arm): string {
   return header.join("\n");
 }
 
-async function applyCheck(
+export async function applyCheck(
   check: ProbeCheck,
   response: string,
   judgeClient: LLMClient,

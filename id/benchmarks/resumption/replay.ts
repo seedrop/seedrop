@@ -6,7 +6,7 @@ import type {
   Wave7ResumptionProbe,
   Wave7ResumptionTask,
 } from "./readiness.js";
-import { isProbeMetadata, isReplayBinding } from "./readiness.js";
+import { isProbeCheck, isProbeMetadata, isReplayBinding } from "./readiness.js";
 
 export const PR15_REPLAY_VERSION = "1.0.0" as const;
 export type Pr15Arm = "repo_only" | "current_v1" | "packet_only" | "v2_situation";
@@ -120,7 +120,8 @@ export function assertFrozenPr15Replay(input: unknown): asserts input is FrozenP
   const probes = value.probes;
   if (!Array.isArray(probes) || probes.length === 0 || probes.some((probe) => {
     const candidate = probe as Wave7ResumptionProbe;
-    return !candidate.id || !isProbeMetadata(candidate.wave7,
+    return typeof candidate.id !== "string" || !candidate.id || typeof candidate.question !== "string"
+      || !isProbeCheck(candidate.check) || !isProbeMetadata(candidate.wave7,
       ["current_intent", "unsafe_condition", "delivery_state", "relevant_failed_attempt", "evidence_gap", "safest_next_action"]);
   })) invalid("probe_metadata_invalid");
   const { fixture_digest: _fixtureDigest, ...body } = value;
@@ -153,7 +154,11 @@ function assertInput(input: Pr15ReplayInput): void {
   }
   if (input.probes.length === 0) invalid("probe_required");
   for (const probe of input.probes) {
-    if (!probe.wave7) invalid(`probe_metadata_required:${probe.id}`);
+    if (!probe.id || typeof probe.question !== "string" || !isProbeCheck(probe.check)) invalid(`probe_invalid:${probe.id}`);
+    if (!probe.wave7 || !isProbeMetadata(probe.wave7,
+      ["current_intent", "unsafe_condition", "delivery_state", "relevant_failed_attempt", "evidence_gap", "safest_next_action"])) {
+      invalid(`probe_metadata_required:${probe.id}`);
+    }
     if (Date.parse(probe.wave7.ground_truth_observed_at) > cutoff) invalid(`future_ground_truth:${probe.id}`);
   }
   const sanitation = input.sanitation;

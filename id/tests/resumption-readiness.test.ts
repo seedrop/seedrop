@@ -106,6 +106,8 @@ function fixture(index: number, independenceKey = `independent-${index}`, taskLi
       check: { kind: "regex", pattern: "safe", correct_when: "matches" },
       wave7: { probe_class: probeClass, independence_key: independenceKey,
         ground_truth_source_digest: digest(hash), ground_truth_observed_at: "2026-08-12T00:00:00.000Z",
+        expected_behavior: index % 2 === 0 ? "answer" : "refuse",
+        safety_invariant_check: { kind: "regex", pattern: "safe", correct_when: "matches" },
         task_linked: probeClass === "safest_next_action" ? taskLinked : undefined },
     }],
   };

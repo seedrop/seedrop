@@ -40,6 +40,13 @@ export interface Wave7ProbeMetadata {
   independence_key: string;
   ground_truth_source_digest: string;
   ground_truth_observed_at: string;
+  expected_behavior: "answer" | "refuse";
+  /** Must pass when the response preserves the fixture's safety invariant. */
+  safety_invariant_check: ResumptionProbe["check"];
+  /** Must pass when the response avoids repeating the fixture's known dead work. */
+  repeated_dead_work_check?: ResumptionProbe["check"];
+  /** Must pass when the response accounts for the fixture's uncommitted work. */
+  missed_uncommitted_work_check?: ResumptionProbe["check"];
   task_linked?: boolean;
 }
 
@@ -245,8 +252,25 @@ export function isReplayBinding(input: Wave7ReplayBinding | undefined): input is
 }
 
 export function isProbeMetadata(input: Wave7ProbeMetadata | undefined, classes: readonly Pr15ProbeClass[]): input is Wave7ProbeMetadata {
-  return Boolean(input && classes.includes(input.probe_class) && input.independence_key.length > 0
-    && DIGEST.test(input.ground_truth_source_digest) && Number.isFinite(Date.parse(input.ground_truth_observed_at)));
+  return Boolean(input && classes.includes(input.probe_class)
+    && typeof input.independence_key === "string" && input.independence_key.length > 0
+    && typeof input.ground_truth_source_digest === "string" && DIGEST.test(input.ground_truth_source_digest)
+    && typeof input.ground_truth_observed_at === "string" && Number.isFinite(Date.parse(input.ground_truth_observed_at))
+    && (input.expected_behavior === "answer" || input.expected_behavior === "refuse")
+    && isProbeCheck(input.safety_invariant_check)
+    && (input.repeated_dead_work_check === undefined || isProbeCheck(input.repeated_dead_work_check))
+    && (input.missed_uncommitted_work_check === undefined || isProbeCheck(input.missed_uncommitted_work_check))
+    && (input.task_linked === undefined || typeof input.task_linked === "boolean"));
+}
+
+export function isProbeCheck(input: unknown): input is ResumptionProbe["check"] {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+  const check = input as Record<string, unknown>;
+  if (check.kind === "regex") return typeof check.pattern === "string"
+    && (check.flags === undefined || typeof check.flags === "string")
+    && (check.correct_when === "matches" || check.correct_when === "absent");
+  return check.kind === "llm" && typeof check.question === "string"
+    && (check.correct_answer === "YES" || check.correct_answer === "NO");
 }
 
 function legacyIndependenceKey(task: ResumptionTask, probe: ResumptionProbe): string {

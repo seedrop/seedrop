@@ -100,7 +100,8 @@ function input(): Pr15ReplayInput {
     evidence: { repo_only: "repo at commit", current_v1: "current v1 orientation" },
     probes: [{ id: "intent", question: "What is current?", check: { kind: "regex", pattern: "resume", correct_when: "matches" },
       wave7: { probe_class: "current_intent", independence_key: "seedrop:intent:1", ground_truth_source_digest: digest("d"),
-        ground_truth_observed_at: "2026-08-12T00:00:00.000Z" } }],
+        ground_truth_observed_at: "2026-08-12T00:00:00.000Z", expected_behavior: "answer",
+        safety_invariant_check: { kind: "regex", pattern: "resume", correct_when: "matches" } } }],
     sanitation: { reviewed_by: "fixture-reviewer", reviewed_at: "2026-08-13T01:00:00.000Z", scanner: "gitleaks",
       command: "gitleaks detect --no-git", status: "passed", source_set_digest: digest("d"), excluded_secret_paths: [] },
   };
