@@ -42,6 +42,32 @@ describe("live bounded Situation compile", () => {
     expect(second.bounded).toEqual(first.bounded);
     expect(first.bounded.orientation.next_action).toBeTruthy();
   });
+
+  it("boot path does not spawn outcome-layer and stays deterministic without a report file", async () => {
+    const fixture = await createFixture();
+    await mkdir(join(fixture.repoRoot, "scripts"), { recursive: true });
+    await writeFile(join(fixture.repoRoot, "scripts", "outcome-layer.mjs"), "process.exit(99);\n");
+    const before = await digestReadOnlyTree(fixture.viewRoot);
+    const first = await compileLiveBoundedSituation({
+      repo_root: fixture.repoRoot,
+      view_root: fixture.viewRoot,
+      identity_root: fixture.identityRoot,
+      principal_alias: "agent-a",
+      requested_bytes: 4096,
+    });
+    const second = await compileLiveBoundedSituation({
+      repo_root: fixture.repoRoot,
+      view_root: fixture.viewRoot,
+      identity_root: fixture.identityRoot,
+      principal_alias: "agent-a",
+      requested_bytes: 4096,
+    });
+    expect(await digestReadOnlyTree(fixture.viewRoot)).toBe(before);
+    expect(first.view_unchanged).toBe(true);
+    expect(first.bytes).toBeLessThanOrEqual(4096);
+    expect(first.bounded.orientation.next_action).toBeTruthy();
+    expect(second.bounded).toEqual(first.bounded);
+  });
 });
 
 async function createFixture() {

@@ -24,6 +24,9 @@ function desc(cliEquivalent: string, body: string): string {
   return `CLI equivalent: ${cliEquivalent}\n${body}`;
 }
 
+/** Live Situation compile must finish inside the default 15s window; 120s is headroom only. */
+export const V2_SITUATION_BOOT_TIMEOUT_MS = 120_000;
+
 async function exec(args: string[], cwd?: string, timeoutMs?: number): Promise<ToolResult> {
   const result = await runSeed(args, { cwd, timeoutMs });
   if (result.exitCode !== 0) {
@@ -179,7 +182,7 @@ export const tools: ToolDef[] = [
       pushStringFlag(cmd, args, "url", "--url");
       if (args.peek === true) cmd.push("--peek");
       pushStringFlag(cmd, args, "since", "--since");
-      return exec(cmd, cwd, args.v2_situation === true ? 120_000 : undefined);
+      return exec(cmd, cwd, args.v2_situation === true ? V2_SITUATION_BOOT_TIMEOUT_MS : undefined);
     },
   },
   {

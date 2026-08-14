@@ -66,6 +66,7 @@ export {
 } from "./view-history.js";
 
 export {
+  LIVE_SITUATION_BOOT_BUDGET_MS,
   compileLiveBoundedSituation,
 } from "./live-situation.js";
 

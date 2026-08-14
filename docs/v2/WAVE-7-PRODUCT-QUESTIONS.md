@@ -18,7 +18,9 @@ arm. It is not a v2 win condition.
 2. CLI and MCP return the same `situation_id` and `decision_id` for that live
    compile.
 3. Compile failure or digest mismatch still serves v1.
-4. The benchmark `v2_situation` arm is that live object, or a sealed replay of
+4. Live compile finishes within 8s without spawning `outcome-layer`, and the
+   full CLI boot finishes inside the MCP 15s default spawn window.
+5. The benchmark `v2_situation` arm is that live object, or a sealed replay of
    it, not a brochure fixture that boot does not serve.
 
 Until those are true, no provider calls.
