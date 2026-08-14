@@ -1,5 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { collectBenchState, defaultSpaceUrl, type BenchStateOptions } from "./state.js";
+import {
+  collectBenchState,
+  defaultSpaceUrl,
+  type BenchStateOptions,
+} from "@seedrop/observer";
 import { renderBenchShell } from "./shell.js";
 
 export interface BenchServerOptions {

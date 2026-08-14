@@ -4,7 +4,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defaultSpaceUrl } from "./state.js";
+import { defaultSpaceUrl } from "@seedrop/observer";
 import { startBenchServer } from "./server.js";
 
 export interface BenchCliIO {

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkspaceView } from "@seedrop/space";
-import { collectBenchState } from "../src/state.js";
+import { collectBenchState } from "@seedrop/observer";
 import type { Passport } from "@seedrop/id";
 
 let root: string;

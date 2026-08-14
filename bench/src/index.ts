@@ -1,7 +1,7 @@
 export {
   collectBenchState,
   defaultSpaceUrl,
-} from "./state.js";
+} from "@seedrop/observer";
 export {
   renderBenchShell,
 } from "./shell.js";
@@ -36,4 +36,4 @@ export type {
   BenchProjectViewState,
   BenchState,
   BenchStateOptions,
-} from "./state.js";
+} from "@seedrop/observer";

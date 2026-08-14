@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderBenchShell } from "../src/shell.js";
-import type { BenchProjectInspectors, BenchState } from "../src/state.js";
+import type { BenchProjectInspectors, BenchState } from "@seedrop/observer";
 
 describe("renderBenchShell", () => {
   it("renders the Codex-style Bench workbench regions", () => {

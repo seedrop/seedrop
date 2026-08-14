@@ -13,7 +13,7 @@ import type {
   BenchState,
   BenchTaskSummary,
   BenchValidationSummary,
-} from "./state.js";
+} from "@seedrop/observer";
 import { benchSharedSituationView } from "./situation.js";
 
 export interface BenchShellOptions {
