@@ -2,7 +2,7 @@
 
 **Frozen:** 2026-08-14  
 **Governing task:** `0bd55150` (`v2:live-situation-then-two-questions`)  
-**Status:** questions locked; provider spend is not authorized
+**Status:** questions locked into the runner; provider spend is not authorized
 
 Wave 7 is no longer a 24-result or 4,040-result pass/fail on a repaired harness.
 It answers two product questions about the **live** Situation object that boot
@@ -32,6 +32,19 @@ arm. It is not a v2 win condition.
 
 Until those are true, no provider calls.
 
+The runner now scores the two questions in
+`id/benchmarks/resumption/pr15-wave7-questions.json` and
+`id/benchmarks/resumption/wave7-questions.ts`:
+
+- Q1 uses the **untutored** prompt on served work and compares `v2_situation`
+  against `packet_only` and `current_v1`. Tutored `refuse=true` results are
+  excluded.
+- Q2 scores the same refused fixtures under both prompt modes. A refusal that
+  appears only after tutoring is attributed to tutoring, not to v2.
+- `wave7_v2_win` stays false until an operator-authorized canary supplies those
+  results. The failed-attempt and 24-result repair canaries do not answer
+  these questions.
+
 ## Question 1 — served replacement economics
 
 On **served** work (the Situation decision is `recommend`, not refuse):
@@ -57,7 +70,7 @@ as Seedrop v2 causing the refusal.
 | Action | Authorization |
 | --- | --- |
 | Gate A failed-attempt compatibility canary (4 results / 8 calls) | optional, exact operator call/attempt/USD ceiling only, and only after preconditions |
-| Gate B 24-result repair canary | forbidden until both questions are locked into the runner and live Situation is the v2 arm |
+| Gate B 24-result repair canary | forbidden; that contract still tutors and does not score Q1/Q2 |
 | 4,040-result screen | forbidden |
 | Token-cap increase | forbidden |
 | Design-partner pilot | forbidden |

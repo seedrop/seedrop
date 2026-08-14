@@ -2,13 +2,19 @@
 
 ## Wave 7 / PR-15 status
 
-Governing questions live in `docs/v2/WAVE-7-PRODUCT-QUESTIONS.md`. Provider
-spend is forbidden until live `seed boot --v2-situation` serves `mode=v2`
-without a file, and the runner scores:
+Governing questions live in `docs/v2/WAVE-7-PRODUCT-QUESTIONS.md` and are
+scored by `id/benchmarks/resumption/wave7-questions.ts`. Provider spend is
+forbidden until live `seed boot --v2-situation` serves `mode=v2` without a
+file. The runner now distinguishes:
 
 1. served replacement economics with `packet_only` first-class against live v2
-   and current v1, without tutoring;
+   and current v1, **without tutoring**;
 2. refusal provenance (Situation decision vs prompt-tutored `refuse=true`).
+
+Tutored `refuse=true` remains the Q2 control arm. It is not a v2 win.
+`wave7_v2_win` stays false until an operator names an exact call/attempt/USD
+ceiling. The failed-attempt compatibility canary and the 24-result repair
+canary do not answer these questions.
 
 The original two-arm harness below is retained as historical regression coverage;
 it is **not** sufficient evidence for the v2 product claim. Wave 7 still freezes

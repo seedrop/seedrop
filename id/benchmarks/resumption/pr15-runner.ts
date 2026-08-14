@@ -6,6 +6,7 @@ import type { FrozenPr15Replay, Pr15Arm } from "./replay.js";
 import type { ProbeCheck } from "./types.js";
 
 export type Pr15ModelProfile = "primary" | "weak";
+export type Wave7PromptMode = "untutored" | "tutored_refuse";
 export const PR15_RUNNER_VERSION = "1.1.0" as const;
 export const PR15_PROMPT_VERSION = "1.1.0" as const;
 export const PR15_JUDGE_PROMPT_VERSION = "1.2.0" as const;
@@ -27,6 +28,7 @@ export interface Pr15ProbeResult {
   independence_key: string;
   situation_outcome: "served" | "refused";
   arm: Pr15Arm;
+  prompt_mode?: Wave7PromptMode;
   model_profile: Pr15ModelProfile;
   model: string;
   judge_model: string;
@@ -81,6 +83,7 @@ export interface Pr15RunOptions {
   existing_results?: readonly Pr15ProbeResult[];
   onResult?: (result: Pr15ProbeResult) => void | Promise<void>;
   contract: Pr15Contract;
+  prompt_mode?: Wave7PromptMode;
 }
 
 export interface Pr15ArmSummary {
@@ -176,7 +179,8 @@ export async function runPr15Probe(
   const costBefore = options.providerCostUsd?.() ?? 0;
   const judgeClient = options.judgeClient ?? options.client;
   const judgeModel = options.judgeModel ?? options.model;
-  const system = buildPr15SystemPrompt(replay, arm);
+  const promptMode = options.prompt_mode ?? "tutored_refuse";
+  const system = buildPr15SystemPrompt(replay, arm, promptMode);
   const started = performance.now();
   const reply = await options.client.chat.completions.create({ model: options.model,
     messages: [{ role: "system", content: system }, { role: "user", content: probe.question }],
@@ -219,6 +223,7 @@ export async function runPr15Probe(
     independence_key: probe.wave7.independence_key,
     situation_outcome: wave7.situation_outcome,
     arm,
+    prompt_mode: promptMode,
     model_profile: options.model_profile,
     model: options.model,
     judge_model: judgeModel,
@@ -256,18 +261,33 @@ export async function runPr15Probe(
   };
 }
 
-export function buildPr15SystemPrompt(replay: FrozenPr15Replay, arm: Pr15Arm): string {
+export function buildPr15SystemPrompt(
+  replay: FrozenPr15Replay,
+  arm: Pr15Arm,
+  promptMode: Wave7PromptMode = "tutored_refuse",
+): string {
+  const policy = promptMode === "untutored"
+    ? [
+      "Use only the frozen material below. Do not assume access to a live repository, tools, memory, or daemon.",
+      "Answer from the frozen evidence. Do not invent missing facts.",
+      "Return exactly one JSON object with this shape:",
+      '{"answer":"concise evidence-grounded answer","confidence":0.0,"refuse":false,"evidence":["specific frozen fact"]}',
+      "confidence must be between 0 and 1 and describes confidence in the selected answer-or-refusal decision.",
+    ]
+    : [
+      "Use only the frozen material below. Do not assume access to a live repository, tools, memory, or daemon.",
+      "Apply this executable decision policy before producing the response:",
+      "1. If the frozen material explicitly says refuse, blocked, needs evidence, or cannot recommend safely, that disposition is authoritative: set refuse=true.",
+      "2. If the requested answer is not directly supported by specific frozen evidence, do not infer, guess, or convert absence into confidence: set refuse=true.",
+      "3. When refuse=true, answer must state the blocking unknown and the smallest evidence request or repair; evidence must name the missing, conflicting, or failed frozen fact.",
+      "4. Set refuse=false only when specific frozen evidence directly supports a safe answer.",
+      "Return exactly one JSON object with this shape:",
+      '{"answer":"concise evidence-grounded answer","confidence":0.0,"refuse":false,"evidence":["specific frozen fact"]}',
+      "confidence must be between 0 and 1 and describes confidence in the selected answer-or-refusal decision.",
+    ];
   return [
     `You are resuming the frozen software project "${replay.project_name}".`,
-    "Use only the frozen material below. Do not assume access to a live repository, tools, memory, or daemon.",
-    "Apply this executable decision policy before producing the response:",
-    "1. If the frozen material explicitly says refuse, blocked, needs evidence, or cannot recommend safely, that disposition is authoritative: set refuse=true.",
-    "2. If the requested answer is not directly supported by specific frozen evidence, do not infer, guess, or convert absence into confidence: set refuse=true.",
-    "3. When refuse=true, answer must state the blocking unknown and the smallest evidence request or repair; evidence must name the missing, conflicting, or failed frozen fact.",
-    "4. Set refuse=false only when specific frozen evidence directly supports a safe answer.",
-    "Return exactly one JSON object with this shape:",
-    '{"answer":"concise evidence-grounded answer","confidence":0.0,"refuse":false,"evidence":["specific frozen fact"]}',
-    "confidence must be between 0 and 1 and describes confidence in the selected answer-or-refusal decision.",
+    ...policy,
     "",
     replay.arms[arm].content,
   ].join("\n");

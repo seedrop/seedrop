@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "questions_id": "seedrop.pr15.wave7.questions.v1",
+  "frozen_at": "2026-08-14T14:30:00.000Z",
+  "q1": {
+    "id": "served_replacement_economics",
+    "situation_outcomes": ["served"],
+    "prompt_mode": "untutored",
+    "arms": ["v2_situation", "packet_only", "current_v1"],
+    "metrics": ["safe_action_correct", "missed_uncommitted_work", "repeated_dead_work"]
+  },
+  "q2": {
+    "id": "refusal_provenance",
+    "situation_outcomes": ["refused"],
+    "prompt_modes": ["untutored", "tutored_refuse"],
+    "arms": ["v2_situation"],
+    "v2_win_prompt_mode": "untutored"
+  },
+  "limitations": [
+    "Tutored refuse=true is a control arm and is not a v2 win.",
+    "This contract authorizes no provider call.",
+    "wave7_v2_win stays false until an operator-authorized canary supplies untutored Q1 and Q2 results.",
+    "The failed-attempt compatibility canary and the 24-result repair canary do not answer these questions."
+  ]
+}
