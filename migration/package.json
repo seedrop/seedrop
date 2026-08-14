@@ -40,8 +40,10 @@
   },
   "dependencies": {
     "@seedrop/id": "^0.2.0-alpha.5",
+    "@seedrop/outcomes": "^0.1.0-alpha.1",
     "@seedrop/project": "^0.1.0-alpha.1",
     "@seedrop/protocol": "^0.1.0-alpha.1",
+    "@seedrop/situation": "^0.1.0-alpha.1",
     "@seedrop/space": "^0.2.0-alpha.5"
   },
   "optionalDependencies": {

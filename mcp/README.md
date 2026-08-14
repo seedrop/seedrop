@@ -50,8 +50,10 @@ Restart the client. Call `seedrop_capabilities` or run `seed capabilities` for t
 | `seedrop_space_register` | Register a live session (you appear in presence). |
 
 `seedrop_boot` also exposes the generated Wave 6 binding fields `v2_situation`,
-`situation_file`, and the three expected-digest fields. It delegates to the CLI and
-returns the same semantic payload; v1 remains served on projection mismatch.
+`situation_file`, and the three expected-digest fields. With `v2_situation` and no
+`situation_file`, CLI/MCP compile a live read-only Situation from the repo View.
+They still delegate to the same semantic payload, and v1 remains served on
+compile failure or projection mismatch.
 | `seedrop_space_heartbeat` | Keep the cached session warm. |
 | `seedrop_space_presence` | List online agents. |
 | `seedrop_space_join` | Open or join a Space. |

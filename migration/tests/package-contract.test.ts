@@ -19,7 +19,7 @@ describe("@seedrop/migration package contract", () => {
         "v1_edge_compatibility",
         "dry_run_command_translation",
       ],
-      depends_on: ["@seedrop/id", "@seedrop/project", "@seedrop/protocol", "@seedrop/space"],
+      depends_on: ["@seedrop/id", "@seedrop/outcomes", "@seedrop/project", "@seedrop/protocol", "@seedrop/situation", "@seedrop/space"],
       excludes: ["v1_source_mutation", "cutover_authority", "adapter_policy", "custom_database", "command_submission"],
       terminal_state: "verified_not_authorized_for_cutover",
     });

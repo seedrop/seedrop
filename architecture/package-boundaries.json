@@ -49,8 +49,10 @@
       ],
       "allowed_internal_dependencies": [
         "@seedrop/id",
+        "@seedrop/outcomes",
         "@seedrop/project",
         "@seedrop/protocol",
+        "@seedrop/situation",
         "@seedrop/space"
       ]
     },
@@ -104,6 +106,9 @@
       "@seedrop/cli",
       "@seedrop/mcp",
       "@seedrop/observer"
+    ],
+    "@seedrop/migration": [
+      "@seedrop/cli"
     ]
   },
   "rules": {

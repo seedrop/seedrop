@@ -66,6 +66,15 @@ export {
 } from "./view-history.js";
 
 export {
+  compileLiveBoundedSituation,
+} from "./live-situation.js";
+
+export type {
+  CompileLiveBoundedSituationInput,
+  CompileLiveBoundedSituationResult,
+} from "./live-situation.js";
+
+export {
   MIGRATION_PACKAGE_CONTRACT,
   MIGRATION_SOURCE_KINDS,
   IDENTITY_IMPORT_VERSION,

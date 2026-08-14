@@ -24,8 +24,8 @@ function desc(cliEquivalent: string, body: string): string {
   return `CLI equivalent: ${cliEquivalent}\n${body}`;
 }
 
-async function exec(args: string[], cwd?: string): Promise<ToolResult> {
-  const result = await runSeed(args, { cwd });
+async function exec(args: string[], cwd?: string, timeoutMs?: number): Promise<ToolResult> {
+  const result = await runSeed(args, { cwd, timeoutMs });
   if (result.exitCode !== 0) {
     const timeout = result.timedOut ? " timed out" : "";
     const truncated = result.truncated ? "\n(output truncated)" : "";
@@ -156,7 +156,7 @@ export const tools: ToolDef[] = [
         peek: { type: "boolean", description: "Return a deliberately non-acknowledgeable continuity page.", default: false },
         since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
         budget: { type: "number", description: "Compact-JSON byte budget for the JSON report. Omit for the full pretty-printed report." },
-        v2_situation: { type: "boolean", description: "Enable the Wave 6 shared Situation binding. Falls back to v1 on missing or mismatched projection.", default: false },
+        v2_situation: { type: "boolean", description: "Enable the Wave 6 shared Situation binding. Compiles a live read-only Situation from the repo View when situation_file is omitted. Falls back to v1 on missing or mismatched projection.", default: false },
         situation_file: { type: "string", description: "Path to a generated adapter Situation projection." },
         expect_situation: { type: "string", description: "Expected Situation digest; mismatch serves v1." },
         expect_decision: { type: "string", description: "Expected decision digest; mismatch serves v1." },
@@ -179,7 +179,7 @@ export const tools: ToolDef[] = [
       pushStringFlag(cmd, args, "url", "--url");
       if (args.peek === true) cmd.push("--peek");
       pushStringFlag(cmd, args, "since", "--since");
-      return exec(cmd, cwd);
+      return exec(cmd, cwd, args.v2_situation === true ? 120_000 : undefined);
     },
   },
   {

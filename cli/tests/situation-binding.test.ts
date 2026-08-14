@@ -18,6 +18,33 @@ describe("CLI shared Situation binding", () => {
     expect(renderCliSituationBinding(binding)).toContain(shared.decision_id);
   });
 
+  it("compiles a live projection when the feature is on and no file is supplied", async () => {
+    const shared = compileAdapterSituation(fixture());
+    const binding = await bindCliSituation({
+      feature: true,
+      repo_root: "/repo",
+      principal_alias: "cursor",
+      legacy: { source: "v1" },
+      compile_live: async () => fixture(),
+      expected: { situation_id: shared.situation_id, decision_id: shared.decision_id, semantic_digest: shared.semantic_digest },
+    });
+    expect(binding.selection).toMatchObject({ mode: "v2", served: { kind: "v2_situation", payload: shared } });
+  });
+
+  it("serves v1 with projection_missing when live compile fails", async () => {
+    const binding = await bindCliSituation({
+      feature: true,
+      repo_root: "/repo",
+      legacy: { source: "v1" },
+      compile_live: async () => { throw new Error("compile failed"); },
+    });
+    expect(binding.selection).toMatchObject({
+      mode: "v1_fallback",
+      reason: "projection_missing",
+      served: { payload: { source: "v1" } },
+    });
+  });
+
   it("serves v1 with projection_mismatch for invalid serialized input", async () => {
     const root = await mkdtemp(join(tmpdir(), "seedrop-cli-situation-")), path = join(root, "bad.json");
     await writeFile(path, JSON.stringify({ adapter_version: "1.0.0", bucket: "invented" }));

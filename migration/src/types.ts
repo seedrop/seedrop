@@ -537,7 +537,14 @@ export const MIGRATION_PACKAGE_CONTRACT = Object.freeze({
     "v1_edge_compatibility",
     "dry_run_command_translation",
   ] as const),
-  depends_on: Object.freeze(["@seedrop/id", "@seedrop/project", "@seedrop/protocol", "@seedrop/space"] as const),
+  depends_on: Object.freeze([
+    "@seedrop/id",
+    "@seedrop/outcomes",
+    "@seedrop/project",
+    "@seedrop/protocol",
+    "@seedrop/situation",
+    "@seedrop/space",
+  ] as const),
   excludes: Object.freeze([
     "v1_source_mutation",
     "cutover_authority",
