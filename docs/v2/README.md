@@ -1,7 +1,7 @@
 # Seedrop v2 — Provable Continuity
 
 **Status:** product and architecture thesis, grounded in the 2026-08-08 code and machine-corpus audit  
-**Companion evidence:** [machine evidence](./MACHINE-EVIDENCE.md), [system forensics](./SYSTEM-FORENSICS.md), [Seedrop DB experiment forensics](./SEEDROP-DB-EXPERIMENT.md), [evidence-based redemption plan](./EVIDENCE-BASED-PLAN.md), [migration snapshot and restore](./SNAPSHOT-RESTORE.md), [durable v1 freeze](./DURABLE-V1-FREEZE.md), [backlog reconciliation](./BACKLOG-RECONCILIATION.md)
+**Companion evidence:** [machine evidence](./MACHINE-EVIDENCE.md), [system forensics](./SYSTEM-FORENSICS.md), [Seedrop DB experiment forensics](./SEEDROP-DB-EXPERIMENT.md), [evidence-based redemption plan](./EVIDENCE-BASED-PLAN.md), [Wave 7 product questions](./WAVE-7-PRODUCT-QUESTIONS.md), [migration snapshot and restore](./SNAPSHOT-RESTORE.md), [durable v1 freeze](./DURABLE-V1-FREEZE.md), [backlog reconciliation](./BACKLOG-RECONCILIATION.md)
 
 ## Verdict
 

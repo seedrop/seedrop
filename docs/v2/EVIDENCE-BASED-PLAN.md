@@ -5,7 +5,7 @@
 **Objective:** make Seedrop unable to report a confident continuity state that its canonical evidence cannot support  
 **Main-path boundary:** `seedrop_db` remains an independent experiment. No v2 task depends on it; reconsideration requires separately preregistered, reproducible evidence of approximately 10× end-to-end Seedrop product value.
 
-**Execution status (2026-08-09):** Wave 0 is complete. DC-01 froze the durable v1 authority, DC-02 sealed and restore-tested the migration corpus, and DC-13 reconciled the live backlog. The Wave 0 gate authorizes materializing Wave 1A/1B containment tasks; it does not authorize v2 write cutover. See the [durable-v1 freeze](./DURABLE-V1-FREEZE.md), [snapshot proof](./SNAPSHOT-RESTORE.md), and [backlog ledger](./BACKLOG-RECONCILIATION.md).
+**Execution status (2026-08-14):** Waves 0–6 landed in git. V1 remains the write authority. Wave 7 is reshaped around [two product questions](./WAVE-7-PRODUCT-QUESTIONS.md) asked of the **live** Situation boot serves. The 24-result / 4,040-result repaired-harness bars, design-partner pilot, and provider spend are not authorized until those questions are locked and `seed boot --v2-situation` serves `mode=v2` without a hand-fed file. See the [durable-v1 freeze](./DURABLE-V1-FREEZE.md), [snapshot proof](./SNAPSHOT-RESTORE.md), and [backlog ledger](./BACKLOG-RECONCILIATION.md).
 
 Evidence references below use `F1`–`F5` for sections 1–5 of [system forensics](./SYSTEM-FORENSICS.md) and `M` for [machine evidence](./MACHINE-EVIDENCE.md). Each table's finding/state/failure cell is its `Addresses: [forensic finding]` trace. Timing is `Immediate`, `Short-Term`, `Medium-Term`, or `Long-Term`. Owners are responsibility domains, not assumed individuals.
 
@@ -210,16 +210,26 @@ Subtraction is gated, not cosmetic:
 
 ### Frozen product-proof contract
 
-Before implementing the benchmark-facing Situation templates, PR-15 freezes:
+PR-15 remains the resumption harness, but Wave 7 no longer treats a repaired
+24-result or 4,040-result canary as the product claim. See
+[WAVE-7-PRODUCT-QUESTIONS.md](./WAVE-7-PRODUCT-QUESTIONS.md).
 
-- sanitized real-repo states at evidence scales where full reading is costly;
-- primary arms: repo-only, current Seedrop v1, and Seedrop v2 Situation; packet-only measures replacement economics;
-- tasks: recover current intent, unsafe condition, delivery state, relevant failed attempt, evidence gap, and safest next action;
-- metrics: answer correctness, unsupported high confidence, repeated dead work, missed uncommitted work, input/output tokens, and time-to-safe-action;
-- coverage: both successful Situations and explicit refusals are scored;
-- preregistered thresholds: zero safety-invariant violations; v2 safe-action correctness at least 90%; at least 20 percentage points over repo-only and a statistically supported improvement over v1; unsupported high confidence at most 2%; median context at or below 4 KiB for the primary arm; no important subgroup regresses without an explicit product decision.
+The governing bars are:
 
-These are v2 product thresholds, not a claim that every benchmark dimension will improve 10×. The separate database experiment must meet its own independently frozen 10× end-to-end promotion rule and is not part of PR-15.
+- the `v2_situation` arm is the live boot Situation, or a sealed replay of it;
+- `packet_only` is first-class replacement economics, not a side arm;
+- Q1: on served work, live v2 vs packet-only vs current v1 without tutoring;
+- Q2: refusal provenance from Situation decision vs prompt-tutored `refuse=true`;
+- tutoring is a control arm and cannot be the v2 win condition;
+- no Gate B, 4,040-result screen, cap increase, or pilot until those questions
+  are locked into the runner and live boot serves `mode=v2`.
+
+The older 90% / +20pp thresholds stay on file as historical PR-15 intent. They
+do not authorize spend or a product claim while live Situation is unserved.
+
+These are v2 product questions, not a claim that every benchmark dimension will
+improve 10×. The separate database experiment must meet its own independently
+frozen 10× end-to-end promotion rule and is not part of PR-15.
 
 **Critical question answer:** a skeptical operator should see crash/concurrency proofs, full artifact accounting, corpus migration receipts, receipt-backed delivery truth, byte-bounded scale, adapter parity, clean-clone recovery, and a preregistered real-repo resumption advantage. Unit-test volume alone is insufficient.
 
@@ -251,7 +261,7 @@ flowchart LR
 | 4 | Import real history under shadow reads | wave 3 | TR-05, TR-06, TR-12, TR-13, TR-16, TR-17; TX-15; PR-06, PR-13 | high | all meaningful Views reconcile hashes/counts/quarantines/unresolved links; clean clone works | source snapshot + read-only v1 adapter; no destructive source edits | Migration/Identity/Daemon |
 | 5 | Compile trustworthy Situation and outcomes | waves 3/4 | TR-14, TR-15; CF-02–CF-08, CF-12; PR-07, PR-10, PR-12, PR-14 | high | 4 KiB real-corpus vertical slice shows intent, risk, grave, delivery and justified/refused next action | shadow output only; v1 remains served on mismatch | Situation/Outcomes/Project |
 | 6 | Converge adapters and remove duplicate policy | wave 5 stable projection | CF-10, CF-11, CF-13; PR-11; generate CLI/MCP bindings, then Observer/Bench, Desktop last | medium | same decision id and semantic payload through every enabled adapter | per-adapter feature flags and compatibility translators | Adapter owners |
-| 7 | Prove product value and pilot safely | wave 6 | PR-15, existing negative-knowledge and weak-reader tasks mapped below; small external design-partner protocol | medium | frozen thresholds pass; failures/refusals analyzed; no unsupported-confidence regression | no broad claim/release; retain v1 channel | Product/Evaluation |
+| 7 | Serve live Situation, then prove two product questions | wave 6 plus live boot compile | Live boot/MCP Situation without `situation_file`; [Q1 served replacement economics vs packet-only/v1](./WAVE-7-PRODUCT-QUESTIONS.md); [Q2 refusal provenance without tutoring as the win](./WAVE-7-PRODUCT-QUESTIONS.md) | medium | live `mode=v2`; packet-only first-class; tutoring is a control arm only; no Gate B / 4040 / pilot / cap increase | no product claim; retain v1 on mismatch | Product/Evaluation |
 | 8A | Release CLI/MCP/core v2 | wave 7 | PR-16, migration docs, compatibility window, telemetry consent, support/rollback runbook | high | clean install/adoption/rollback and all required PR gates pass | staged prerelease → opt-in → default; v1 rollback retained | Release |
 | 8B | Release Desktop separately | 8A plus external authority | PR-17, PR-18 and existing signing/environment/x64/rollback tasks | high/external | signed/notarized dual-arch `release:verify` and clean-account drill | Desktop stays developer preview until complete | Desktop/Operator |
 

@@ -2,16 +2,24 @@
 
 ## Wave 7 / PR-15 status
 
+Governing questions live in `docs/v2/WAVE-7-PRODUCT-QUESTIONS.md`. Provider
+spend is forbidden until live `seed boot --v2-situation` serves `mode=v2`
+without a file, and the runner scores:
+
+1. served replacement economics with `packet_only` first-class against live v2
+   and current v1, without tutoring;
+2. refusal provenance (Situation decision vs prompt-tutored `refuse=true`).
+
 The original two-arm harness below is retained as historical regression coverage;
-it is **not** sufficient evidence for the v2 product claim. Wave 7 freezes four
-arms in `pr15-contract.json`:
+it is **not** sufficient evidence for the v2 product claim. Wave 7 still freezes
+four arms in `pr15-contract.json`:
 
 | Arm | Evidence available |
 |---|---|
 | `repo_only` | repository frozen at the replay commit |
 | `current_v1` | frozen repository plus the current v1 orientation output |
-| `packet_only` | byte-bounded v2 Situation without the repository evidence body; replacement-economics arm |
-| `v2_situation` | frozen repository plus the byte-bounded v2 Situation |
+| `packet_only` | byte-bounded v2 Situation without the repository evidence body; first-class replacement-economics arm |
+| `v2_situation` | live or sealed-replay byte-bounded v2 Situation; must be the object boot serves |
 
 Before any model calls, run the corpus gate:
 
