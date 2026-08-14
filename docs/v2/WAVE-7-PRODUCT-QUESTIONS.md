@@ -25,9 +25,10 @@ arm. It is not a v2 win condition.
    `compileAdapterSituation` of a bounded Situation; `packet_only` is that JSON
    without repo evidence. Re-sealed 2026-08-14 through
    `compileLiveBoundedSituation` at
-   `~/.seedrop/benchmarks/pr15/wave7-2026-08-14-live-boot` (98 fixtures). The
-   2026-08-13-b corpus is not live-compiler provenance. Gate A still needs 100
-   independent ground truths **and** an exact operator ceiling.
+   `~/.seedrop/benchmarks/pr15/wave7-2026-08-14-live-intent` (100 fixtures,
+   `ready_for_model_spend: true`). The 2026-08-13-b and
+   2026-08-14-live-boot corpora are not this compiler+intent seal. Gate A still
+   needs an exact operator ceiling.
 
 Until those are true, no provider calls.
 

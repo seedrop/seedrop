@@ -91,6 +91,22 @@ describe("Situation compiler", () => {
       metrics: { candidate_count: 1, indexed_count: 1, scanned_count: 0, event_count: 1, file_count: 1 } }))
       .toThrow(SituationBudgetInsufficientError);
   });
+
+  it("surfaces an in-progress imported episode even when no task lists it", () => {
+    const input = fixture();
+    input.project.value!.work = { ...input.project.value!.work, intents: [], episodes: [], claims: [] };
+    input.project.value!.imported_orientation = {
+      projection_version: "1.0.0", project_id: PROJECT, source_high_watermark: digest("a"), ignored_event_count: 0,
+      intents: [{ intent_id: INTENT, title: "Unrelated backlog item", state: "open", source_ref: "task:1",
+        observed_at: "2026-08-12T01:00:00.000Z", related_episode_ids: [] }],
+      episodes: [{ episode_id: EPISODE, goal: "Finish the live run", state: "in_progress", source_ref: "run:1",
+        observed_at: "2026-08-12T02:00:00.000Z" }],
+    };
+    const result = compileSituation(input);
+    expect(result.intent.value).toMatchObject({
+      episode_id: EPISODE, goal: "Finish the live run", state: "in_progress",
+    });
+  });
 });
 
 function fixture(): CompileSituationInput {

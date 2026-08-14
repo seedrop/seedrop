@@ -71,9 +71,9 @@ function selectImportedIntent(imported: NonNullable<CompileSituationInput["proje
   const selected = (active ? intents.find((item) => item.related_episode_ids.includes(active.episode_id)) : undefined)
     ?? intents.find((item) => ["claimed", "open"].includes(item.state));
   if (!selected) return null;
-  const episode = active?.episode_id && selected.related_episode_ids.includes(active.episode_id) ? active
-    : episodes.find((item) => selected.related_episode_ids.includes(item.episode_id));
-  return deepFreeze({ intent_id: selected.intent_id, title: selected.title, state: selected.state,
+  const episode = active ?? episodes.find((item) => selected.related_episode_ids.includes(item.episode_id));
+  return deepFreeze({ intent_id: selected.intent_id, title: selected.title,
+    state: active ? active.state : selected.state,
     episode_id: episode?.episode_id ?? null, goal: episode?.goal ?? null });
 }
 
