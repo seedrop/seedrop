@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { compileLiveBoundedSituation, digestReadOnlyTree } from "../src/index.js";
+import { compileAdapterSituation } from "@seedrop/situation";
+import { freezePr15ReplayFromServed, servedSituationFromArm } from "../../id/benchmarks/resumption/replay.js";
 
 const roots: string[] = [];
 const AT = "2026-08-14T12:00:00.000Z";
@@ -67,6 +69,44 @@ describe("live bounded Situation compile", () => {
     expect(first.bytes).toBeLessThanOrEqual(4096);
     expect(first.bounded.orientation.next_action).toBeTruthy();
     expect(second.bounded).toEqual(first.bounded);
+  });
+
+  it("seals PR-15 packet_only from the live compile boot serves", async () => {
+    const fixture = await createFixture();
+    const live = await compileLiveBoundedSituation({
+      repo_root: fixture.repoRoot,
+      view_root: fixture.viewRoot,
+      identity_root: fixture.identityRoot,
+      principal_alias: "agent-a",
+      requested_bytes: 4096,
+    });
+    const served = compileAdapterSituation(live.bounded);
+    const replay = freezePr15ReplayFromServed({
+      fixture_id: "live-boot",
+      scenario: "live boot seal",
+      project_name: "fixture",
+      bounded: live.bounded,
+      repository: {
+        repo_id: "fixture",
+        commit: "a".repeat(40),
+        evidence_cutoff: live.observed_at,
+        source_digest: live.source_tree_digest,
+      },
+      evidence: { repo_only: "repo at commit", current_v1: "current v1 orientation" },
+      probes: [{ id: "intent", question: "What is current?", check: { kind: "regex", pattern: "resume", correct_when: "matches" },
+        wave7: { probe_class: "current_intent", independence_key: "fixture:intent:1",
+          ground_truth_source_digest: live.source_tree_digest, ground_truth_observed_at: live.observed_at,
+          expected_behavior: "answer", safety_invariant_check: { kind: "regex", pattern: "resume", correct_when: "matches" } } }],
+      sanitation: { reviewed_by: "fixture-reviewer", reviewed_at: live.observed_at, scanner: "gitleaks",
+        command: "gitleaks detect --no-git", status: "passed", source_set_digest: live.source_tree_digest,
+        excluded_secret_paths: [] },
+    });
+    expect(replay.wave7.situation_id).toBe(served.situation_id);
+    expect(replay.wave7.decision_id).toBe(served.decision_id);
+    expect(servedSituationFromArm(replay.arms.packet_only.content)).toEqual(served);
+    expect(replay.arms.packet_only.content).not.toContain("repo at commit");
+    expect(replay.arms.v2_situation.content).toContain("repo at commit");
+    expect(servedSituationFromArm(replay.arms.v2_situation.content)).toEqual(served);
   });
 });
 

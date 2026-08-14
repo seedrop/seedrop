@@ -43,6 +43,8 @@ export interface CompileLiveBoundedSituationResult {
   source_tree_digest: string;
   view_unchanged: true;
   bytes: number;
+  observed_at: string;
+  project_id: CanonicalId<"project">;
 }
 
 export async function compileLiveBoundedSituation(
@@ -155,7 +157,14 @@ export async function compileLiveBoundedSituation(
   const after = await digestReadOnlyTree(viewRoot);
   if (before !== after) throw new Error(`View changed while compiling live Situation for ${repoRoot}.`);
   const bytes = boundedSituationBytes(bounded).byteLength;
-  return { bounded, source_tree_digest: collection.source_tree_digest, view_unchanged: true, bytes };
+  return {
+    bounded,
+    source_tree_digest: collection.source_tree_digest,
+    view_unchanged: true,
+    bytes,
+    observed_at: observedAt,
+    project_id: projectId,
+  };
 }
 
 function resolveBootIdentity(

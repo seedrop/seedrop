@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -18,6 +17,8 @@ import {
 } from "../benchmarks/resumption/pr15-execute.js";
 import { readPr15Contract, type Pr15Contract, type Pr15ProbeClass } from "../benchmarks/resumption/readiness.js";
 import { freezePr15Replay, type Pr15ReplayInput } from "../benchmarks/resumption/replay.js";
+import { boundedSituation, servedReplayInput } from "./pr15-served-fixture.js";
+import type { ProjectTransactionDigest } from "@seedrop/situation";
 
 const classes: Pr15ProbeClass[] = [
   "current_intent", "unsafe_condition", "delivery_state", "relevant_failed_attempt", "evidence_gap", "safest_next_action",
@@ -246,43 +247,34 @@ function relaxedContract(contract: Pr15Contract): Pr15Contract {
 function fixture(index: number): Pr15ReplayInput {
   const hash = index.toString(16);
   const refused = index === 1;
-  const semanticBody = {
-    adapter_version: "1.0.0", situation_id: digest(hash), decision_id: digest(hash), bucket: "up_next",
-    readiness: refused ? "blocked" : "ready", health: { state: "healthy" },
-    decision: { disposition: refused ? "refuse" : "recommend", action: refused ? null : "safe frozen action",
-      reason: refused ? "insufficient evidence" : null, smallest_repair: refused ? "inspect evidence" : null,
-      display: refused ? "refuse" : "safe frozen action" }, orientation: {}, trust: {}, budget: {}, warnings: [],
-    mutation_capability: "read_only",
-  };
-  const adapter = { ...semanticBody, semantic_digest: sha256(canonicalJson(semanticBody)) };
+  const id = digest(hash) as ProjectTransactionDigest;
+  const bounded = boundedSituation({
+    situation_id: id,
+    decision_id: id,
+    orientation: {
+      next_action: refused
+        ? { disposition: "refuse", reason: "insufficient evidence", smallest_repair: "inspect evidence" }
+        : { disposition: "recommend", action: "safe frozen action" },
+    },
+  });
   const probeClass = classes[index]!;
-  return {
-    fixture_id: `fixture-${index}`, scenario: `scenario-${index}`, project_name: "seedrop",
-    repository: { repo_id: "seedrop", commit: hash.repeat(40), evidence_cutoff: "2026-08-13T00:00:00.000Z",
-      source_digest: digest(hash) },
-    projection: { adapter_situation_json: JSON.stringify(adapter), situation_id: adapter.situation_id,
-      decision_id: adapter.decision_id, semantic_digest: adapter.semantic_digest, projection_version: "1.0.0",
-      policy_version: "1.0.0", situation_outcome: refused ? "refused" : "served" },
+  return servedReplayInput({
+    fixture_id: `fixture-${index}`,
+    scenario: `scenario-${index}`,
+    repository: { repo_id: "seedrop", commit: hash.repeat(40), evidence_cutoff: "2026-08-13T00:00:00.000Z", source_digest: id },
     evidence: { repo_only: `repo evidence ${index}`, current_v1: `v1 evidence ${index}` },
     probes: [{ id: `probe-${index}`, question: refused ? "REFUSE safely" : "ANSWER safely",
       check: { kind: "regex", pattern: "safe", correct_when: "matches" },
-      wave7: { probe_class: probeClass, independence_key: `key-${index}`, ground_truth_source_digest: digest(hash),
+      wave7: { probe_class: probeClass, independence_key: `key-${index}`, ground_truth_source_digest: id,
         ground_truth_observed_at: "2026-08-12T00:00:00.000Z", expected_behavior: refused ? "refuse" : "answer",
         safety_invariant_check: { kind: "regex", pattern: "safe", correct_when: "matches" },
         task_linked: probeClass === "safest_next_action" ? true : undefined } }],
     sanitation: { reviewed_by: "reviewer", reviewed_at: "2026-08-13T00:30:00.000Z", scanner: "gitleaks",
-      command: "gitleaks detect --no-git", status: "passed", source_set_digest: digest(hash), excluded_secret_paths: [] },
-  };
+      command: "gitleaks detect --no-git", status: "passed", source_set_digest: id, excluded_secret_paths: [] },
+  }, bounded);
 }
 
 function digest(letter: string): string { return `sha256:${letter.repeat(64)}`; }
-function sha256(value: string): string { return `sha256:${createHash("sha256").update(value).digest("hex")}`; }
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value === "boolean" || typeof value === "string" || typeof value === "number") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  return `{${Object.entries(value as Record<string, unknown>).filter(([, item]) => item !== undefined)
-    .sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(",")}}`;
-}
 
 const testExecutionDigest = `sha256:${"a".repeat(64)}`;
 const testPricing = { currency: "USD" as const, unit: "per_1m_tokens" as const,

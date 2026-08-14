@@ -19,7 +19,7 @@ four arms in `pr15-contract.json`:
 | `repo_only` | repository frozen at the replay commit |
 | `current_v1` | frozen repository plus the current v1 orientation output |
 | `packet_only` | byte-bounded v2 Situation without the repository evidence body; first-class replacement-economics arm |
-| `v2_situation` | live or sealed-replay byte-bounded v2 Situation; must be the object boot serves |
+| `v2_situation` | live or sealed-replay byte-bounded v2 Situation; must be `compileAdapterSituation` of the bounded object boot serves |
 
 Before any model calls, run the corpus gate:
 

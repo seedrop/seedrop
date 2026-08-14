@@ -58,6 +58,17 @@ describe("canonical adapter Situation", () => {
     expect(() => assertAdapterReadOnlyOperation("render")).not.toThrow();
     expect(() => assertAdapterReadOnlyOperation("write_project")).toThrow(AdapterMutationRejectedError);
   });
+
+  it("rejects a brochure that is not the compiled adapter Situation", () => {
+    const brochure = {
+      adapter_version: "1.0.0", situation_id: digest("a"), decision_id: digest("b"),
+      semantic_digest: digest("c"), bucket: "up_next", readiness: "ready",
+      health: { state: "healthy" }, decision: { disposition: "recommend", action: "resume_intent", reason: null,
+        smallest_repair: null, display: "resume_intent" }, orientation: {}, trust: {}, budget: {}, warnings: [],
+      mutation_capability: "read_only",
+    };
+    expect(() => assertAdapterSituation(brochure)).toThrow(/health_invalid|orientation_invalid|budget_invalid/);
+  });
 });
 
 function fixture(): BoundedSituationProjection {

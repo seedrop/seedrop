@@ -104,6 +104,7 @@
   "shadow_projection_consumers": {
     "@seedrop/situation": [
       "@seedrop/cli",
+      "@seedrop/id",
       "@seedrop/mcp",
       "@seedrop/observer"
     ],

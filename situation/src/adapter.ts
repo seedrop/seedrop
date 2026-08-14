@@ -79,10 +79,14 @@ export function assertAdapterSituation(input: unknown): asserts input is Adapter
   if (!(ADAPTER_BUCKETS as readonly unknown[]).includes(value.bucket)) invalid("bucket_unknown");
   if (!(ADAPTER_READINESS_STATES as readonly unknown[]).includes(value.readiness)) invalid("readiness_unknown");
   const health = value.health as Record<string, unknown>;
-  if (!health || !(ADAPTER_HEALTH_STATES as readonly unknown[]).includes(health.state)) invalid("health_invalid");
+  if (!health || keys(health) !== "completeness,degraded_source_ids,freshness,quarantine_count,state,substrate,unresolved_disagreement_count") invalid("health_invalid");
+  if (!(ADAPTER_HEALTH_STATES as readonly unknown[]).includes(health.state)) invalid("health_invalid");
   const decision = value.decision as Record<string, unknown>;
-  if (!decision || !["recommend", "refuse", "unknown"].includes(String(decision.disposition))
-    || typeof decision.display !== "string") invalid("decision_invalid");
+  if (!decision || !["recommend", "refuse", "unknown"].includes(String(decision.disposition)) || typeof decision.display !== "string") invalid("decision_invalid");
+  const orientation = value.orientation as Record<string, unknown>;
+  if (!orientation || orientation.intent === undefined || orientation.next_action === undefined || orientation.source_health === undefined) invalid("orientation_invalid");
+  const budget = value.budget as Record<string, unknown>;
+  if (!budget || typeof budget.requested_bytes !== "number" || typeof budget.actual_bytes !== "number" || typeof budget.complete !== "boolean" || typeof budget.scanned_count !== "number") invalid("budget_invalid");
   if (!Array.isArray(value.warnings) || value.warnings.some((item) => typeof item !== "string")) invalid("warnings_invalid");
   canonicalJsonBytes(input);
   const { semantic_digest: _digest, ...body } = value;
@@ -181,6 +185,7 @@ function fallback(reason: AdapterFallbackReason, legacy: JsonValue): AdapterSitu
     warning: reason === "projection_mismatch" ? "projection_mismatch: v1 remains served" : `${reason}: v1 remains served`,
     served: { kind: "v1", payload: legacy } });
 }
+function keys(value: Record<string, unknown>): string { return Object.keys(value).sort().join(","); }
 function isDigest(value: unknown): boolean { return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value); }
 function invalid(reason: string): never { throw new Error(`Invalid adapter Situation: ${reason}.`); }
 function object(value: JsonValue | undefined): Record<string, JsonValue> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, JsonValue> : {}; }

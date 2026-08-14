@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
+import {
+  assertAdapterSituation,
+  compileAdapterSituation,
+  type AdapterSituationProjection,
+  type BoundedSituationProjection,
+} from "@seedrop/situation";
 import type {
   Wave7ReplayBinding,
   Wave7ResumptionProbe,
@@ -9,6 +15,8 @@ import type {
 import { isProbeCheck, isProbeMetadata, isReplayBinding } from "./readiness.js";
 
 export const PR15_REPLAY_VERSION = "1.0.0" as const;
+export const FROZEN_V2_SITUATION_SECTION = "FROZEN V2 SITUATION";
+export const FROZEN_REPO_SECTION = "FROZEN REPOSITORY EVIDENCE";
 export type Pr15Arm = "repo_only" | "current_v1" | "packet_only" | "v2_situation";
 
 export interface Pr15SanitationEvidence {
@@ -63,6 +71,7 @@ export interface FrozenPr15Replay extends Wave7ResumptionTask {
 export function freezePr15Replay(input: Pr15ReplayInput): FrozenPr15Replay {
   assertInput(input);
   const adapter = parseAdapterSituation(input.projection.adapter_situation_json);
+  assertAdapterSituation(adapter);
   assertProjectionIdentity(input, adapter);
   const sanitationReceipt = digest(canonicalJson(input.sanitation));
   const binding: Wave7ReplayBinding = {
@@ -80,9 +89,9 @@ export function freezePr15Replay(input: Pr15ReplayInput): FrozenPr15Replay {
     sanitation_receipt: sanitationReceipt,
     situation_outcome: input.projection.situation_outcome,
   };
-  const repo = section("FROZEN REPOSITORY EVIDENCE", input.evidence.repo_only);
+  const repo = section(FROZEN_REPO_SECTION, input.evidence.repo_only);
   const v1 = section("FROZEN CURRENT V1 ORIENTATION", input.evidence.current_v1);
-  const v2 = section("FROZEN V2 SITUATION", input.projection.adapter_situation_json);
+  const v2 = section(FROZEN_V2_SITUATION_SECTION, input.projection.adapter_situation_json);
   const armText: Record<Pr15Arm, string> = {
     repo_only: repo,
     current_v1: `${v1}\n\n${repo}`,
@@ -103,6 +112,44 @@ export function freezePr15Replay(input: Pr15ReplayInput): FrozenPr15Replay {
     arms,
   };
   return deepFreeze({ ...body, fixture_digest: digest(canonicalJson(body)) });
+}
+
+export function freezePr15ReplayFromServed(
+  input: Omit<Pr15ReplayInput, "projection"> & {
+    bounded: BoundedSituationProjection;
+    policy_version?: string;
+  },
+): FrozenPr15Replay {
+  const adapter = compileAdapterSituation(input.bounded);
+  return freezePr15Replay({
+    fixture_id: input.fixture_id,
+    scenario: input.scenario,
+    project_name: input.project_name,
+    repository: input.repository,
+    evidence: input.evidence,
+    probes: input.probes,
+    sanitation: input.sanitation,
+    projection: {
+      adapter_situation_json: JSON.stringify(adapter),
+      situation_id: adapter.situation_id,
+      decision_id: adapter.decision_id,
+      semantic_digest: adapter.semantic_digest,
+      projection_version: adapter.adapter_version,
+      policy_version: input.policy_version ?? "1.0.0",
+      situation_outcome: adapter.decision.disposition === "refuse" ? "refused" : "served",
+    },
+  });
+}
+
+export function servedSituationFromArm(content: string): AdapterSituationProjection {
+  const prefix = `=== ${FROZEN_V2_SITUATION_SECTION} ===\n`;
+  if (!content.startsWith(prefix)) invalid("v2_arm_header");
+  const rest = content.slice(prefix.length);
+  const repo = `\n\n=== ${FROZEN_REPO_SECTION} ===\n`;
+  const raw = rest.includes(repo) ? rest.slice(0, rest.indexOf(repo)) : rest;
+  const parsed = parseAdapterSituation(raw);
+  assertAdapterSituation(parsed);
+  return parsed;
 }
 
 export function assertFrozenPr15Replay(input: unknown): asserts input is FrozenPr15Replay {

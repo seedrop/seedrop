@@ -21,7 +21,10 @@ arm. It is not a v2 win condition.
 4. Live compile finishes within 8s without spawning `outcome-layer`, and the
    full CLI boot finishes inside the MCP 15s default spawn window.
 5. The benchmark `v2_situation` arm is that live object, or a sealed replay of
-   it, not a brochure fixture that boot does not serve.
+   it, not a brochure fixture that boot does not serve. Freeze now requires
+   `compileAdapterSituation` of a bounded Situation; `packet_only` is that JSON
+   without repo evidence. Existing on-disk corpora must be re-sealed through
+   `compileLiveBoundedSituation` before Gate A.
 
 Until those are true, no provider calls.
 

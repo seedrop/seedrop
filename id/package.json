@@ -60,6 +60,7 @@
     "vitest": "^4.1.6"
   },
   "dependencies": {
+    "@seedrop/situation": "^0.1.0-alpha.1",
     "tsx": "^4.22.0",
     "zod": "^3.23.0"
   },
