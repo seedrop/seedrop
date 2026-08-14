@@ -33,6 +33,103 @@ The live baseline on 2026-08-13 is intentionally rejected: 14 legacy fixtures,
 fixtures with the frozen Wave 7 replay binding, and no scored refusal coverage.
 Do not spend benchmark model calls on that corpus.
 
+### Execution validity before product validity
+
+The first OpenCode Go screen completed mechanically but is non-confirmatory
+product evidence: 3,669 of 4,040 model responses reached the 256-token ceiling,
+only 366 responses satisfied the structured response contract, and only 933
+contained any visible response text. Audit a sealed receipt without making a
+provider call:
+
+```bash
+npm run bench:resumption:pr15:audit -w @seedrop/id -- \
+  /absolute/path/to/pr15-receipt.json \
+  --out /absolute/path/to/pr15-failure-audit.json
+```
+
+Execution validity is now a prerequisite to interpreting the product gate. It
+requires at least 98% structured responses, at least 99% nonempty responses,
+at most 1% completion-cap hits, and at least 99% valid judge responses with
+complete judge telemetry. A failed execution-validity gate classifies the
+product result as non-confirmatory even when a product threshold or paired test
+appears statistically significant.
+
+The repaired OpenCode path is frozen as a separate exact-request canary:
+
+- `pr15-canary-2026-08-14.json` selects three frozen cases spanning served
+  current intent, explicit evidence-gap refusal, and a relevant failed attempt;
+- every case runs through all four arms and both model profiles, producing 24
+  model results;
+- `pr15-opencode-go-canary-2026-08-14.json` retains the proven `max_tokens`
+  request shape but raises the model allowance to 4,096 and the judge allowance
+  to 1,024 tokens;
+- retries are disabled, and the 24-result sample makes the frozen rate gates
+  require 24 valid JSON responses, 24 nonempty responses, and zero cap hits.
+  All selected cases use the LLM judge, so every judge response must also satisfy
+  its exact response contract.
+
+That canary executed on 2026-08-14 and failed. It produced 23/24 structured
+model responses, 21/23 valid judge responses, one model cap hit, and zero
+correct refusals out of eight mechanically valid refusal results. Do not rerun
+the old contract and do not increase its token caps.
+
+The next repair is version-bound and two-stage:
+
+- `pr15-failed-attempt-compatibility-canary-2026-08-14.json` isolates the prior
+  failed-attempt case to `repo_only` and `current_v1` for both model profiles:
+  four model results and at most four judge calls;
+- `pr15-repair-canary-2026-08-14.json` retains the frozen 24-result matrix but
+  binds runner `1.1.0`, prompt `1.1.0`, judge prompt `1.2.0`, and judge parser
+  `1.0.0`;
+- the repaired prompt applies one executable evidence/refusal policy uniformly
+  to every arm without exposing the fixture's expected behavior;
+- judge parsing accepts exact JSON or a deliberately bounded deterministic
+  repair (a sole JSON fence, case normalization, or boolean normalization) and
+  records raw response, digest, tokens, exactness, and repair status;
+- `canary_passed` now requires execution validity plus 100% correct expected
+  refusals and zero unexpected refusals on served results;
+- `pr15-opencode-go-repair-canary-2026-08-14.json` keeps the prior 4,096/1,024
+  caps, exact `max_tokens` compatibility, zero retries, and catalog binding.
+
+The four-result compatibility preflight requires its own explicit authorization:
+
+```bash
+export SEEDROP_PR15_PRIMARY_API_KEY="<OpenCode Go key>"
+export SEEDROP_PR15_WEAK_API_KEY="$SEEDROP_PR15_PRIMARY_API_KEY"
+export SEEDROP_PR15_CANARY_APPROVED_LOGICAL_CALLS="8"
+export SEEDROP_PR15_CANARY_APPROVED_PROVIDER_ATTEMPTS="8"
+export SEEDROP_PR15_CANARY_APPROVED_MAX_USD="<explicit operator ceiling>"
+
+npm run bench:resumption:pr15:canary -w @seedrop/id -- \
+  --fixtures /absolute/path/to/frozen-fixtures \
+  --canary benchmarks/resumption/pr15-failed-attempt-compatibility-canary-2026-08-14.json \
+  --execution benchmarks/resumption/pr15-opencode-go-repair-canary-2026-08-14.json \
+  --out /absolute/path/to/failed-attempt-compatibility-receipt.json
+```
+
+Only after that receipt passes may an operator separately authorize the repaired
+24-result canary (48 logical calls/attempts). The CLI enforces the passing
+prerequisite receipt and binds its digest into the new receipt:
+
+```bash
+export SEEDROP_PR15_CANARY_APPROVED_LOGICAL_CALLS="48"
+export SEEDROP_PR15_CANARY_APPROVED_PROVIDER_ATTEMPTS="48"
+export SEEDROP_PR15_CANARY_APPROVED_MAX_USD="<new explicit operator ceiling>"
+
+npm run bench:resumption:pr15:canary -w @seedrop/id -- \
+  --fixtures /absolute/path/to/frozen-fixtures \
+  --canary benchmarks/resumption/pr15-repair-canary-2026-08-14.json \
+  --execution benchmarks/resumption/pr15-opencode-go-repair-canary-2026-08-14.json \
+  --prerequisite-receipt /absolute/path/to/failed-attempt-compatibility-receipt.json \
+  --out /absolute/path/to/repair-canary-receipt.json
+```
+
+Neither checked-in contract authorizes a provider call. The CLI refuses before
+provider import unless the exact logical-call, provider-attempt, positive USD,
+and prerequisite-receipt gates pass. Journals now bind runner, response prompt,
+judge prompt, and deterministic judge-parser versions in addition to both
+frozen contracts and selected result identities.
+
 Candidate replays are reviewed and frozen one at a time. The freezer refuses to
 overwrite an existing output:
 

@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "seedrop.pr15.opencode-go.canary.2026-08-14",
+  "frozen_at": "2026-08-14T06:38:00.000Z",
+  "provider_client": {
+    "package": "openai",
+    "version": "6.49.0"
+  },
+  "cohort_class": "contemporary_screen",
+  "model_identity_policy": "provider_alias_observed",
+  "provider_catalog": {
+    "url": "https://opencode.ai/zen/go/v1/models",
+    "observed_at": "2026-08-14T06:38:00.000Z",
+    "digest": "sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821"
+  },
+  "seeds": 1,
+  "retry_policy": {
+    "max_retries": 0,
+    "base_delay_ms": 0
+  },
+  "profiles": [
+    {
+      "model_profile": "primary",
+      "provider_id": "opencode-go",
+      "provider_version": "catalog-model-projection@sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821",
+      "base_url": "https://opencode.ai/zen/go/v1",
+      "model": "deepseek-v4-pro",
+      "model_revision": "deepseek-v4-pro",
+      "judge_provider_id": "opencode-go",
+      "judge_provider_version": "catalog-model-projection@sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821",
+      "judge_base_url": "https://opencode.ai/zen/go/v1",
+      "judge_model": "deepseek-v4-flash",
+      "judge_model_revision": "deepseek-v4-flash",
+      "temperature": 0,
+      "max_completion_tokens": 4096,
+      "reasoning_effort": "none",
+      "judge_max_completion_tokens": 1024,
+      "judge_reasoning_effort": "none",
+      "request_compatibility": {
+        "token_limit_parameter": "max_tokens",
+        "send_reasoning_effort": false,
+        "send_seed": false
+      },
+      "judge_request_compatibility": {
+        "token_limit_parameter": "max_tokens",
+        "send_reasoning_effort": false,
+        "send_seed": false
+      }
+    },
+    {
+      "model_profile": "weak",
+      "provider_id": "opencode-go",
+      "provider_version": "catalog-model-projection@sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821",
+      "base_url": "https://opencode.ai/zen/go/v1",
+      "model": "deepseek-v4-flash",
+      "model_revision": "deepseek-v4-flash",
+      "judge_provider_id": "opencode-go",
+      "judge_provider_version": "catalog-model-projection@sha256:2a869b7a7ce4ae9fbce1eee543e4137a98dbb82c61779b51d1d2bc584c278821",
+      "judge_base_url": "https://opencode.ai/zen/go/v1",
+      "judge_model": "deepseek-v4-flash",
+      "judge_model_revision": "deepseek-v4-flash",
+      "temperature": 0,
+      "max_completion_tokens": 4096,
+      "reasoning_effort": "none",
+      "judge_max_completion_tokens": 1024,
+      "judge_reasoning_effort": "none",
+      "request_compatibility": {
+        "token_limit_parameter": "max_tokens",
+        "send_reasoning_effort": false,
+        "send_seed": false
+      },
+      "judge_request_compatibility": {
+        "token_limit_parameter": "max_tokens",
+        "send_reasoning_effort": false,
+        "send_seed": false
+      }
+    }
+  ],
+  "pricing_basis": {
+    "currency": "USD",
+    "unit": "per_1m_tokens",
+    "observed_at": "2026-08-14T06:38:00.000Z",
+    "models": {
+      "deepseek-v4-pro": {
+        "input": 0.435,
+        "output": 0.87
+      },
+      "deepseek-v4-flash": {
+        "input": 0.14,
+        "output": 0.28
+      }
+    }
+  },
+  "source_urls": [
+    "https://opencode.ai/docs/go/",
+    "https://opencode.ai/zen/go/v1/models",
+    "https://opencode.ai/docs/zen"
+  ],
+  "limitations": [
+    "This contract is an exact-request compatibility canary and cannot produce a Seedrop product verdict.",
+    "OpenCode Go exposes mutable aliases rather than immutable dated model revisions, so the result remains contemporary evidence.",
+    "The request retains the previously proven OpenCode-compatible max_tokens shape and omits reasoning_effort and seed; the larger output allowances test whether hidden reasoning exhausted the former 256-token cap.",
+    "DeepSeek V4 Flash remains the judge, so judge agreement is not independent model-family replication.",
+    "Zero retries make transport or provider instability fail the canary visibly instead of hiding it behind recovery.",
+    "This checked-in contract does not authorize any provider call; exact call, attempt, and USD approvals remain mandatory."
+  ]
+}

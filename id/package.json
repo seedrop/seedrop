@@ -26,6 +26,8 @@
     "bench:resumption:readiness": "tsx benchmarks/resumption/readiness.ts",
     "bench:resumption:freeze": "tsx benchmarks/resumption/replay.ts",
     "bench:resumption:pr15": "tsx benchmarks/resumption/pr15-execute.ts",
+    "bench:resumption:pr15:audit": "tsx benchmarks/resumption/pr15-audit.ts",
+    "bench:resumption:pr15:canary": "tsx benchmarks/resumption/pr15-canary.ts",
     "prepublishOnly": "npm run build && npm test"
   },
   "files": [

@@ -6,6 +6,7 @@ import type { LLMClient } from "../../src/classifier.js";
 import {
   PR15_PROMPT_VERSION,
   PR15_JUDGE_PROMPT_VERSION,
+  PR15_JUDGE_PARSER_VERSION,
   PR15_RUNNER_VERSION,
   runPr15Benchmark,
   summarizePr15,
@@ -20,7 +21,7 @@ import { loadFrozenPr15Replays, type FrozenPr15Replay } from "./replay.js";
 export const PR15_RECEIPT_VERSION = "1.1.0" as const;
 export const PR15_SAMPLING_CONTRACT_VERSION = "1.0.0" as const;
 export const PR15_EXECUTION_CONTRACT_VERSION = "1.0.0" as const;
-export const PR15_JOURNAL_VERSION = "1.0.0" as const;
+export const PR15_JOURNAL_VERSION = "1.1.0" as const;
 
 export interface Pr15RetryPolicy {
   max_retries: number;
@@ -128,6 +129,7 @@ export interface Pr15ReceiptBody {
   runner_version: typeof PR15_RUNNER_VERSION;
   prompt_version: typeof PR15_PROMPT_VERSION;
   judge_prompt_version: typeof PR15_JUDGE_PROMPT_VERSION;
+  judge_parser_version: typeof PR15_JUDGE_PARSER_VERSION;
   sampling_contract_version: typeof PR15_SAMPLING_CONTRACT_VERSION;
   started_at: string;
   completed_at: string;
@@ -246,6 +248,7 @@ export async function executePr15Proof(options: ExecutePr15Options): Promise<Pr1
     runner_version: PR15_RUNNER_VERSION,
     prompt_version: PR15_PROMPT_VERSION,
     judge_prompt_version: PR15_JUDGE_PROMPT_VERSION,
+    judge_parser_version: PR15_JUDGE_PARSER_VERSION,
     sampling_contract_version: PR15_SAMPLING_CONTRACT_VERSION,
     started_at: started.toISOString(),
     completed_at: completed.toISOString(),
@@ -377,8 +380,15 @@ export async function verifyPr15ProviderCatalog(
 export function assertPr15ProofReceipt(input: unknown): asserts input is Pr15ProofReceipt {
   if (!input || typeof input !== "object" || Array.isArray(input)) invalidReceipt("object_required");
   const value = input as Record<string, unknown>;
-  if (value.schema_version !== PR15_RECEIPT_VERSION || value.runner_version !== PR15_RUNNER_VERSION
-    || value.prompt_version !== PR15_PROMPT_VERSION || value.judge_prompt_version !== PR15_JUDGE_PROMPT_VERSION
+  const currentVersions = value.runner_version === PR15_RUNNER_VERSION
+    && value.prompt_version === PR15_PROMPT_VERSION
+    && value.judge_prompt_version === PR15_JUDGE_PROMPT_VERSION
+    && value.judge_parser_version === PR15_JUDGE_PARSER_VERSION;
+  const legacyVersions = value.runner_version === "1.0.0"
+    && value.prompt_version === "1.0.0"
+    && value.judge_prompt_version === "1.1.0"
+    && value.judge_parser_version === undefined;
+  if (value.schema_version !== PR15_RECEIPT_VERSION || (!currentVersions && !legacyVersions)
     || value.sampling_contract_version !== PR15_SAMPLING_CONTRACT_VERSION) {
     invalidReceipt("version_mismatch");
   }
@@ -608,9 +618,13 @@ function assertDigest(value: string): string { if (!/^sha256:[0-9a-f]{64}$/.test
 function roundUsd(value: number): number { return Math.round(value * 1_000_000_000_000) / 1_000_000_000_000; }
 function sumUsd(values: readonly number[]): number { return values.reduce((sum, value) => roundUsd(sum + value), 0); }
 
-interface Pr15JournalBinding {
+export interface Pr15JournalBinding {
   schema_version: typeof PR15_JOURNAL_VERSION;
   benchmark_id: string;
+  runner_version: typeof PR15_RUNNER_VERSION;
+  prompt_version: typeof PR15_PROMPT_VERSION;
+  judge_prompt_version: typeof PR15_JUDGE_PROMPT_VERSION;
+  judge_parser_version: typeof PR15_JUDGE_PARSER_VERSION;
   contract_digest: string;
   corpus_digest: string;
   execution_contract_digest: string;
@@ -621,7 +635,7 @@ interface Pr15JournalBinding {
   profiles: Pr15ExecutionProfile[];
 }
 
-async function readOrCreateJournal(path: string, binding: Pr15JournalBinding): Promise<{
+export async function readOrCreateJournal(path: string, binding: Pr15JournalBinding): Promise<{
   results: Pr15ProbeResult[]; budget: Pr15CostTelemetry;
 }> {
   const output = resolve(path);
@@ -662,11 +676,11 @@ async function readOrCreateJournal(path: string, binding: Pr15JournalBinding): P
     reserved_usd: sumUsd([...reservations.values()]) } };
 }
 
-async function appendJournalResult(path: string, result: Pr15ProbeResult): Promise<void> {
+export async function appendJournalResult(path: string, result: Pr15ProbeResult): Promise<void> {
   await appendJournalRecord(path, { type: "result", result });
 }
 
-async function appendJournalBudgetEvent(path: string, event: Pr15BudgetEvent): Promise<void> {
+export async function appendJournalBudgetEvent(path: string, event: Pr15BudgetEvent): Promise<void> {
   await appendJournalRecord(path, event);
 }
 
@@ -719,6 +733,10 @@ async function main(): Promise<void> {
   const journal = await readOrCreateJournal(journalPath, {
     schema_version: PR15_JOURNAL_VERSION,
     benchmark_id: contract.benchmark_id,
+    runner_version: PR15_RUNNER_VERSION,
+    prompt_version: PR15_PROMPT_VERSION,
+    judge_prompt_version: PR15_JUDGE_PROMPT_VERSION,
+    judge_parser_version: PR15_JUDGE_PARSER_VERSION,
     contract_digest: digest(canonicalJson(contract)),
     corpus_digest: corpusDigest(replays),
     execution_contract_digest: executionContractDigest,

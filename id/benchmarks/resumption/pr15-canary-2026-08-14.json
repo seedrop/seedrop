@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "canary_id": "seedrop.pr15.opencode-go.exact-request-canary.2026-08-14",
+  "frozen_at": "2026-08-14T06:38:00.000Z",
+  "source_receipt_digest": "sha256:53274002d3d0fcc25704a526dfd699577baec81cc8e7c9f65613771da36f840d",
+  "purpose": "execution_compatibility_only",
+  "cases": [
+    {
+      "fixture_id": "seedrop-c285ecff-current_intent-goal",
+      "probe_id": "current_intent:goal"
+    },
+    {
+      "fixture_id": "Roost-66e2147a-evidence_gap-refusal-gap-1",
+      "probe_id": "evidence_gap:refusal-gap-1"
+    },
+    {
+      "fixture_id": "outer-agent-216181f7-relevant_failed_attempt-cause",
+      "probe_id": "relevant_failed_attempt:cause"
+    }
+  ],
+  "arms": [
+    "repo_only",
+    "current_v1",
+    "packet_only",
+    "v2_situation"
+  ],
+  "model_profiles": [
+    "primary",
+    "weak"
+  ],
+  "seed": 1,
+  "expected_model_results": 24,
+  "validity_thresholds": {
+    "min_response_contract_valid_rate": 0.98,
+    "min_nonempty_response_rate": 0.99,
+    "max_completion_cap_hit_rate": 0.01,
+    "min_judge_response_contract_valid_rate": 0.99
+  },
+  "limitations": [
+    "This canary tests the exact provider/request/structured-output path only and never evaluates or authorizes a Seedrop product claim.",
+    "With 24 model results, the frozen rate thresholds require 24 valid structured responses, 24 nonempty responses, zero completion-cap hits, and valid exact-contract responses from every invoked judge.",
+    "The three frozen cases cover served current intent, explicit evidence-gap refusal, and a relevant failed attempt across all four PR-15 arms and both model profiles; they are not a powered product sample.",
+    "Passing this canary authorizes consideration of a repaired full screen only; it does not itself authorize provider spend for that screen or the dated confirmation cohort."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.1.0",
+  "canary_id": "seedrop.pr15.opencode-go.failed-attempt-compatibility.2026-08-14",
+  "frozen_at": "2026-08-14T10:45:00.000Z",
+  "source_receipt_digest": "sha256:594f6b33f09e6f87b040fc9b0fcf8e540fa4c217e891e7325fc724b5b33ad44c",
+  "purpose": "failed_attempt_request_compatibility",
+  "runner_version": "1.1.0",
+  "prompt_version": "1.1.0",
+  "judge_prompt_version": "1.2.0",
+  "judge_parser_version": "1.0.0",
+  "cases": [
+    {
+      "fixture_id": "outer-agent-216181f7-relevant_failed_attempt-cause",
+      "probe_id": "relevant_failed_attempt:cause"
+    }
+  ],
+  "arms": [
+    "repo_only",
+    "current_v1"
+  ],
+  "model_profiles": [
+    "primary",
+    "weak"
+  ],
+  "seed": 1,
+  "expected_model_results": 4,
+  "validity_thresholds": {
+    "min_response_contract_valid_rate": 0.98,
+    "min_nonempty_response_rate": 0.99,
+    "max_completion_cap_hit_rate": 0.01,
+    "min_judge_response_contract_valid_rate": 0.99
+  },
+  "limitations": [
+    "This four-result preflight isolates the only case and raw-context arms that failed mechanically in the prior 24-result canary.",
+    "Under the frozen rates, all four model responses and every invoked judge response must be valid and no completion may hit its cap.",
+    "The 4,096-token model cap is unchanged; another cap increase is not authorized.",
+    "Passing permits a separate authorization request for the repaired 24-result canary and nothing broader.",
+    "This checked-in contract authorizes no provider call."
+  ]
+}
