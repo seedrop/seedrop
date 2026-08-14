@@ -1,7 +1,17 @@
+#!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { canonicalJsonDigest } from "@seedrop/protocol";
+import { freezePr15ReplayFromServed } from "../id/benchmarks/resumption/replay.ts";
+import { boundedSituation, servedReplayInput } from "../id/tests/pr15-served-fixture.ts";
 import { deriveProbeCandidates, sanitizeEvidence } from "./pr15-corpus.mjs";
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("derives independently bound candidates across all six PR-15 classes", () => {
   const adapter = fixture();
@@ -22,6 +32,22 @@ test("redacts secret-shaped material and records the sanitation class", () => {
   assert.doesNotMatch(result.value, /sk-abcdefghijklmnopqrstuvwxyz/);
   assert.match(result.value, /REDACTED:openai_style_key/);
   assert.deepEqual(result.redactions, ["v1:openai_style_key"]);
+});
+
+test("verify gate refuses a corpus not sealed through the live boot compiler", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pr15-verify-"));
+  const frozen = join(root, "frozen");
+  await mkdir(frozen);
+  const bounded = boundedSituation();
+  const replay = freezePr15ReplayFromServed({ ...servedReplayInput({}, bounded), bounded });
+  await writeFile(join(frozen, "one.json"), `${JSON.stringify(replay)}\n`);
+  await writeFile(join(root, "review-manifest.json"), `${JSON.stringify({ pipeline_version: "1.0.0" })}\n`);
+  const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/verify-pr15-served-corpus.mjs", frozen], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stderr}\n${result.stdout}`, /compileLiveBoundedSituation/);
 });
 
 function fixture() {

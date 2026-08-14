@@ -23,8 +23,11 @@ arm. It is not a v2 win condition.
 5. The benchmark `v2_situation` arm is that live object, or a sealed replay of
    it, not a brochure fixture that boot does not serve. Freeze now requires
    `compileAdapterSituation` of a bounded Situation; `packet_only` is that JSON
-   without repo evidence. Existing on-disk corpora must be re-sealed through
-   `compileLiveBoundedSituation` before Gate A.
+   without repo evidence. Re-sealed 2026-08-14 through
+   `compileLiveBoundedSituation` at
+   `~/.seedrop/benchmarks/pr15/wave7-2026-08-14-live-boot` (98 fixtures). The
+   2026-08-13-b corpus is not live-compiler provenance. Gate A still needs 100
+   independent ground truths **and** an exact operator ceiling.
 
 Until those are true, no provider calls.
 

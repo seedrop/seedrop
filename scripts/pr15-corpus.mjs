@@ -14,7 +14,8 @@ import { freezePr15ReplayFile } from "../id/benchmarks/resumption/replay.ts";
 const here = dirname(fileURLToPath(import.meta.url));
 const seedropRoot = resolve(here, "..");
 const seedCli = join(seedropRoot, "cli", "bin", "seed.mjs");
-const CORPUS_PIPELINE_VERSION = "1.0.0";
+const CORPUS_PIPELINE_VERSION = "1.1.0";
+const CORPUS_COMPILER = "compileLiveBoundedSituation";
 const EXCLUDED_PROJECT_NAMES = new Set(["seedrop_db", "space-elev-probe-msisz6nb"]);
 const PROBE_CLASSES = ["current_intent", "unsafe_condition", "delivery_state", "relevant_failed_attempt", "evidence_gap", "safest_next_action"];
 
@@ -260,6 +261,7 @@ async function main() {
   const contract = await readPr15Contract();
   const readiness = evaluateCorpusReadiness(frozen, contract);
   const manifest = { schema_version: "1.0.0", pipeline_version: CORPUS_PIPELINE_VERSION,
+    compiler: CORPUS_COMPILER,
     generated_at: new Date().toISOString(), output_root: outputRoot,
     excluded_projects: [...EXCLUDED_PROJECT_NAMES].sort(), roots_considered: roots.length,
     repositories, failures, readiness };
