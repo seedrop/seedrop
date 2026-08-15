@@ -70,7 +70,7 @@ describe("tools registry", () => {
     expect(boot?.description).toContain("Situation packet");
     expect(boot?.inputSchema.properties).toMatchObject({ json: { default: true } });
     expect(boot?.inputSchema.properties).toMatchObject({
-      v2_situation: { default: false }, situation_file: { type: "string" },
+      v2_situation: { default: true }, situation_file: { type: "string" },
       expect_situation: { type: "string" }, expect_decision: { type: "string" }, expect_semantic: { type: "string" },
     });
   });

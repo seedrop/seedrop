@@ -1,7 +1,7 @@
 export { compileSituation, situationBytes } from "./compiler.js";
 export { BOUNDED_SITUATION_VERSION, SituationBudgetInsufficientError, boundedSituationBytes, compileBoundedSituation } from "./budget.js";
 export { ADAPTER_BUCKETS, ADAPTER_HEALTH_STATES, ADAPTER_READINESS_STATES, ADAPTER_SITUATION_VERSION, AdapterMutationRejectedError,
-  adapterFeatureEnabled, adapterSituationBytes, assertAdapterReadOnlyOperation, compileAdapterSituation,
+  adapterFeatureEnabled, adapterServeRequested, adapterSituationBytes, assertAdapterReadOnlyOperation, compileAdapterSituation,
   assertAdapterSituation, selectAdapterSituation } from "./adapter.js";
 export { SITUATION_PROJECTION_VERSION } from "./types.js";
 export type {

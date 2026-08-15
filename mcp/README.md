@@ -50,11 +50,12 @@ Restart the client. Call `seedrop_capabilities` or run `seed capabilities` for t
 | `seedrop_space_register` | Register a live session (you appear in presence). |
 
 `seedrop_boot` also exposes the generated Wave 6 binding fields `v2_situation`,
-`situation_file`, and the three expected-digest fields. With `v2_situation` and no
-`situation_file`, CLI/MCP compile a live read-only Situation from the repo View.
-Live compile must finish inside the MCP 15s default spawn window; `seedrop_boot`
-passes a 120s timeout only as headroom. They still delegate to the same semantic
-payload, and v1 remains served on compile failure or projection mismatch.
+`situation_file`, and the three expected-digest fields. Live v2 is the default:
+with no `situation_file`, CLI/MCP compile a read-only Situation from the repo View.
+Pass `v2_situation: false` (CLI `--v1`) for the v1 packet. Live compile must finish
+inside the MCP 15s default spawn window; `seedrop_boot` passes a 120s timeout only
+as headroom. They still delegate to the same semantic payload, and v1 remains
+served on compile failure or projection mismatch.
 | `seedrop_space_heartbeat` | Keep the cached session warm. |
 | `seedrop_space_presence` | List online agents. |
 | `seedrop_space_join` | Open or join a Space. |

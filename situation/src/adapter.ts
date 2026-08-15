@@ -117,6 +117,19 @@ export function adapterFeatureEnabled(value: string | boolean | undefined): bool
   return value === true || value === "1" || value === "true" || value === "enabled";
 }
 
+/** Live v2 is the default served object. `--v1` / `SEEDROP_V2_SITUATION=0` keep the v1 packet. */
+export function adapterServeRequested(input: {
+  argv?: readonly string[];
+  env?: Record<string, string | undefined>;
+} = {}): boolean {
+  const argv = input.argv ?? [];
+  if (argv.includes("--v1")) return false;
+  if (argv.includes("--v2-situation")) return true;
+  const raw = input.env?.SEEDROP_V2_SITUATION;
+  if (raw !== undefined && raw !== "") return adapterFeatureEnabled(raw);
+  return true;
+}
+
 export function assertAdapterReadOnlyOperation(operation: string): void {
   if (!new Set(["read", "render", "translate", "compare"]).has(operation)) throw new AdapterMutationRejectedError(operation);
 }

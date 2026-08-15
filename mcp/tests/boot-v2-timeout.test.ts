@@ -21,11 +21,22 @@ describe("MCP live Situation boot timeout", () => {
     const opts = runSeed.mock.calls[0]![1] as { timeoutMs?: number };
     expect(opts.timeoutMs).toBeGreaterThanOrEqual(15_000);
     expect(opts.timeoutMs).toBe(V2_SITUATION_BOOT_TIMEOUT_MS);
+    expect(runSeed.mock.calls[0]![0]).toContain("--v2-situation");
+    expect(runSeed.mock.calls[0]![0]).not.toContain("--v1");
+  });
+
+  it("defaults to live v2 and raises the spawn timeout with no v2_situation field", async () => {
+    const tool = tools.find((item) => item.name === "seedrop_boot")!;
+    await tool.handler({ json: true, peek: true });
+    expect((runSeed.mock.calls[0]![1] as { timeoutMs?: number }).timeoutMs).toBe(V2_SITUATION_BOOT_TIMEOUT_MS);
+    expect(runSeed.mock.calls[0]![0]).not.toContain("--v1");
   });
 
   it("does not raise the spawn timeout when v2 Situation is off", async () => {
     const tool = tools.find((item) => item.name === "seedrop_boot")!;
-    await tool.handler({ json: true, peek: true });
+    await tool.handler({ v2_situation: false, json: true, peek: true });
     expect((runSeed.mock.calls[0]![1] as { timeoutMs?: number }).timeoutMs).toBeUndefined();
+    expect(runSeed.mock.calls[0]![0]).toContain("--v1");
+    expect(runSeed.mock.calls[0]![0]).not.toContain("--v2-situation");
   });
 });

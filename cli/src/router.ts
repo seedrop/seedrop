@@ -507,7 +507,7 @@ export type CommandPlan = CommandDispatch | CommandDispatch[];
 
 const usage = `Usage:
   seed                          (agent boot: who am I, where am I, what is next)
-  seed boot [--json] [--messages N]
+  seed boot [--json] [--messages N] [--v1]
   seed init                     (guided one-shot local setup)
   seed continuity [--brief|--medium|--full] [--json] [--messages N] [--peek]
   seed continuity ack --token <token> [--json]

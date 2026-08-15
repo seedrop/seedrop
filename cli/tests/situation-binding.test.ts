@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { compileAdapterSituation } from "@seedrop/situation";
 import type { BoundedSituationProjection, ProjectTransactionDigest } from "@seedrop/situation";
-import { bindCliSituation, renderCliSituationBinding } from "../src/index.js";
+import { bindCliSituation, cliSituationEnabled, renderCliSituationBinding } from "../src/index.js";
 
 const digest = (letter: string) => `sha256:${letter.repeat(64)}` as ProjectTransactionDigest;
 
@@ -55,6 +55,12 @@ describe("CLI shared Situation binding", () => {
   it("keeps the legacy payload when the feature is disabled", async () => {
     const binding = await bindCliSituation({ feature: false, legacy: { source: "v1" } });
     expect(binding.selection).toMatchObject({ mode: "v1_fallback", reason: "feature_disabled", served: { payload: { source: "v1" } } });
+  });
+
+  it("enables live Situation on default boot argv and disables it for --v1", () => {
+    expect(cliSituationEnabled(["--json", "--peek"], {})).toBe(true);
+    expect(cliSituationEnabled(["--v1", "--json"], { SEEDROP_V2_SITUATION: "1" })).toBe(false);
+    expect(cliSituationEnabled([], { SEEDROP_V2_SITUATION: "0" })).toBe(false);
   });
 });
 

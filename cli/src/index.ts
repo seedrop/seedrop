@@ -23,7 +23,7 @@ export {
   type SituationNextMove,
 } from "./boot.js";
 export type { CommandDispatch, CommandRunner, RunCliIO } from "./router.js";
-export { CLI_SITUATION_BINDING_VERSION, bindCliSituation, jsonValue, renderCliSituationBinding } from "./situation-binding.js";
+export { CLI_SITUATION_BINDING_VERSION, bindCliSituation, cliSituationEnabled, jsonValue, renderCliSituationBinding } from "./situation-binding.js";
 export type { CliSituationBinding } from "./situation-binding.js";
 export {
   CLI_COMMAND_SURFACE,

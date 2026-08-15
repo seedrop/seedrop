@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { JsonValue, ProjectTransactionDigest } from "@seedrop/protocol";
-import { AdapterMutationRejectedError, adapterFeatureEnabled, adapterSituationBytes,
+import { AdapterMutationRejectedError, adapterFeatureEnabled, adapterServeRequested, adapterSituationBytes,
   assertAdapterReadOnlyOperation, compileAdapterSituation, selectAdapterSituation } from "../src/index.js";
 import { assertAdapterSituation } from "../src/index.js";
 import type { BoundedSituationProjection } from "../src/index.js";
@@ -57,6 +57,19 @@ describe("canonical adapter Situation", () => {
     expect([false, undefined, "0", "yes"].some(adapterFeatureEnabled)).toBe(false);
     expect(() => assertAdapterReadOnlyOperation("render")).not.toThrow();
     expect(() => assertAdapterReadOnlyOperation("write_project")).toThrow(AdapterMutationRejectedError);
+  });
+
+  it("serves live v2 by default and keeps an explicit v1 escape", () => {
+    expect(adapterServeRequested({})).toBe(true);
+    expect(adapterServeRequested({ argv: [] })).toBe(true);
+    expect(adapterServeRequested({ argv: ["--json", "--peek"] })).toBe(true);
+    expect(adapterServeRequested({ argv: ["--v2-situation"] })).toBe(true);
+    expect(adapterServeRequested({ argv: ["--v1"] })).toBe(false);
+    expect(adapterServeRequested({ argv: ["--v1", "--v2-situation"] })).toBe(false);
+    expect(adapterServeRequested({ env: { SEEDROP_V2_SITUATION: "0" } })).toBe(false);
+    expect(adapterServeRequested({ env: { SEEDROP_V2_SITUATION: "false" } })).toBe(false);
+    expect(adapterServeRequested({ argv: ["--v2-situation"], env: { SEEDROP_V2_SITUATION: "0" } })).toBe(true);
+    expect(adapterServeRequested({ argv: ["--v1"], env: { SEEDROP_V2_SITUATION: "1" } })).toBe(false);
   });
 
   it("rejects a brochure that is not the compiled adapter Situation", () => {

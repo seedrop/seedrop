@@ -28,6 +28,7 @@
   "bindings": {
     "cli_flags": [
       "--v2-situation",
+      "--v1",
       "--situation-file",
       "--expect-situation",
       "--expect-decision",

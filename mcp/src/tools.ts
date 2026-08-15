@@ -145,7 +145,7 @@ export const tools: ToolDef[] = [
   {
     name: "seedrop_boot",
     description: desc(
-      "seed boot [--json] [--messages N]",
+      "seed boot [--json] [--messages N] [--v1]",
       "Return the canonical cold-start Situation packet plus a read-only continuity_page receipt. After consuming a complete page, pass its ack_token to seedrop_continuity_ack. Prefer this at session start when the agent needs one reliable answer for what to do now.",
     ),
     inputSchema: {
@@ -159,7 +159,7 @@ export const tools: ToolDef[] = [
         peek: { type: "boolean", description: "Return a deliberately non-acknowledgeable continuity page.", default: false },
         since: { type: "string", description: "Override the last-seen watermark with an ISO timestamp." },
         budget: { type: "number", description: "Compact-JSON byte budget for the JSON report. Omit for the full pretty-printed report." },
-        v2_situation: { type: "boolean", description: "Enable the Wave 6 shared Situation binding. Compiles a live read-only Situation from the repo View when situation_file is omitted. Falls back to v1 on missing or mismatched projection.", default: false },
+        v2_situation: { type: "boolean", description: "Serve the live v2 Situation (default). Compiles a read-only Situation from the repo View when situation_file is omitted. Falls back to v1 on compile failure or digest mismatch. Pass false or CLI --v1 for the v1 packet.", default: true },
         situation_file: { type: "string", description: "Path to a generated adapter Situation projection." },
         expect_situation: { type: "string", description: "Expected Situation digest; mismatch serves v1." },
         expect_decision: { type: "string", description: "Expected decision digest; mismatch serves v1." },
@@ -173,7 +173,8 @@ export const tools: ToolDef[] = [
       if (args.json !== false) cmd.push("--json");
       if (typeof args.budget === "number") cmd.push("--budget", String(args.budget));
       if (typeof args.messages === "number") cmd.push("--messages", String(args.messages));
-      if (args.v2_situation === true) cmd.push("--v2-situation");
+      if (args.v2_situation === false) cmd.push("--v1");
+      else if (args.v2_situation === true) cmd.push("--v2-situation");
       pushStringFlag(cmd, args, "situation_file", "--situation-file");
       pushStringFlag(cmd, args, "expect_situation", "--expect-situation");
       pushStringFlag(cmd, args, "expect_decision", "--expect-decision");
@@ -182,7 +183,7 @@ export const tools: ToolDef[] = [
       pushStringFlag(cmd, args, "url", "--url");
       if (args.peek === true) cmd.push("--peek");
       pushStringFlag(cmd, args, "since", "--since");
-      return exec(cmd, cwd, args.v2_situation === true ? V2_SITUATION_BOOT_TIMEOUT_MS : undefined);
+      return exec(cmd, cwd, args.v2_situation === false ? undefined : V2_SITUATION_BOOT_TIMEOUT_MS);
     },
   },
   {

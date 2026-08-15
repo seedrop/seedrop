@@ -458,11 +458,33 @@ describe("continuity", () => {
     expect(parsed.orientation.next_action.command).toBe("seed bootstrap");
   });
 
-  it("boot --json returns the stateless-agent cold-start contract", async () => {
+  it("boot --json serves the Situation binding by default", async () => {
     await writePassport("codex");
     await writeManifest(scratch, "demo");
     const io = createIo();
     const code = await runCli(["boot", "--json", "--cwd", scratch, "--peek"], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed).toMatchObject({ binding_version: "1.0.0", adapter: "cli" });
+    expect(["v2", "v1_fallback"]).toContain(parsed.selection.mode);
+    if (parsed.selection.mode === "v2") {
+      expect(parsed.selection.served).toMatchObject({ kind: "v2_situation" });
+      expect(parsed.selection.served.payload.mutation_capability).toBe("read_only");
+    } else {
+      expect(parsed.selection).toMatchObject({
+        mode: "v1_fallback",
+        served: { kind: "v1" },
+      });
+      expect(parsed.selection.served.payload.schema_version).toBe("1.0");
+      expect(parsed.selection.served.payload.identity).toMatchObject({ present: true, agent_id: "codex" });
+    }
+  });
+
+  it("boot --v1 --json returns the stateless-agent cold-start contract", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "demo");
+    const io = createIo();
+    const code = await runCli(["boot", "--v1", "--json", "--cwd", scratch, "--peek"], io, fakeRunner());
     expect(code).toBe(0);
     const parsed = JSON.parse(io.stdoutText());
 

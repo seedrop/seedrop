@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { compileLiveBoundedSituation } from "@seedrop/migration";
 import {
   adapterFeatureEnabled,
+  adapterServeRequested,
   assertAdapterSituation,
   compileAdapterSituation,
   selectAdapterSituation,
@@ -14,6 +15,13 @@ import type {
 } from "@seedrop/situation";
 
 export const CLI_SITUATION_BINDING_VERSION = "1.0.0" as const;
+
+export function cliSituationEnabled(
+  argv: readonly string[],
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return adapterServeRequested({ argv, env });
+}
 
 export interface CliSituationBinding {
   binding_version: typeof CLI_SITUATION_BINDING_VERSION;

@@ -4,7 +4,7 @@
 
 Governing questions live in `docs/v2/WAVE-7-PRODUCT-QUESTIONS.md` and are
 scored by `id/benchmarks/resumption/wave7-questions.ts`. Provider spend is
-forbidden until live `seed boot --v2-situation` serves `mode=v2` without a
+forbidden until live `seed boot --json` serves `mode=v2` without a
 file. The runner now distinguishes:
 
 1. served replacement economics with `packet_only` first-class against live v2

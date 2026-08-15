@@ -13,8 +13,8 @@ arm. It is not a v2 win condition.
 
 ## Preconditions
 
-1. `seed boot --v2-situation --json` in this repo serves `mode=v2` without
-   `--situation-file`.
+1. `seed boot --json` in this repo serves `mode=v2` without `--situation-file`.
+   `--v1` / `SEEDROP_V2_SITUATION=0` still serve the v1 packet.
 2. CLI and MCP return the same `situation_id` and `decision_id` for that live
    compile.
 3. Compile failure or digest mismatch still serves v1.
