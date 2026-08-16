@@ -351,7 +351,7 @@ export interface KnowledgeArtifact {
 }
 
 const DEFAULT_DATA_DIR = ".seedrop/view";
-const DEFAULT_IGNORE = new Set([".git", "node_modules", "dist", "coverage", ".seedrop", ".DS_Store"]);
+const DEFAULT_IGNORE = new Set([".git", "node_modules", "dist", "target", "coverage", ".seedrop", ".DS_Store"]);
 const MAX_HASHED_FILE_BYTES = 50 * 1024 * 1024;
 const VIEW_FILE_LOCK_RETRY_MS = 25;
 const VIEW_FILE_LOCK_TIMEOUT_MS = 30_000;

@@ -80,6 +80,24 @@ describe("WorkspaceView", () => {
     expect(stored.files[0].hash).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("ignores rust target build trees by default", async () => {
+    // desktop/src-tauri/target produced 34,825 of 40,220 tracked files in the
+    // seedrop repo itself, which kept manifest freshness permanently stale.
+    // Build output is never orientation signal; drop it like dist/.
+    await writeFile(path.join(root, "README.md"), "# Demo\n");
+    await mkdir(path.join(root, "desktop", "src-tauri", "target", "debug"), { recursive: true });
+    await writeFile(path.join(root, "desktop", "src-tauri", "target", "debug", "artifact.bin"), "bytes\n");
+    await mkdir(path.join(root, "desktop", "src-tauri", "src"), { recursive: true });
+    await writeFile(path.join(root, "desktop", "src-tauri", "src", "main.rs"), "fn main() {}\n");
+
+    const manifest = await view().sync({ workspaceId: "demo" });
+
+    expect(manifest.files.map((file) => file.path)).toEqual([
+      "desktop/src-tauri/src/main.rs",
+      "README.md",
+    ]);
+  });
+
   it("drops files larger than the hash cap from the manifest", async () => {
     // Manifests are an orientation tool, not a backup index. Files over
     // 50MB crash readFile past Node's 2 GiB cap and are almost never useful

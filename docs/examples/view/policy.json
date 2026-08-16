@@ -1,5 +1,8 @@
 {
   "schema_version": "1.0",
+  "ignore": [
+    "desktop/src-tauri/resources"
+  ],
   "purpose": "Demonstrate a commit-friendly Seedrop View packet for handoff-ready orientation.",
   "current_focus": "Keep repo-local orientation reviewable in git.",
   "required_success_level": "L4",
