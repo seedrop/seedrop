@@ -801,7 +801,8 @@ function renderContinuityFull(report: ContinuityReport): string {
     lines.push(`  view: present (workspace_id: ${m?.workspace_id ?? "?"}, ${m?.files_count ?? m?.files?.length ?? 0} tracked files)`);
     if (report.view.brief?.success?.level) {
       const success = report.view.brief.success;
-      lines.push(`  view success: ${success.level}${success.label ? ` ${success.label}` : ""}${success.required_level ? ` (requires ${success.required_level})` : ""}`);
+      const as = success.agent ? ` (as ${success.agent})` : "";
+      lines.push(`  view success${as}: ${success.level}${success.label ? ` ${success.label}` : ""}${success.required_level ? ` (requires ${success.required_level})` : ""}`);
     }
     const workspaceFocus = (report.view.brief as { workspace?: { current_focus?: string } } | undefined)?.workspace?.current_focus;
     if (workspaceFocus) {

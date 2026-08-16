@@ -2436,6 +2436,7 @@ export class WorkspaceView {
     }
 
     return {
+      agent: this.agent,
       level,
       label: successLabel(level),
       summary,

@@ -914,7 +914,7 @@ function printBrief(brief: ViewBrief): void {
   if (brief.manifest) {
     console.log(`manifest: ${brief.manifest.freshness}, ${brief.manifest.file_count} tracked file(s)`);
   }
-  console.log(`success: ${brief.success.level} ${brief.success.label}${brief.success.required_level ? ` (requires ${brief.success.required_level})` : ""}`);
+  console.log(`success (as ${brief.success.agent}): ${brief.success.level} ${brief.success.label}${brief.success.required_level ? ` (requires ${brief.success.required_level})` : ""}`);
   if (brief.verification_commands.length > 0) {
     console.log("verification:");
     for (const command of brief.verification_commands) console.log(`  - ${command}`);

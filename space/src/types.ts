@@ -115,6 +115,9 @@ export interface ViewBrief {
     freshness_source?: "live" | "cached" | "unknown";
   };
   success: {
+    /** The agent whose evidence the level was computed against — L3+ keys on
+     * the acting agent's runs, so the same view reads differently per agent. */
+    agent: string;
     level: "L0" | "L1" | "L2" | "L3" | "L4";
     label: string;
     summary: string;
