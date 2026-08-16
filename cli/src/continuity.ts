@@ -1472,19 +1472,43 @@ export async function runContinuity(
   const json = argv.includes("--json");
   if (argv[0] === "ack") {
     const token = readFlag(argv, "token");
-    if (!token) {
-      io.stderr.write("Continuity acknowledgement requires --token <token> from a complete continuity page.\n");
-      return 1;
-    }
     const passport = await readJson<Passport>(passportPath);
     if (!passport?.agent_id) {
       io.stderr.write(`No valid agent passport at ${passportPath}.\n`);
       return 1;
     }
+    // Tokenless ack: render the acting identity's current page and commit it
+    // in one step, so acknowledging never depends on copy-pasting a wrapped
+    // ~600-char token out of terminal output. Explicit --token keeps the
+    // scripted, reproducible path.
+    const effectiveToken = token ?? await (async () => {
+      const cwd = resolve(readFlag(argv, "cwd") ?? process.cwd());
+      const place = resolveOrientationRoot(cwd);
+      const report = await buildContinuity({
+        passportPath,
+        passportSource,
+        spaceUrl,
+        cwd,
+        root: place.root,
+        rootKind: place.kind,
+        messageLimit: 5,
+        json,
+        peek: false,
+      });
+      return report.page?.ack_token;
+    })();
+    if (!effectiveToken) {
+      io.stderr.write(
+        token
+          ? "Continuity acknowledgement requires --token <token> from a complete continuity page.\n"
+          : "No acknowledgeable continuity page for this identity right now (incomplete or peeked page). Run `seed continuity` and retry.\n",
+      );
+      return 1;
+    }
     try {
       const result = await acknowledgeContinuityPage({
         agentId: passport.agent_id,
-        token,
+        token: effectiveToken,
         commitPresence: async (sessionId, observedAt) => {
           const committed = await postJson(
             `${spaceUrl}/presence/ack`,

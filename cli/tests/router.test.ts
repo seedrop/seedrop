@@ -1616,6 +1616,69 @@ describe("runBootstrap", () => {
     }
   });
 
+  it("bootstrap --help renders usage without linking or writing anything", async () => {
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(passportPath, JSON.stringify({ schema_version: "1.0" }), "utf8");
+    const repo = join(scratch, "repo-help");
+    await mkdir(repo, { recursive: true });
+    const prior = process.cwd();
+    process.chdir(repo);
+    try {
+      const io = createIo();
+      const seen: CommandDispatch[] = [];
+      const code = await runCli(["bootstrap", "--help"], io, fakeRunner(0, seen));
+      expect(code).toBe(0);
+      expect(io.stdoutText()).toContain("Usage:");
+      expect(io.stdoutText()).not.toContain("acting as:");
+      expect(seen).toEqual([]);
+      expect(existsSync(join(repo, ".seedrop"))).toBe(false);
+      expect(existsSync(process.env.SEEDROP_SPACE_ROOT as string)).toBe(false);
+    } finally {
+      process.chdir(prior);
+    }
+  });
+
+  it("a --help value passed to a flag is data, not a help request", async () => {
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(passportPath, JSON.stringify({ schema_version: "1.0", agent_id: "codex" }), "utf8");
+    const repo = join(scratch, "repo-flag-value");
+    await mkdir(repo, { recursive: true });
+    const prior = process.cwd();
+    process.chdir(repo);
+    try {
+      const io = createIo();
+      const seen: CommandDispatch[] = [];
+      const code = await runCli(["bootstrap", "--current-focus", "--help"], io, fakeRunner(0, seen));
+      expect(code).toBe(0);
+      // Not the help screen: bootstrap ran its link plan under the identity echo.
+      expect(io.stdoutText()).toContain("acting as:");
+      expect(seen[0]?.args.slice(0, 2)).toEqual(["view", "init"]);
+    } finally {
+      process.chdir(prior);
+    }
+  });
+
+  it("bootstrap echoes the acting identity before any durable write", async () => {
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(
+      passportPath,
+      JSON.stringify({ schema_version: "1.0", agent_id: "codex", issued_by: "mc" }),
+      "utf8",
+    );
+    const repo = join(scratch, "repo-echo");
+    await mkdir(repo, { recursive: true });
+    const prior = process.cwd();
+    process.chdir(repo);
+    try {
+      const io = createIo();
+      const code = await runCli(["bootstrap"], io, fakeRunner());
+      expect(code).toBe(0);
+      expect(io.stdoutText()).toContain("acting as: codex ← mc (source: $SEEDROP_PASSPORT)");
+    } finally {
+      process.chdir(prior);
+    }
+  });
+
   it("lists active projects when bootstrap skips linking from HOME", async () => {
     const projectRoot = join(process.env.HOME!, "Projects", "seedrop");
     await mkdir(projectRoot, { recursive: true });

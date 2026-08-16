@@ -172,6 +172,36 @@ describe("read-only continuity pages and explicit acknowledgement", () => {
     expect(stdout.join("\n")).toContain('"idempotent": true');
   });
 
+  it("acknowledges the current page tokenlessly for the acting identity", async () => {
+    const transport = createTransport(null);
+    let commits = 0;
+    const globalFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if ((init?.method ?? "GET") === "POST" && url.endsWith("/presence/ack")) {
+        commits += 1;
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          sessionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        });
+        return json({ session: { id: "stable" } }, 201);
+      }
+      return transport.fetchImpl(input, init);
+    });
+    vi.stubGlobal("fetch", globalFetch);
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const io = {
+      stdout: { write: (value: string) => { stdout.push(value); return true; } },
+      stderr: { write: (value: string) => { stderr.push(value); return true; } },
+    } as never;
+    const options = { defaultPassport: passportPath, defaultUrl: "http://seedrop.test" };
+
+    expect(await runContinuity(["ack", "--json"], io, options)).toBe(0);
+    expect(commits).toBe(1);
+    expect(stderr).toEqual([]);
+    expect(stdout.join("\n")).toContain('"acknowledged": true');
+    expect(await readContinuityAcknowledgementState(AGENT)).toMatchObject({ agent_id: AGENT, ack_count: 1 });
+  });
+
   it("serializes concurrent acknowledgement attempts into one commit", async () => {
     const report = await build(createTransport(null).fetchImpl);
     let presenceEffects = 0;
