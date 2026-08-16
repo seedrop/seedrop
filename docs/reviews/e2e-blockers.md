@@ -10,21 +10,22 @@ handoff — today?
 
 Each item below was hit live in one of the two sessions unless marked
 otherwise. Status markers: **live** (reproduced 2026-08-16), **fixed**
-(committed this session), **reported** (dsh's review; not re-verified or still
-present).
+(committed this session), **partial** (addressed with remaining scope),
+**reported** (dsh's review; not re-verified or still present). A progress log
+at the bottom records the remediation commits.
 
 ---
 
 ## A. Identity and write safety
 
-### 1. `seed bootstrap --help` mutates state — live, high
+### 1. `seed bootstrap --help` mutates state — fixed (d14d025), high
 Re-verified today: it links the repo and dumps the manifest instead of
 printing usage. A help path that writes is the single worst footgun for an
 agent exploring a tool. (dsh #1.)
 **Fix:** no-op help rendering + a regression test asserting the workspace is
 untouched.
 
-### 2. Agents silently inherit the previous shell's login — live, high
+### 2. Agents silently inherit the previous shell's login — partial (d14d025), high
 This session ran a full turn as `dsh` — boot, continuity ack, space join —
 before the operator noticed and corrected it. `seed login` is global,
 cross-shell, mutable state; MCP clients read a different config, so there are
@@ -34,7 +35,7 @@ same root cause.)
 <agent> ← <principal>` prominently; require an explicit `--as` when the login
 predates the session.
 
-### 3. No guardrails against cross-identity writes — live, high
+### 3. No guardrails against cross-identity writes — partial (d14d025), high
 Acting as `dsh`, this agent advanced dsh's continuity watermark and joined
 dsh to `seedrop-team`. Nothing challenged the writes; nothing records that
 they were performed by a different runtime. For multi-agent machines this is
@@ -44,7 +45,7 @@ the acting runtime alongside the passport on every durable write.
 
 ## B. The success-level ladder
 
-### 4. The ladder punishes work-in-progress — live, medium
+### 4. The ladder punishes work-in-progress — live, medium (unaddressed)
 A dirty tree or stale manifest pins the view at L1 — i.e., exactly while an
 agent is working, policy "requires L3" and every read says the view failed.
 Combined with dsh #4 (nothing auto-populates evidence, so first boot reads as
@@ -53,7 +54,7 @@ failure), the gate reads as "you already failed" rather than "earn it."
 instantaneous hygiene (tree dirty, manifest stale) and report them as two
 axes.
 
-### 5. Per-agent levels are displayed as repo facts — live, medium
+### 5. Per-agent levels are displayed as repo facts — fixed (b75afa4), medium
 `seed view context` on the same repo reported L4 when read as `dsh` and L1
 when read as `zcode`, with no attribution. A handing-off agent will quote the
 level as repo state. `view explain success` and `view context` can also
@@ -64,14 +65,14 @@ evaluation path.
 
 ## C. Manifest and data hygiene
 
-### 6. The manifest is 86% build artifacts — live, medium
+### 6. The manifest is 86% build artifacts — fixed (ad2ef3f), medium
 40,220 tracked files; 34,825 are `desktop/src-tauri/target/`. Freshness can
 never converge (`sync` re-walks churn), which permanently trips the ladder's
 freshness criterion and bloats the view.
 **Fix:** ignore rules for `target/`, `dist/`, and generated trees, with a
 policy-visible ignore list.
 
-### 7. "Commit-friendly view" vs the tool's own practice — reported, medium
+### 7. "Commit-friendly view" vs the tool's own practice — reported, medium (unaddressed)
 dsh #3: the manifest is machine-specific (hashes + wall-clock `updated_at`),
 and seedrop's own repo gitignores `.seedrop/` entirely.
 **Fix:** a stable manifest (relative paths, no wall clock) or a documented
@@ -79,7 +80,7 @@ commit recipe.
 
 ## D. Gate and CI integrity
 
-### 8. Hand-maintained gate data rots — fixed this session, class remains
+### 8. Hand-maintained gate data rots — fixed (57c59ab; closure now derived)
 `smoke:install` packed three tarballs while cli had grown `@seedrop/migration`
 and `@seedrop/situation` deps; the consumer install 404'd against the
 registry. Fixed in `57c59ab` by resolving the `@seedrop/*` closure from the
@@ -88,7 +89,7 @@ truth fail silently when the graph changes.
 **Fix:** keep closure derivation single-sourced; add a meta-test that fails
 when a local dep is missing from the packed set.
 
-### 9. CI does not run the smoke gates; red tests ship — live, high
+### 9. CI does not run the smoke gates; red tests ship — fixed (bcd2213), high
 `.github/workflows/test.yml` runs typecheck + `npm test --workspaces` only —
 no `smoke`, `smoke:http`, `smoke:install`. That is why a red `smoke:install`
 sat unnoticed on this branch. Separately, the branch carried a failing mcp
@@ -99,7 +100,7 @@ suite cannot land.
 
 ## E. Orientation payload quality (v2)
 
-### 10. The served Situation is lossy at the fields that matter — live, medium
+### 10. The served Situation is lossy at the fields that matter — partial (8f89026), medium
 `seed boot` serves v2 in shadow with `warnings: budget_limited:
 decision_text, grave_text, risk_text` and `health: degraded (healthy)`. The
 boot packet elides exactly the risk/decision prose an agent needs to judge
@@ -108,7 +109,7 @@ healthy — two signals an autonomous consumer cannot act on correctly.
 **Fix:** explicit elision markers with reasons, honest health decomposition,
 and a flag to spend budget on grave/decision text.
 
-### 11. The coordination ritual returns stale noise — live, low/medium
+### 11. The coordination ritual returns stale noise — live, low/medium (unaddressed)
 The documented session ritual ends with `seed space messages seedrop-team`;
 its newest message is from June and concerns a different project. Ritual
 steps that return noise train agents to skip them. Presence TTL (60s) makes
@@ -118,12 +119,12 @@ mark stale channels in the boot packet.
 
 ## F. Ergonomics
 
-### 12. Router help and missing run introspection — live, low
+### 12. Router help and missing run introspection — fixed (4e9c2f1), low
 `seed run --help` prints the `seed-space serve` usage block; `seed run status`
 does not exist; two different `view` verbs (dsh #5).
 **Fix:** per-command help in the router; a read-only `seed run status`.
 
-### 13. Continuity ack is copy-paste-hostile — live, low
+### 13. Continuity ack is copy-paste-hostile — fixed (d14d025), low
 The ack command embeds a ~600-char token in wrapped terminal output; a manual
 copy corrupts it (checksum mismatch, hit today) and the workaround is
 scripting extraction from re-rendered output.
@@ -132,7 +133,7 @@ acting identity; keep tokens for scripted use.
 
 ## G. The structural one
 
-### 14. Orientation is pull-free — reported, structural
+### 14. Orientation is pull-free — reported, structural (unaddressed)
 dsh #6: nothing captures runs, continuity, or validation automatically; the
 agent must choose to feed Seedrop mid-work, and nothing builds that instinct.
 Every papercut above raises the cost of that choice. This is the difference
@@ -164,3 +165,20 @@ attribution is the right idea once surfaced as such; the view's next-actions
 session; and the package gates exist and pass when the graph is honest —
 this session's two gate failures were both found, root-caused, and repaired
 inside the loop Seedrop itself was orienting.
+
+## Progress log (2026-08-16, P0-P2 pass)
+
+- `d14d025` fix(cli): --help read-only everywhere; bootstrap echoes acting identity;
+  tokenless `seed continuity ack`. (1, 2-partial, 3-partial, 13)
+- `ad2ef3f` fix(space): manifest ignores `target/` (86% of tracked files) and the
+  repo policy ignores the fetched runtime tree; freshness converges. (6)
+- `bcd2213` ci: cli + space smoke gates run on every build. (9)
+- `4e9c2f1` feat(run): read-only `seed run status`; usage lists it. (12)
+- `b75afa4` feat(view): success level attributed per agent in every surface. (5)
+- `8f89026` feat(boot): `--situation-budget` flag; honest elision reasons — which
+  also surfaced that the common truncation is fixed per-field caps, not the byte
+  budget. (10, boot surface only; payload-level elision redesign remains open)
+
+Remaining after this pass: 4 (ladder semantics), 7 (commit-friendly manifest),
+11 (stale coordination), 14 (pull-free capture), and the deeper halves of 2/3
+(session-bound identity pinning) and 10 (in-payload elision reasons).
