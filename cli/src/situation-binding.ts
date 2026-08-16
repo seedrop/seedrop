@@ -37,6 +37,7 @@ export async function bindCliSituation(input: {
   view_root?: string;
   principal_alias?: string;
   identity_root?: string;
+  requested_bytes?: number;
   legacy: JsonValue;
   continuity_page?: JsonValue | null;
   expected?: Parameters<typeof selectAdapterSituation>[0]["expected"];
@@ -45,6 +46,7 @@ export async function bindCliSituation(input: {
     view_root?: string;
     principal_alias?: string;
     identity_root?: string;
+    requested_bytes?: number;
   }) => Promise<BoundedSituationProjection>;
 }): Promise<CliSituationBinding> {
   let shared: AdapterSituationProjection | null = null;
@@ -62,6 +64,7 @@ export async function bindCliSituation(input: {
         view_root: input.view_root,
         principal_alias: input.principal_alias,
         identity_root: input.identity_root,
+        requested_bytes: input.requested_bytes,
       });
       shared = compileAdapterSituation(bounded);
     } catch {
@@ -86,6 +89,9 @@ export async function bindCliSituation(input: {
 export function renderCliSituationBinding(binding: CliSituationBinding): string {
   if (binding.selection.mode === "v1_fallback") return `${binding.selection.warning}\n`;
   const situation = binding.selection.served.payload;
+  const budget = (situation as {
+    budget?: { requested_bytes: number; actual_bytes: number; complete: boolean; omitted_categories: readonly string[] };
+  }).budget;
   return [
     "Seedrop Situation v2 (shadow)",
     `Situation: ${situation.situation_id}`,
@@ -95,6 +101,11 @@ export function renderCliSituationBinding(binding: CliSituationBinding): string 
     `Readiness: ${situation.readiness}`,
     `Next: ${situation.decision.display}`,
     ...(situation.warnings.length ? [`Warnings: ${situation.warnings.join(", ")}`] : []),
+    ...(budget && !budget.complete
+      ? [budget.actual_bytes >= budget.requested_bytes
+          ? `Budget: text categories [${budget.omitted_categories.join(", ")}] were truncated to fit the ${budget.requested_bytes}-byte budget — re-run with --situation-budget <bytes> to spend more`
+          : `Budget: text categories [${budget.omitted_categories.join(", ")}] hit fixed per-field caps (${budget.actual_bytes} of ${budget.requested_bytes} bytes used)`]
+      : []),
     "",
   ].join("\n");
 }
@@ -108,6 +119,7 @@ async function defaultCompileLive(input: {
   view_root?: string;
   principal_alias?: string;
   identity_root?: string;
+  requested_bytes?: number;
 }): Promise<BoundedSituationProjection> {
   return (await compileLiveBoundedSituation(input)).bounded;
 }

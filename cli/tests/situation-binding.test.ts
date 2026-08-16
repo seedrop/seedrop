@@ -62,6 +62,64 @@ describe("CLI shared Situation binding", () => {
     expect(cliSituationEnabled(["--v1", "--json"], { SEEDROP_V2_SITUATION: "1" })).toBe(false);
     expect(cliSituationEnabled([], { SEEDROP_V2_SITUATION: "0" })).toBe(false);
   });
+
+  it("forwards requested_bytes to the live compile so callers can spend budget", async () => {
+    const shared = compileAdapterSituation(fixture());
+    let seen: number | undefined;
+    const binding = await bindCliSituation({
+      feature: true,
+      repo_root: "/repo",
+      requested_bytes: 16384,
+      legacy: { source: "v1" },
+      compile_live: async (input) => {
+        seen = input.requested_bytes;
+        return fixture();
+      },
+      expected: { situation_id: shared.situation_id, decision_id: shared.decision_id, semantic_digest: shared.semantic_digest },
+    });
+    expect(binding.selection.mode).toBe("v2");
+    expect(seen).toBe(16384);
+  });
+
+  it("renders an explicit elision reason and remedy when the budget truncated text", async () => {
+    const byteCapped = fixture();
+    byteCapped.budget = {
+      ...byteCapped.budget,
+      complete: false,
+      requested_bytes: 4096,
+      actual_bytes: 4096,
+      omitted_categories: ["decision_text", "grave_text", "risk_text"],
+    };
+    const sharedByte = compileAdapterSituation(byteCapped);
+    const byteBinding = await bindCliSituation({
+      feature: true,
+      repo_root: "/repo",
+      legacy: { source: "v1" },
+      compile_live: async () => byteCapped,
+      expected: { situation_id: sharedByte.situation_id, decision_id: sharedByte.decision_id, semantic_digest: sharedByte.semantic_digest },
+    });
+    const byteRendered = renderCliSituationBinding(byteBinding);
+    expect(byteRendered).toContain("were truncated to fit the 4096-byte budget");
+    expect(byteRendered).toContain("--situation-budget <bytes>");
+
+    const fieldCapped = fixture();
+    fieldCapped.budget = {
+      ...fieldCapped.budget,
+      complete: false,
+      requested_bytes: 16384,
+      actual_bytes: 2764,
+      omitted_categories: ["decision_text"],
+    };
+    const sharedField = compileAdapterSituation(fieldCapped);
+    const fieldBinding = await bindCliSituation({
+      feature: true,
+      repo_root: "/repo",
+      legacy: { source: "v1" },
+      compile_live: async () => fieldCapped,
+      expected: { situation_id: sharedField.situation_id, decision_id: sharedField.decision_id, semantic_digest: sharedField.semantic_digest },
+    });
+    expect(renderCliSituationBinding(fieldBinding)).toContain("hit fixed per-field caps (2764 of 16384 bytes used)");
+  });
 });
 
 function fixture(): BoundedSituationProjection {
