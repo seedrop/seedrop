@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { access, mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { constants, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,8 +11,6 @@ const execFileAsync = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const cliRoot = resolve(here, "..");
 const monorepoRoot = resolve(cliRoot, "..");
-const idRoot = resolve(monorepoRoot, "id");
-const spaceRoot = resolve(monorepoRoot, "space");
 
 const results = [];
 function record(name, status, detail = "") {
@@ -37,13 +35,50 @@ async function pack(pkgRoot, outDir, env) {
   return join(outDir, file);
 }
 
+// The consumer installs @seedrop/cli from tarballs, so every local @seedrop/*
+// package in its dependency closure must be packed alongside: npm cannot fall
+// back to the registry for unpublished workspace packages.
+async function localDependencyClosure() {
+  const rootManifest = JSON.parse(await readFile(join(monorepoRoot, "package.json"), "utf8"));
+  const workspaceOrder = rootManifest.workspaces ?? [];
+  const byName = new Map();
+  for (const dir of workspaceOrder) {
+    const manifest = JSON.parse(await readFile(join(monorepoRoot, dir, "package.json"), "utf8"));
+    if (manifest.name) byName.set(manifest.name, { dir: join(monorepoRoot, dir), order: workspaceOrder.indexOf(dir) });
+  }
+
+  const queue = ["@seedrop/cli"];
+  const seen = new Set(queue);
+  while (queue.length > 0) {
+    const name = queue.shift();
+    const entry = byName.get(name);
+    if (!entry) throw new Error(`${name} is not a local workspace package; it cannot be resolved from tarballs`);
+    const manifest = JSON.parse(await readFile(join(entry.dir, "package.json"), "utf8"));
+    for (const depName of Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies })) {
+      if (depName.startsWith("@seedrop/") && !seen.has(depName)) {
+        seen.add(depName);
+        queue.push(depName);
+      }
+    }
+  }
+
+  seen.delete("@seedrop/cli");
+  return [...seen]
+    .map((name) => ({ name, ...byName.get(name) }))
+    .sort((a, b) => a.order - b.order)
+    .map(({ name, dir }) => ({ name, dir }));
+}
+
 async function main() {
   console.log("seed cli install smoke (no PATH shims)");
   console.log("───────────────────────────────────────");
 
-  for (const root of [idRoot, spaceRoot, cliRoot]) {
-    if (!existsSync(join(root, "dist"))) {
-      throw new Error(`Missing dist for ${root}. Run \`npm run build\` in each workspace first.`);
+  const closure = await localDependencyClosure();
+  closure.push({ name: "@seedrop/cli", dir: cliRoot });
+
+  for (const { name, dir } of closure) {
+    if (!existsSync(join(dir, "dist"))) {
+      throw new Error(`Missing dist for ${name}. Run \`npm run build\` in each workspace first.`);
     }
   }
 
@@ -57,12 +92,12 @@ async function main() {
   const npmEnv = { npm_config_cache: cacheDir };
 
   try {
-    const idTar = await pack(idRoot, tarDir, npmEnv);
-    record("packed @seedrop/id", "pass", idTar.replace(tarDir + "/", ""));
-    const spaceTar = await pack(spaceRoot, tarDir, npmEnv);
-    record("packed @seedrop/space", "pass", spaceTar.replace(tarDir + "/", ""));
-    const cliTar = await pack(cliRoot, tarDir, npmEnv);
-    record("packed @seedrop/cli", "pass", cliTar.replace(tarDir + "/", ""));
+    const tarballs = {};
+    for (const { name, dir } of closure) {
+      const tar = await pack(dir, tarDir, npmEnv);
+      tarballs[name] = tar;
+      record(`packed ${name}`, "pass", tar.replace(tarDir + "/", ""));
+    }
 
     await writeFile(
       join(projectDir, "package.json"),
@@ -70,16 +105,12 @@ async function main() {
         name: "seed-install-smoke-consumer",
         version: "0.0.0",
         private: true,
-        dependencies: {
-          "@seedrop/cli": `file:${cliTar}`,
-          "@seedrop/id": `file:${idTar}`,
-          "@seedrop/space": `file:${spaceTar}`,
-        },
+        dependencies: Object.fromEntries(closure.map(({ name }) => [name, `file:${tarballs[name]}`])),
       }, null, 2),
     );
 
     await run(projectDir, "npm", ["install", "--no-audit", "--no-fund", "--silent"], npmEnv);
-    record("npm install three tarballs", "pass");
+    record(`npm install ${closure.length} tarballs`, "pass");
 
     const seedBin = join(projectDir, "node_modules", ".bin", "seed");
     if (!existsSync(seedBin)) throw new Error(`expected ${seedBin} after install`);
