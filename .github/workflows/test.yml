@@ -58,6 +58,13 @@ jobs:
       - name: test
         run: npm test --workspaces
 
+      - name: smoke gates
+        run: |
+          npm run smoke -w @seedrop/cli
+          npm run smoke:install -w @seedrop/cli
+          npm run smoke -w @seedrop/space
+          npm run smoke:http -w @seedrop/space
+
   desktop-artifact:
     name: desktop artifact / ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
