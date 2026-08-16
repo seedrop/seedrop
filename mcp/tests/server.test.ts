@@ -135,7 +135,7 @@ describe("tool handlers (smoke)", () => {
       expect(tool).toBeDefined();
       const result = await tool!.handler({});
       expect(result.content[0]?.type).toBe("text");
-      expect(result.content[0]?.text).toContain("schema_version");
+      expect(result.content[0]?.text).toContain("binding_version");
     } finally {
       if (prior === undefined) delete process.env.SEEDROP_PASSPORT;
       else process.env.SEEDROP_PASSPORT = prior;
