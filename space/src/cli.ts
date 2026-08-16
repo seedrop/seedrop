@@ -598,6 +598,23 @@ async function runJournalCommand(command: string | undefined, args: ParsedArgs, 
     printJson({ swept_count: swept.length, swept });
     return;
   }
+  if (command === "status") {
+    const agent = args.flags.get("agent")?.[0];
+    const runs = await view.listRuns();
+    const scoped = agent ? runs.filter((run) => run.agent_id === agent) : runs;
+    const active = scoped.filter((run) => run.status === "in_progress").at(-1) ?? null;
+    const latest = scoped.at(-1) ?? null;
+    if (args.flags.has("json")) {
+      printJson({ agent: agent ?? null, run_count: scoped.length, active, latest });
+      return;
+    }
+    const line = (run: typeof latest): string =>
+      `${run!.run_id.slice(0, 8)}\t${run!.status}\t${run!.agent_id}\t${run!.steps.length} steps\t${run!.goal}`;
+    if (active) console.log(`active: ${line(active)}`);
+    else console.log("active: (none)");
+    if (latest && latest !== active) console.log(`latest: ${line(latest)}`);
+    return;
+  }
   throw new Error(`Unknown run command: ${command ?? ""}`);
 }
 

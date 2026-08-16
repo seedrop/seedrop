@@ -548,6 +548,7 @@ Examples:
   seed id list
   seed view init
   seed run start --goal "..."
+  seed run status                  # where the current run stands (read-only)
   seed space join seedrop-team
   seed space register --working-on "<what>"
   seed space heartbeat --working-on "<update>"
