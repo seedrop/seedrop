@@ -926,6 +926,18 @@ function renderContinuityFull(report: ContinuityReport): string {
       if (s.recentMessages.length === 0) {
         lines.push(`    (no messages yet)`);
       } else {
+        // A channel whose newest message is a month old is noise posing as a
+        // ritual step; say so instead of letting agents trust dead spaces.
+        const newestMs = s.recentMessages
+          .map((m) => Date.parse(m.created_at ?? ""))
+          .filter((ms) => Number.isFinite(ms))
+          .sort((a, b) => b - a)[0];
+        if (newestMs !== undefined) {
+          const ageDays = Math.floor((Date.now() - newestMs) / 86_400_000);
+          if (ageDays >= 30) {
+            lines.push(`    (stale — newest message is ${ageDays}d old; do not treat this channel as live coordination)`);
+          }
+        }
         const newCount = s.recentMessages.filter((m) => isNew(m.created_at)).length;
         if (newCount > 0) {
           lines.push(`    (${newCount} new since you were last here)`);

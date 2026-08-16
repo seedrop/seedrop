@@ -64,4 +64,21 @@ describe("weak-reader continuity rendering", () => {
     expect(continuityWarningReferent("View preflight has 2 failed checks.")).toBe("View preflight");
     expect(splitContinuityClaims("First claim; second claim.")).toEqual(["First claim", "second claim."]);
   });
+
+  it("marks joined spaces whose newest message is a month old as stale", () => {
+    const base = report();
+    const ageDays = 90;
+    const oldest = new Date(Date.now() - ageDays * 86_400_000).toISOString();
+    const withStaleSpace = {
+      ...base,
+      joinedSpaces: [{
+        name: "seedrop-team",
+        presence: [],
+        recentMessages: [{ author_passport_id: "claude", content: "old handoff", created_at: oldest }],
+        unreachable: false,
+      }],
+    };
+    const rendered = renderContinuity(withStaleSpace, "full");
+    expect(rendered).toContain("stale — newest message is 90d old; do not treat this channel as live coordination");
+  });
 });

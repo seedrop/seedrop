@@ -45,7 +45,11 @@ the acting runtime alongside the passport on every durable write.
 
 ## B. The success-level ladder
 
-### 4. The ladder punishes work-in-progress — live, medium (unaddressed)
+### 4. The ladder punishes work-in-progress — reduced, medium (redesign open)
+Update 2026-08-16: with #6 fixed (freshness now converges), the mid-work L1
+case largely dissolves — reads hold L3+ during work, and only uncommitted
+run-tracked paths cap L4 to L3. The two-axis evidence/hygiene report remains
+open but is no longer blocking.
 A dirty tree or stale manifest pins the view at L1 — i.e., exactly while an
 agent is working, policy "requires L3" and every read says the view failed.
 Combined with dsh #4 (nothing auto-populates evidence, so first boot reads as
@@ -109,7 +113,11 @@ healthy — two signals an autonomous consumer cannot act on correctly.
 **Fix:** explicit elision markers with reasons, honest health decomposition,
 and a flag to spend budget on grave/decision text.
 
-### 11. The coordination ritual returns stale noise — live, low/medium (unaddressed)
+### 11. The coordination ritual returns stale noise — partial, low/medium
+`seed continuity --full` now marks channels whose newest message is 30+ days
+old as stale. Remaining: per-workspace space binding (a repo's project entry
+does not record its space, so live renders can omit the real channel) and
+surfacing staleness in the boot packet.
 The documented session ritual ends with `seed space messages seedrop-team`;
 its newest message is from June and concerns a different project. Ritual
 steps that return noise train agents to skip them. Presence TTL (60s) makes
@@ -179,6 +187,7 @@ inside the loop Seedrop itself was orienting.
   also surfaced that the common truncation is fixed per-field caps, not the byte
   budget. (10, boot surface only; payload-level elision redesign remains open)
 
-Remaining after this pass: 4 (ladder semantics), 7 (commit-friendly manifest),
-11 (stale coordination), 14 (pull-free capture), and the deeper halves of 2/3
-(session-bound identity pinning) and 10 (in-payload elision reasons).
+Remaining after this pass: 7 (commit-friendly manifest), 14 (pull-free capture),
+the deeper halves of 2/3 (session-bound identity pinning), 10 (in-payload
+elision reasons), and 11 (per-workspace space binding). Item 4's premise was
+mostly dissolved by the freshness fix; its two-axis redesign stays open.
