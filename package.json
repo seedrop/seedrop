@@ -3,18 +3,18 @@
   "private": true,
   "workspaces": [
     "protocol",
+    "space",
+    "desktop",
+    "outcomes",
     "project",
     "kernel",
-    "migration",
-    "outcomes",
     "situation",
     "id",
-    "space",
+    "migration",
     "cli",
     "mcp",
     "observer",
-    "bench",
-    "desktop"
+    "bench"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
