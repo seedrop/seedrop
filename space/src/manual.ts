@@ -101,6 +101,9 @@ seed run start --goal "X" --claim path/to/file.ts,other.ts
 # Log progress (auto-relativizes paths):
 seed run log --summary "did Y" --changed-path src/foo.ts
 
+# Check where a run stands (read-only):
+seed run status [--agent <id>] [--json]
+
 # Verify:
 seed run verify --command "npm test -ws" --status passed
 

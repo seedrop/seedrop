@@ -159,6 +159,18 @@ async function main() {
         await stopProcess(server.child);
       }
     }
+    await expectJson(
+      ["run", "start", "--goal", "smoke the run surface", "--root", projectRoot, "--agent", "codex"],
+      env,
+      "seed run start creates a run",
+      (payload) => typeof payload?.run?.run_id === "string",
+    );
+    await expectJson(
+      ["run", "status", "--json", "--root", projectRoot, "--agent", "codex"],
+      env,
+      "seed run status reports the active run",
+      (payload) => payload?.active?.goal === "smoke the run surface" && payload?.run_count === 1,
+    );
     await expectOk(["view", "--help"], env, "seed view help");
     await expectOk(["space", "view", "--help"], env, "seed space view help");
   } finally {

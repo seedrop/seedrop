@@ -458,11 +458,33 @@ describe("continuity", () => {
     expect(parsed.orientation.next_action.command).toBe("seed bootstrap");
   });
 
-  it("boot --json returns the stateless-agent cold-start contract", async () => {
+  it("boot --json serves the Situation binding by default", async () => {
     await writePassport("codex");
     await writeManifest(scratch, "demo");
     const io = createIo();
     const code = await runCli(["boot", "--json", "--cwd", scratch, "--peek"], io, fakeRunner());
+    expect(code).toBe(0);
+    const parsed = JSON.parse(io.stdoutText());
+    expect(parsed).toMatchObject({ binding_version: "1.0.0", adapter: "cli" });
+    expect(["v2", "v1_fallback"]).toContain(parsed.selection.mode);
+    if (parsed.selection.mode === "v2") {
+      expect(parsed.selection.served).toMatchObject({ kind: "v2_situation" });
+      expect(parsed.selection.served.payload.mutation_capability).toBe("read_only");
+    } else {
+      expect(parsed.selection).toMatchObject({
+        mode: "v1_fallback",
+        served: { kind: "v1" },
+      });
+      expect(parsed.selection.served.payload.schema_version).toBe("1.0");
+      expect(parsed.selection.served.payload.identity).toMatchObject({ present: true, agent_id: "codex" });
+    }
+  });
+
+  it("boot --v1 --json returns the stateless-agent cold-start contract", async () => {
+    await writePassport("codex");
+    await writeManifest(scratch, "demo");
+    const io = createIo();
+    const code = await runCli(["boot", "--v1", "--json", "--cwd", scratch, "--peek"], io, fakeRunner());
     expect(code).toBe(0);
     const parsed = JSON.parse(io.stdoutText());
 
@@ -1589,6 +1611,69 @@ describe("runBootstrap", () => {
     try {
       await runCli(["bootstrap", "--no-link"], createIo(), fakeRunner());
       expect(existsSync(process.env.SEEDROP_SPACE_ROOT as string)).toBe(true);
+    } finally {
+      process.chdir(prior);
+    }
+  });
+
+  it("bootstrap --help renders usage without linking or writing anything", async () => {
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(passportPath, JSON.stringify({ schema_version: "1.0" }), "utf8");
+    const repo = join(scratch, "repo-help");
+    await mkdir(repo, { recursive: true });
+    const prior = process.cwd();
+    process.chdir(repo);
+    try {
+      const io = createIo();
+      const seen: CommandDispatch[] = [];
+      const code = await runCli(["bootstrap", "--help"], io, fakeRunner(0, seen));
+      expect(code).toBe(0);
+      expect(io.stdoutText()).toContain("Usage:");
+      expect(io.stdoutText()).not.toContain("acting as:");
+      expect(seen).toEqual([]);
+      expect(existsSync(join(repo, ".seedrop"))).toBe(false);
+      expect(existsSync(process.env.SEEDROP_SPACE_ROOT as string)).toBe(false);
+    } finally {
+      process.chdir(prior);
+    }
+  });
+
+  it("a --help value passed to a flag is data, not a help request", async () => {
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(passportPath, JSON.stringify({ schema_version: "1.0", agent_id: "codex" }), "utf8");
+    const repo = join(scratch, "repo-flag-value");
+    await mkdir(repo, { recursive: true });
+    const prior = process.cwd();
+    process.chdir(repo);
+    try {
+      const io = createIo();
+      const seen: CommandDispatch[] = [];
+      const code = await runCli(["bootstrap", "--current-focus", "--help"], io, fakeRunner(0, seen));
+      expect(code).toBe(0);
+      // Not the help screen: bootstrap ran its link plan under the identity echo.
+      expect(io.stdoutText()).toContain("acting as:");
+      expect(seen[0]?.args.slice(0, 2)).toEqual(["view", "init"]);
+    } finally {
+      process.chdir(prior);
+    }
+  });
+
+  it("bootstrap echoes the acting identity before any durable write", async () => {
+    const passportPath = process.env.SEEDROP_PASSPORT as string;
+    await writeFile(
+      passportPath,
+      JSON.stringify({ schema_version: "1.0", agent_id: "codex", issued_by: "mc" }),
+      "utf8",
+    );
+    const repo = join(scratch, "repo-echo");
+    await mkdir(repo, { recursive: true });
+    const prior = process.cwd();
+    process.chdir(repo);
+    try {
+      const io = createIo();
+      const code = await runCli(["bootstrap"], io, fakeRunner());
+      expect(code).toBe(0);
+      expect(io.stdoutText()).toContain("acting as: codex ← mc (source: $SEEDROP_PASSPORT)");
     } finally {
       process.chdir(prior);
     }

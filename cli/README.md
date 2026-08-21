@@ -16,12 +16,13 @@ seed doctor
 
 Run `seed capabilities` in the shell, or call `seedrop_capabilities` from MCP, to see the full current CLI command -> MCP tool map.
 
-Wave 6 shared Situation output is opt-in while v1 remains authoritative. Pass
-`--v2-situation --situation-file <adapter-situation.json>` to `seed boot`, or set
-`SEEDROP_V2_SITUATION=1` and `SEEDROP_V2_SITUATION_FILE`. Expected Situation,
-decision, and semantic digests may be supplied with `--expect-situation`,
-`--expect-decision`, and `--expect-semantic`; any missing, invalid, or mismatched
-projection serves the existing v1 boot packet with an explicit warning.
+Live boot serves the v2 Situation by default. Writers (View, tasks, runs, passport,
+Space) stay on v1. Pass `--v1` or set `SEEDROP_V2_SITUATION=0` to get the v1 packet.
+`--v2-situation` remains accepted. `--situation-file <adapter-situation.json>` still
+loads a frozen projection. Expected Situation, decision, and semantic digests may
+be supplied with `--expect-situation`, `--expect-decision`, and `--expect-semantic`;
+compile failure or any missing, invalid, or mismatched projection serves the v1
+boot packet with an explicit warning.
 
 ## Install Clients
 

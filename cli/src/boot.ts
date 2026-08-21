@@ -9,7 +9,7 @@ import {
   type ContinuityReport,
 } from "./continuity.js";
 import type { RunCliIO } from "./router.js";
-import { bindCliSituation, jsonValue, renderCliSituationBinding } from "./situation-binding.js";
+import { bindCliSituation, cliSituationEnabled, jsonValue, renderCliSituationBinding } from "./situation-binding.js";
 
 export type BootRisk = "low" | "medium" | "high";
 export type BootNextActionKind = "setup" | "inbox" | "handoff" | "run" | "verify" | "safety" | "sync" | "focus";
@@ -797,13 +797,20 @@ export async function runBoot(
     since: readFlag(argv, "since"),
     peek: argv.includes("--peek"),
   });
-  const v2Feature = argv.includes("--v2-situation") ? true : process.env.SEEDROP_V2_SITUATION;
+  const v2Feature = cliSituationEnabled(argv);
   if (v2Feature) {
-    const binding = await bindCliSituation({ feature: v2Feature,
+    const situationBudgetFlag = readFlag(argv, "situation-budget");
+    const situationBudgetBytes = situationBudgetFlag === undefined ? undefined : Number(situationBudgetFlag);
+    if (situationBudgetBytes !== undefined && (!Number.isFinite(situationBudgetBytes) || situationBudgetBytes <= 0)) {
+      io.stderr.write(`--situation-budget must be a positive byte count (got '${situationBudgetFlag}').\n`);
+      return 1;
+    }
+    const binding = await bindCliSituation({ feature: true,
       projection_file: readFlag(argv, "situation-file") ?? process.env.SEEDROP_V2_SITUATION_FILE,
       repo_root: report.place.root,
       view_root: report.place.view_present ? join(report.place.root, ".seedrop", "view") : undefined,
       principal_alias: report.identity.agent_id ?? undefined,
+      requested_bytes: situationBudgetBytes,
       legacy: jsonValue(report), continuity_page: report.continuity_page ? jsonValue(report.continuity_page) : null,
       expected: {
         situation_id: readFlag(argv, "expect-situation") as `sha256:${string}` | undefined,

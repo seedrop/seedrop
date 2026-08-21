@@ -70,7 +70,7 @@ describe("tools registry", () => {
     expect(boot?.description).toContain("Situation packet");
     expect(boot?.inputSchema.properties).toMatchObject({ json: { default: true } });
     expect(boot?.inputSchema.properties).toMatchObject({
-      v2_situation: { default: false }, situation_file: { type: "string" },
+      v2_situation: { default: true }, situation_file: { type: "string" },
       expect_situation: { type: "string" }, expect_decision: { type: "string" }, expect_semantic: { type: "string" },
     });
   });
@@ -135,7 +135,7 @@ describe("tool handlers (smoke)", () => {
       expect(tool).toBeDefined();
       const result = await tool!.handler({});
       expect(result.content[0]?.type).toBe("text");
-      expect(result.content[0]?.text).toContain("schema_version");
+      expect(result.content[0]?.text).toContain("binding_version");
     } finally {
       if (prior === undefined) delete process.env.SEEDROP_PASSPORT;
       else process.env.SEEDROP_PASSPORT = prior;

@@ -50,7 +50,7 @@ assert.ok(
 const cli = join(repoRoot, "cli", "dist", "cli.js");
 assert.ok(existsSync(cli), "cli/dist/cli.js missing; build @seedrop/cli before this gate");
 const bootStarted = performance.now();
-const bootRaw = execFileSync(process.execPath, [cli, "boot", "--v2-situation", "--json", "--peek"], {
+const bootRaw = execFileSync(process.execPath, [cli, "boot", "--json", "--peek"], {
   cwd: repoRoot,
   encoding: "utf8",
   timeout: MCP_DEFAULT_SPAWN_MS,
@@ -58,7 +58,7 @@ const bootRaw = execFileSync(process.execPath, [cli, "boot", "--v2-situation", "
 });
 const bootMs = Math.round(performance.now() - bootStarted);
 const boot = JSON.parse(bootRaw);
-assert.equal(boot.selection?.mode, "v2", "CLI boot must serve live v2 without --situation-file");
+assert.equal(boot.selection?.mode, "v2", "CLI boot must serve live v2 by default without --situation-file");
 assert.equal(boot.selection?.served?.kind, "v2_situation");
 assert.equal(boot.selection?.served?.payload?.situation_id, result.bounded.situation_id);
 assert.equal(boot.selection?.served?.payload?.decision_id, result.bounded.decision_id);
@@ -67,12 +67,21 @@ assert.ok(
   `CLI live boot took ${bootMs}ms; MCP default spawn window is ${MCP_DEFAULT_SPAWN_MS}ms`,
 );
 
+const v1Raw = execFileSync(process.execPath, [cli, "boot", "--v1", "--json", "--peek"], {
+  cwd: repoRoot,
+  encoding: "utf8",
+  timeout: MCP_DEFAULT_SPAWN_MS,
+  env: process.env,
+});
+const v1 = JSON.parse(v1Raw);
+assert.notEqual(v1.selection?.mode, "v2", "CLI --v1 must not serve the v2 Situation");
+assert.ok(v1.identity && v1.next_action, "CLI --v1 must serve the classic v1 boot packet");
+
 const { tools } = await import("@seedrop/mcp");
 const bootTool = tools.find((item) => item.name === "seedrop_boot");
 assert.ok(bootTool, "seedrop_boot tool missing from @seedrop/mcp");
 const mcpStarted = performance.now();
 const mcpResult = await bootTool.handler({
-  v2_situation: true,
   json: true,
   peek: true,
   cwd: repoRoot,

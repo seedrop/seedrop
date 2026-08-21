@@ -507,7 +507,7 @@ export type CommandPlan = CommandDispatch | CommandDispatch[];
 
 const usage = `Usage:
   seed                          (agent boot: who am I, where am I, what is next)
-  seed boot [--json] [--messages N]
+  seed boot [--json] [--messages N] [--v1]
   seed init                     (guided one-shot local setup)
   seed continuity [--brief|--medium|--full] [--json] [--messages N] [--peek]
   seed continuity ack --token <token> [--json]
@@ -548,6 +548,7 @@ Examples:
   seed id list
   seed view init
   seed run start --goal "..."
+  seed run status                  # where the current run stands (read-only)
   seed space join seedrop-team
   seed space register --working-on "<what>"
   seed space heartbeat --working-on "<update>"
@@ -661,6 +662,12 @@ export async function runCli(
 ): Promise<number> {
   try {
     await verifyDaemonRuntimeStartup(argv);
+    // `--help` anywhere in a command line is a read-only request: short-circuit
+    // before any command (bootstrap, init, view plans) can mutate state.
+    if (commandRequestsHelp(argv)) {
+      io.stdout.write(renderHelp());
+      return 0;
+    }
     const dispatch = resolveCommand(argv);
     if (dispatch === "help") {
       io.stdout.write(renderHelp());
@@ -847,6 +854,26 @@ async function runBootstrap(argv: readonly string[], io: RunCliIO, runner: Comma
     if (issuedByFlag) resolvedIssuedBy = issuedByFlag;
   }
 
+  // Everything below writes in the name of this passport. Echo the acting
+  // identity before the first durable write so a stale `seed login` from
+  // another shell cannot link a repo silently on behalf of the wrong agent.
+  const resolution = defaultPassportResolution();
+  const identitySource = explicitPassport
+    ? "explicit --passport"
+    : asAgent
+      ? `--as ${asAgent}`
+      : resolution.source === "env"
+        ? "$SEEDROP_PASSPORT"
+        : resolution.source === "active"
+          ? "seed login"
+          : "operator default";
+  const existingPassport = await safeReadPassport(passportPath);
+  const actingAgent = existingPassport?.agent_id ?? resolvedAgentId ?? name ?? "(new passport)";
+  const principalTag = existingPassport?.issued_by ? ` ← ${existingPassport.issued_by}` : "";
+  const autonomousTag = existingPassport?.autonomous ? " [autonomous]" : "";
+  io.stdout.write(`acting as: ${actingAgent}${principalTag}${autonomousTag} (source: ${identitySource})\n`);
+  io.stdout.write(`passport: ${passportPath}\n`);
+
   await mkdir(dirname(passportPath), { recursive: true });
   await mkdir(spaceRoot, { recursive: true });
 
@@ -864,8 +891,6 @@ async function runBootstrap(argv: readonly string[], io: RunCliIO, runner: Comma
     if (autonomous) initArgs.push("--autonomous");
     const code = await runner.run({ command: "seed-id", args: initArgs });
     if (code !== 0) return code;
-  } else {
-    io.stdout.write(`passport: ${passportPath}\n`);
   }
 
   io.stdout.write(`space root: ${spaceRoot}\n`);
@@ -2762,6 +2787,30 @@ function normalizeIdArgs(argv: readonly string[]): string[] {
     return [command, "--passport", maybePassport, ...rest];
   }
   return [...argv];
+}
+
+const HELP_REQUEST_FLAGS = new Set(["--help", "-h"]);
+
+// Flags that consume the next token as a value; a `--help` following one of
+// these is data (e.g. `--purpose "--help"`), not a help request. Keep in sync
+// with flagValue/readFlag consumers across cli modules.
+const HELP_VALUE_FLAGS = new Set([
+  "--agent", "--agent-id", "--as", "--build-hash", "--budget", "--config", "--current-focus",
+  "--cwd", "--expect-decision", "--expect-semantic", "--expect-situation", "--issued-by",
+  "--messages", "--mission", "--name", "--operator-name", "--out", "--passport", "--port",
+  "--profile", "--purpose", "--role", "--runtime-profile", "--runtime-root",
+  "--runtime-source-hash", "--runtime-version", "--since", "--situation-file",
+  "--space-root", "--summary", "--target", "--to", "--token", "--url", "--url-path",
+]);
+
+function commandRequestsHelp(argv: readonly string[]): boolean {
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (!HELP_REQUEST_FLAGS.has(token ?? "")) continue;
+    if (i > 0 && HELP_VALUE_FLAGS.has(argv[i - 1] ?? "")) continue;
+    return true;
+  }
+  return false;
 }
 
 function flagValue(argv: readonly string[], name: string): string | undefined {

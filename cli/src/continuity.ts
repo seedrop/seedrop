@@ -801,7 +801,8 @@ function renderContinuityFull(report: ContinuityReport): string {
     lines.push(`  view: present (workspace_id: ${m?.workspace_id ?? "?"}, ${m?.files_count ?? m?.files?.length ?? 0} tracked files)`);
     if (report.view.brief?.success?.level) {
       const success = report.view.brief.success;
-      lines.push(`  view success: ${success.level}${success.label ? ` ${success.label}` : ""}${success.required_level ? ` (requires ${success.required_level})` : ""}`);
+      const as = success.agent ? ` (as ${success.agent})` : "";
+      lines.push(`  view success${as}: ${success.level}${success.label ? ` ${success.label}` : ""}${success.required_level ? ` (requires ${success.required_level})` : ""}`);
     }
     const workspaceFocus = (report.view.brief as { workspace?: { current_focus?: string } } | undefined)?.workspace?.current_focus;
     if (workspaceFocus) {
@@ -925,6 +926,18 @@ function renderContinuityFull(report: ContinuityReport): string {
       if (s.recentMessages.length === 0) {
         lines.push(`    (no messages yet)`);
       } else {
+        // A channel whose newest message is a month old is noise posing as a
+        // ritual step; say so instead of letting agents trust dead spaces.
+        const newestMs = s.recentMessages
+          .map((m) => Date.parse(m.created_at ?? ""))
+          .filter((ms) => Number.isFinite(ms))
+          .sort((a, b) => b - a)[0];
+        if (newestMs !== undefined) {
+          const ageDays = Math.floor((Date.now() - newestMs) / 86_400_000);
+          if (ageDays >= 30) {
+            lines.push(`    (stale — newest message is ${ageDays}d old; do not treat this channel as live coordination)`);
+          }
+        }
         const newCount = s.recentMessages.filter((m) => isNew(m.created_at)).length;
         if (newCount > 0) {
           lines.push(`    (${newCount} new since you were last here)`);
@@ -1472,19 +1485,43 @@ export async function runContinuity(
   const json = argv.includes("--json");
   if (argv[0] === "ack") {
     const token = readFlag(argv, "token");
-    if (!token) {
-      io.stderr.write("Continuity acknowledgement requires --token <token> from a complete continuity page.\n");
-      return 1;
-    }
     const passport = await readJson<Passport>(passportPath);
     if (!passport?.agent_id) {
       io.stderr.write(`No valid agent passport at ${passportPath}.\n`);
       return 1;
     }
+    // Tokenless ack: render the acting identity's current page and commit it
+    // in one step, so acknowledging never depends on copy-pasting a wrapped
+    // ~600-char token out of terminal output. Explicit --token keeps the
+    // scripted, reproducible path.
+    const effectiveToken = token ?? await (async () => {
+      const cwd = resolve(readFlag(argv, "cwd") ?? process.cwd());
+      const place = resolveOrientationRoot(cwd);
+      const report = await buildContinuity({
+        passportPath,
+        passportSource,
+        spaceUrl,
+        cwd,
+        root: place.root,
+        rootKind: place.kind,
+        messageLimit: 5,
+        json,
+        peek: false,
+      });
+      return report.page?.ack_token;
+    })();
+    if (!effectiveToken) {
+      io.stderr.write(
+        token
+          ? "Continuity acknowledgement requires --token <token> from a complete continuity page.\n"
+          : "No acknowledgeable continuity page for this identity right now (incomplete or peeked page). Run `seed continuity` and retry.\n",
+      );
+      return 1;
+    }
     try {
       const result = await acknowledgeContinuityPage({
         agentId: passport.agent_id,
-        token,
+        token: effectiveToken,
         commitPresence: async (sessionId, observedAt) => {
           const committed = await postJson(
             `${spaceUrl}/presence/ack`,
