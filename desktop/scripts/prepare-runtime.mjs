@@ -38,7 +38,18 @@ function flagValue(name) {
 const nodeSource = path.join(resourcesRoot, "runtime", `node-darwin-${arch}`);
 const nodeMetadataPath = path.join(nodeSource, ".seedrop-node.json");
 const manifestPath = path.join(releaseRoot, "runtime-manifest.json");
-const packageWorkspaces = ["@seedrop/id", "@seedrop/space", "@seedrop/cli", "@seedrop/mcp", "@seedrop/observer"];
+const packageWorkspaces = [
+  "@seedrop/protocol",
+  "@seedrop/project",
+  "@seedrop/outcomes",
+  "@seedrop/situation",
+  "@seedrop/id",
+  "@seedrop/space",
+  "@seedrop/migration",
+  "@seedrop/cli",
+  "@seedrop/mcp",
+  "@seedrop/observer",
+];
 const sourceInputs = [
   "cli/src", "cli/templates", "cli/clients.json", "cli/package.json",
   "id/src", "id/package.json",
@@ -224,7 +235,7 @@ async function buildRelease(sourceHash) {
   const nodeMetadata = JSON.parse(await readFile(nodeMetadataPath, "utf8"));
 
   process.stdout.write(`building Seedrop production packages for ${arch}\n`);
-  await run("npm", ["run", "build", "-w", "@seedrop/id", "-w", "@seedrop/space", "-w", "@seedrop/cli", "-w", "@seedrop/mcp", "-w", "@seedrop/observer"]);
+  await run("npm", ["run", "build", ...packageWorkspaces.flatMap((w) => ["-w", w])]);
 
   const scratch = await mkdtemp(path.join(os.tmpdir(), "seedrop-desktop-runtime-"));
   try {
