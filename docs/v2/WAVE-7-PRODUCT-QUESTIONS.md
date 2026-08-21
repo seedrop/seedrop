@@ -27,8 +27,8 @@ arm. It is not a v2 win condition.
    `compileLiveBoundedSituation` at
    `~/.seedrop/benchmarks/pr15/wave7-2026-08-14-live-intent` (100 fixtures,
    `ready_for_model_spend: true`). The 2026-08-13-b and
-   2026-08-14-live-boot corpora are not this compiler+intent seal. Gate A still
-   needs an exact operator ceiling.
+   2026-08-14-live-boot corpora are not this compiler+intent seal. Gate A was
+   authorized 2026-08-21 at 8 calls / 8 attempts / $1 USD.
 
 Until those are true, no provider calls.
 
@@ -69,7 +69,7 @@ as Seedrop v2 causing the refusal.
 
 | Action | Authorization |
 | --- | --- |
-| Gate A failed-attempt compatibility canary (4 results / 8 calls) | optional, exact operator call/attempt/USD ceiling only, and only after preconditions |
+| Gate A failed-attempt compatibility canary (4 results / 8 calls) | **AUTHORIZED 2026-08-21**: 8 logical calls / 8 provider attempts / max $1 USD — see [authorization receipt](../proofs/wave-7-gate-a-authorization-2026-08-21.md) |
 | Gate B 24-result repair canary | forbidden; that contract still tutors and does not score Q1/Q2 |
 | 4,040-result screen | forbidden |
 | Token-cap increase | forbidden |
