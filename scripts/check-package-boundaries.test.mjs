@@ -8,7 +8,7 @@ test("the live workspace graph obeys the v2 package contract", async () => {
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.cycles, []);
   assert.equal(result.ok, true);
-  assert.equal(result.workspace_count, 13);
+  assert.equal(result.workspace_count, 11);
 });
 
 test("dependency cycles are reported with the closing edge", () => {

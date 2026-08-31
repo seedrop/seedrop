@@ -90,9 +90,7 @@
   "adapters": {
     "@seedrop/cli": ["transport", "presentation"],
     "@seedrop/mcp": ["transport", "presentation"],
-    "@seedrop/observer": ["observation_adapter"],
-    "@seedrop/bench": ["evaluation_adapter", "presentation"],
-    "@seedrop/desktop": ["transport", "presentation"]
+    "@seedrop/observer": ["observation_adapter"]
   },
   "shadow_only_packages": [
     "@seedrop/kernel",

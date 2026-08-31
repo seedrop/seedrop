@@ -2,7 +2,7 @@
 
 Read `AGENTS.md` first. Seedrop uses a persistent-identity model: one passport per agent, per-repo View, one always-on Space daemon.
 
-Humans: **Seedrop Desktop** (`desktop/`) is a developer preview until its signed clean-machine release gate passes. Agents: use CLI/MCP below.
+Humans and agents: use CLI/MCP below. Desktop and Bench were local experiments and are no longer in this repo.
 
 Minimum boot:
 

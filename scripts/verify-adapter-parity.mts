@@ -13,14 +13,6 @@ import {
 import { bindCliSituation } from "../cli/src/situation-binding.ts";
 import { tools as mcpTools } from "../mcp/src/index.ts";
 import { bindObserverSituation } from "../observer/src/situation-binding.ts";
-import { benchSharedSituationView } from "../bench/src/situation.ts";
-import {
-  canonicalDecision,
-  canonicalHealth,
-  canonicalSituation,
-  projectBucket,
-} from "../desktop/src/lib/buckets.ts";
-import type { ObserverProject } from "../desktop/src/lib/types.ts";
 
 const scenarios = ["healthy", "degraded", "contradictory", "refusal"] as const;
 
@@ -44,29 +36,6 @@ async function main(): Promise<void> {
     const selections = [cli.selection, mcp.selection, observer];
     for (const selection of selections) assertV2(selection, shared);
 
-    const bench = benchSharedSituationView({ adapter_situation: observer });
-    assert.deepEqual(bench, {
-      situationId: shared.situation_id,
-      decisionId: shared.decision_id,
-      semanticDigest: shared.semantic_digest,
-      bucket: shared.bucket,
-      readiness: shared.readiness,
-      health: shared.health.state,
-      intent: display(shared.orientation.intent, ["title", "goal", "state", "intent_id"]),
-      nextAction: shared.decision.display,
-      warnings: shared.warnings,
-    });
-
-    const desktop = desktopProject(observer);
-    assert.deepEqual(canonicalSituation(desktop), shared);
-    assert.equal(projectBucket(desktop), shared.bucket);
-    assert.deepEqual(canonicalHealth(desktop), shared.health);
-    assert.deepEqual(canonicalDecision(desktop), {
-      disposition: shared.decision.disposition,
-      display: shared.decision.display,
-      reason: shared.decision.reason,
-    });
-
     results.push({ scenario, situation_id: shared.situation_id, decision_id: shared.decision_id,
       semantic_digest: shared.semantic_digest, bucket: shared.bucket, readiness: shared.readiness,
       health: shared.health.state, decision: shared.decision.display,
@@ -85,11 +54,9 @@ async function main(): Promise<void> {
     assert.equal(selection.reason, "projection_mismatch");
     assert.equal(selection.warning, "projection_mismatch: v1 remains served");
   }
-  assert.equal(benchSharedSituationView({ adapter_situation: observer }), null);
-  assert.equal(canonicalSituation(desktopProject(observer)), null);
 
   process.stdout.write(`${JSON.stringify({ schema_version: "1.0.0", ok: true,
-    adapters: ["cli", "mcp", "observer", "bench", "desktop"], scenarios: results,
+    adapters: ["cli", "mcp", "observer"], scenarios: results,
     mismatch: { mode: "v1_fallback", reason: "projection_mismatch", v1_remained_served: true } })}\n`);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
@@ -124,20 +91,6 @@ function assertV2(selection: AdapterSituationSelection, shared: AdapterSituation
   assert.deepEqual(adapterSituationBytes(selection.served.payload), adapterSituationBytes(shared));
 }
 
-function desktopProject(selection: AdapterSituationSelection): ObserverProject {
-  return {
-    id: "parity",
-    label: "Parity",
-    root: "/tmp/parity",
-    status: "broken",
-    counts: { activeRuns: 0, openTasks: 9, activeSignals: 0, dirtyFiles: 0 },
-    attention: { score: 999 },
-    inspectors: { runs: { active: [] }, tasks: { openCount: 9, active: [] } },
-    situation: { summary: "conflicting legacy projection", tasks: { open: 9, active: 0, blocked: 9, unowned: 9, assigned: 0 } },
-    adapter_situation: selection,
-  };
-}
-
 function mcpExpected(expected: { situation_id: string; decision_id: string; semantic_digest: string }): Record<string, string> {
   return { expect_situation: expected.situation_id, expect_decision: expected.decision_id, expect_semantic: expected.semantic_digest };
 }
@@ -163,13 +116,6 @@ function fixture(scenario: typeof scenarios[number]): BoundedSituationProjection
     },
     trust: { source_health: { freshness: stale ? "stale" : "current", completeness: "complete", source_ids: ["project"], missing: [] } },
   };
-}
-
-function display(input: unknown, keys: readonly string[]): string {
-  if (typeof input === "string") return input;
-  const value = input && typeof input === "object" && !Array.isArray(input) ? input as Record<string, unknown> : {};
-  for (const key of keys) if (typeof value[key] === "string" && value[key]) return value[key] as string;
-  return "Not available";
 }
 
 function digest(letter: string): ProjectTransactionDigest {
