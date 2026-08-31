@@ -27,7 +27,6 @@ export interface DeprecatedCapabilityAlias {
 export const CLI_COMMAND_SURFACE = [
   "seed",
   "seed boot",
-  "seed bench",
   "seed bootstrap",
   "seed capabilities",
   "seed clients scan",
@@ -117,7 +116,6 @@ export const DEPRECATED_CAPABILITY_ALIASES: DeprecatedCapabilityAlias[] = [
 export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "MCP-only: seedrop_index", status: "mcp_only", tools: ["seedrop_index"], reason: "Local MCP catalog for routing tool choice; no CLI equivalent by design." },
   { command: "seed", status: "covered", tools: ["seedrop_boot"], reason: "Bare seed now renders the Situation brief, and MCP exposes the same Situation packet directly." },
-  { command: "seed bench", status: "cli_only", reason: "Bench starts a local read-only workbench server and is an operator-facing desktop/browser surface." },
   { command: "seed boot", status: "covered", tools: ["seedrop_boot"], reason: "Boot is wrapped with Situation JSON, messages, passport/url, peek, and since options." },
   { command: "seed bootstrap", status: "covered", tools: ["seedrop_bootstrap"], reason: "Setup/link flow is wrapped with agent, autonomous, passport, identity, and space-root flags." },
   { command: "seed capabilities", status: "covered", tools: ["seedrop_capabilities"], reason: "Full capability map (command -> MCP tool -> status) is exposed for at-a-glance agent orientation." },
@@ -190,7 +188,7 @@ export const MCP_CLI_COVERAGE: CliCommandCoverage[] = [
   { command: "seed whoami", status: "cli_only", reason: "Local shell identity inspection is intentionally CLI-only." },
 ];
 
-const DOMAINS = ["bench", "view", "run", "task", "space", "daemon", "inbox", "id"] as const;
+const DOMAINS = ["view", "run", "task", "space", "daemon", "inbox", "id"] as const;
 const GROUP_ORDER = ["core", ...DOMAINS] as const;
 
 function domainOf(command: string): string {

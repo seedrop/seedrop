@@ -4,7 +4,6 @@
   "workspaces": [
     "protocol",
     "space",
-    "desktop",
     "outcomes",
     "project",
     "kernel",
@@ -13,8 +12,7 @@
     "migration",
     "cli",
     "mcp",
-    "observer",
-    "bench"
+    "observer"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
@@ -24,7 +22,7 @@
     "test:wave-3-gate": "npm run test:architecture && npm run test:durable-v1-freeze && npm run check:durable-v1 && npm test -w @seedrop/protocol && npm test -w @seedrop/project && npm test -w @seedrop/kernel",
     "test:wave-5-gate": "npm run check:architecture && npm run test:architecture && npm run prepublishOnly -w @seedrop/observer && npm test -w @seedrop/project && npm test -w @seedrop/outcomes && npm test -w @seedrop/situation && npm run verify:outcomes:live && npm run verify:situation:live",
     "verify:adapter-parity": "node --import tsx scripts/verify-adapter-parity.mts",
-    "test:wave-6-gate": "npm run check:architecture && npm run test:architecture && npm run prepublishOnly -w @seedrop/situation && npm run prepublishOnly -w @seedrop/cli && npm run prepublishOnly -w @seedrop/mcp && npm run prepublishOnly -w @seedrop/observer && npm run prepublishOnly -w @seedrop/bench && npm run typecheck -w @seedrop/desktop && npm test -w @seedrop/desktop && npm run build -w @seedrop/desktop && npm run smoke -w @seedrop/desktop && npm run verify:adapter-parity",
+    "test:wave-6-gate": "npm run check:architecture && npm run test:architecture && npm run prepublishOnly -w @seedrop/situation && npm run prepublishOnly -w @seedrop/cli && npm run prepublishOnly -w @seedrop/mcp && npm run prepublishOnly -w @seedrop/observer && npm run verify:adapter-parity",
     "verify:outcomes:live": "npm run build -w @seedrop/migration && npm run build -w @seedrop/outcomes && node scripts/verify-outcomes-live.mjs",
     "verify:situation:live": "npm run build -w @seedrop/migration && npm run build -w @seedrop/project && npm run build -w @seedrop/outcomes && npm run build -w @seedrop/situation && npm run build -w @seedrop/cli && npm run build -w @seedrop/mcp && node scripts/verify-situation-live.mjs",
     "pr15:corpus": "node --import tsx scripts/pr15-corpus.mjs --corpus",
@@ -32,8 +30,8 @@
     "test:pr15-corpus": "node --import tsx --test scripts/pr15-corpus.test.mjs",
     "check:durable-v1": "node scripts/check-durable-v1-freeze.mjs check",
     "test:durable-v1-freeze": "node --test scripts/check-durable-v1-freeze.test.mjs",
-    "link": "npm run build --workspace @seedrop/space --workspace @seedrop/id && npm link --workspace @seedrop/cli && npm link --workspace @seedrop/mcp && npm link --workspace @seedrop/id && npm link --workspace @seedrop/bench",
-    "unlink": "npm unlink --workspace @seedrop/cli --workspace @seedrop/mcp --workspace @seedrop/id --workspace @seedrop/bench"
+    "link": "npm run build --workspace @seedrop/space --workspace @seedrop/id && npm link --workspace @seedrop/cli && npm link --workspace @seedrop/mcp && npm link --workspace @seedrop/id",
+    "unlink": "npm unlink --workspace @seedrop/cli --workspace @seedrop/mcp --workspace @seedrop/id"
   },
   "engines": {
     "node": ">=20"

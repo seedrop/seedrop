@@ -2,12 +2,14 @@
 
 > Identity is persistent and per-agent. View is persistent and per-repo. Space is a single always-on daemon. New project = `seed view init`. New machine = `seed bootstrap`.
 
-## Human entry: Seedrop Desktop (developer preview)
+## Human and agent entry
 
-**Do not distribute the current Desktop build or describe it as the recommended operator path until `npm run release:verify -w @seedrop/desktop` passes for a signed, notarized artifact.** Desktop (`desktop/`) is the intended human layer and is currently a developer preview while its sealed-runtime and clean-machine guarantees are completed. Agents still use CLI/MCP. Bench (`seed bench`) remains the power-user continuity workbench.
+The current operator path is **CLI and MCP**. Desktop and Bench were local experiments and are no longer in this repo.
 
 ```bash
-cd desktop && npm run fetch-runtime && npm run prepare-runtime && npm run tauri:dev
+seed bootstrap --name <you> --purpose "<mission>"
+seed daemon install --profile dev
+seed boot --json
 ```
 
 ## What Seedrop is today
@@ -176,7 +178,7 @@ Membership comes from `seed space join` and persists; presence is the live signa
 ## Daemon Management
 
 ```bash
-seed daemon install --profile dev # source-first developer profile; sealed Desktop installs omit this flag
+seed daemon install --profile dev # source-first developer profile
 seed daemon status      # state, pid
 seed daemon uninstall   # launchctl bootout + remove plist
 tail -f ~/.seedrop/space/logs/{out,err}.log

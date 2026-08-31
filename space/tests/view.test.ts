@@ -81,19 +81,17 @@ describe("WorkspaceView", () => {
   });
 
   it("ignores rust target build trees by default", async () => {
-    // desktop/src-tauri/target produced 34,825 of 40,220 tracked files in the
-    // seedrop repo itself, which kept manifest freshness permanently stale.
-    // Build output is never orientation signal; drop it like dist/.
+    // Nested rust `target/` trees are build output, not orientation signal.
     await writeFile(path.join(root, "README.md"), "# Demo\n");
-    await mkdir(path.join(root, "desktop", "src-tauri", "target", "debug"), { recursive: true });
-    await writeFile(path.join(root, "desktop", "src-tauri", "target", "debug", "artifact.bin"), "bytes\n");
-    await mkdir(path.join(root, "desktop", "src-tauri", "src"), { recursive: true });
-    await writeFile(path.join(root, "desktop", "src-tauri", "src", "main.rs"), "fn main() {}\n");
+    await mkdir(path.join(root, "app", "src-tauri", "target", "debug"), { recursive: true });
+    await writeFile(path.join(root, "app", "src-tauri", "target", "debug", "artifact.bin"), "bytes\n");
+    await mkdir(path.join(root, "app", "src-tauri", "src"), { recursive: true });
+    await writeFile(path.join(root, "app", "src-tauri", "src", "main.rs"), "fn main() {}\n");
 
     const manifest = await view().sync({ workspaceId: "demo" });
 
     expect(manifest.files.map((file) => file.path)).toEqual([
-      "desktop/src-tauri/src/main.rs",
+      "app/src-tauri/src/main.rs",
       "README.md",
     ]);
   });

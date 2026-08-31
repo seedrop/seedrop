@@ -513,7 +513,6 @@ const usage = `Usage:
   seed continuity ack --token <token> [--json]
   seed focus [--json]           (~400-token mission-scoped pre-flight; does not advance the watermark)
   seed capabilities [--json]    (full command -> MCP-tool map; what seed can do at a glance)
-  seed bench [--open]           (local read-only project workbench)
   seed doctor [--fix]           (diagnose local setup + exact next commands)
   seed bootstrap [--name <name>] [--purpose <purpose>] [--no-link]
   seed bootstrap --as <agent> --name <human-name> --purpose "<mission>"
@@ -598,10 +597,6 @@ export function resolveCommand(argv: readonly string[]): CommandPlan | "help" | 
 
   if (domain === "capabilities") {
     return "capabilities";
-  }
-
-  if (domain === "bench") {
-    return { command: "seed-bench", args: [...rest] };
   }
 
   if (domain === "login") return "login";
@@ -2442,7 +2437,7 @@ async function verifySealedRuntimeFile(
 
 /**
  * Resolve the exact runtime launchd will execute. Production is default-deny:
- * only a CLI and Node binary declared by the same sealed Desktop manifest are
+ * only a CLI and Node binary declared by the same sealed runtime manifest are
  * accepted. Source-first execution remains available only through the
  * explicit `--profile dev` development path.
  */
@@ -2863,9 +2858,7 @@ function resolveBundledScript(command: string): string | null {
     ? "@seedrop/id"
     : command === "seed-space"
       ? "@seedrop/space"
-      : command === "seed-bench"
-        ? "@seedrop/bench"
-        : null;
+      : null;
   if (!pkg) return null;
   try {
     const entryUrl = import.meta.resolve(pkg);

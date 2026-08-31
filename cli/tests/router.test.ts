@@ -170,11 +170,8 @@ describe("resolveCommand", () => {
     });
   });
 
-  it("routes bench commands to seed-bench", () => {
-    expect(resolveCommand(["bench", "--open", "--port", "0"])).toEqual({
-      command: "seed-bench",
-      args: ["--open", "--port", "0"],
-    });
+  it("does not route a removed bench experiment", () => {
+    expect(() => resolveCommand(["bench", "--open"])).toThrow(/Unknown seed domain: bench/);
   });
 
   it("composes view init with passport project linking", () => {
@@ -278,7 +275,6 @@ describe("resolveCommand", () => {
     expect(resolveCommand(["continuity"])).toBe("continuity");
     expect(resolveCommand(["focus"])).toBe("focus");
     expect(resolveCommand(["print-boot-protocol"])).toBe("boot-protocol");
-    expect(resolveCommand(["bench"])).toMatchObject({ command: "seed-bench" });
     expect(resolveCommand(["id", "list"])).toBe("id-list");
     expect(resolveCommand(["clients", "scan"])).toBe("clients");
     expect(resolveCommand(["id", "show"])).toMatchObject({ command: "seed-id" });
